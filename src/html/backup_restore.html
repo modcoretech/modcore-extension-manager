@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backup & Restore - Extension Data</title>
+    <link rel="stylesheet" href="../css/backup_restore.css">
+    <link rel="stylesheet" href="../../public/fonts/fonts.css">
+</head>
+<body>
+    <div class="page-wrapper">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <img src="../../public/icons/png/modcore-em.png" alt="Extension Logo" class="header-logo no-mask">
+                <h1 class="sidebar-title">Extension Backup</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <ul>
+                    <li><button class="sidebar-button active" data-panel="backup-restore"><span class="icon icon-shield"></span> Backup & Restore</button></li>
+                    <li><button class="sidebar-button" data-panel="data-management"><span class="icon icon-id"></span> Data Management</button></li>
+                </ul>
+            </nav>
+            <div class="sidebar-footer">
+                <p>&copy; 2025 modcore</p>
+            </div>
+        </aside>
+
+        <main class="content-area">
+            <div id="backup-restore-panel" class="content-panel" role="tabpanel" aria-labelledby="backup-restore-tab" tabindex="0">
+                <div class="panel-header">
+                    <h2>Backup & Restore Extension Data</h2>
+                    <p>Manage the extension's data by creating encrypted backups or restoring from a previous backup file.</p>
+                </div>
+                <div class="panel-content">
+                    <section class="content-section" id="create-backup-section">
+                        <h3 class="section-title">Create Backup</h3>
+                        <div class="details-grid">
+                            <div class="detail-item detail-item-full-width">
+                                <label for="backupFileName" class="detail-label">File Name</label>
+                                <input type="text" id="backupFileName" class="text-input" value="extension_backup">
+                            </div>
+                            <div class="detail-item">
+                                <label for="backupFileType" class="detail-label">File Type</label>
+                                <select id="backupFileType" class="select-input">
+                                    <option value="json">JSON (.json)</option>
+                                    <option value="txt">Text (.txt)</option>
+                                    <option value="dat">Binary (.dat)</option>
+                                </select>
+                            </div>
+                            <div class="detail-item detail-item-full-width">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="enableEncryptionCheckbox">
+                                    <span class="checkmark"></span>
+                                    Encrypt Backup with Password
+                                    <span class="tooltip-trigger" style="margin-left: var(--spacing-small);"><span class="icon icon-help"></span><span class="tooltip-content">Adds an extra layer of security to your backup file.</span></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="encryptionPasswordFields" class="details-grid" hidden>
+                            <div class="detail-item">
+                                <label for="backupPassword" class="detail-label">Encryption Password</label>
+                                <input type="password" id="backupPassword" class="text-input" placeholder="Enter a strong password">
+                            </div>
+                            <div class="detail-item">
+                                <label for="confirmBackupPassword" class="detail-label">Confirm Password</label>
+                                <input type="password" id="confirmBackupPassword" class="text-input" placeholder="Re-enter password">
+                            </div>
+                        </div>
+
+                        <div class="details-actions-grid" style="margin-top: var(--spacing-large);">
+                            <button id="createBackupBtn" class="btn primary">
+                                <span class="icon icon-download"></span> Create Backup
+                            </button>
+                        </div>
+                    </section>
+
+                    <section class="content-section" id="restore-backup-section">
+                        <h3 class="section-title">Restore Backup</h3>
+                        <div class="details-grid">
+                            <div class="detail-item detail-item-full-width">
+                                <label for="restoreFile" class="detail-label">Select Backup File</label>
+                                <div class="file-upload-container">
+                                    <input type="file" id="restoreFile" class="file-input" accept=".json,.txt,.dat">
+                                    <label for="restoreFile" class="file-input-label btn secondary">
+                                        <span class="icon icon-upload"></span> Choose File
+                                    </label>
+                                    <span id="selectedFileName" class="file-name-display">No file chosen</span>
+                                </div>
+                            </div>
+                            <div id="restorePasswordInputGroup" class="detail-item detail-item-full-width" hidden>
+                                <label for="restorePassword" class="detail-label">Encryption Password</label>
+                                <input type="password" id="restorePassword" class="text-input" placeholder="Password for encrypted backup">
+                            </div>
+                        </div>
+                        <div class="details-actions-grid" style="margin-top: var(--spacing-large);">
+                            <button id="restoreBackupBtn" class="btn primary" disabled>
+                                <span class="icon icon-upload"></span> Restore Backup
+                            </button>
+                        </div>
+                    </section>
+                </div>
+                <div class="api-error-display" id="backupRestoreError">
+                    <span class="icon icon-error"></span>
+                    <p class="error-message"></p>
+                </div>
+            </div>
+
+            <div id="data-management-panel" class="content-panel" role="tabpanel" aria-labelledby="data-management-tab" tabindex="0" hidden>
+                <div class="panel-header">
+                    <h2>Data Management</h2>
+                    <p>View the data stored by the extension and selectively clear it from different storage types.</p>
+                </div>
+                <div class="panel-content">
+                    <section class="content-section">
+                        <h3 class="section-title">View Stored Data</h3>
+                        <p class="detail-description-text">Below is the data currently stored by the extension across different storage areas (e.g., Chrome Local, Chrome Sync, Web Local, Web Session).</p>
+                        <div id="stored-data-display" class="code-block">
+                            <pre><code>No data loaded yet. Click 'Load Data' to view.</code></pre>
+                            <button class="btn-icon btn-copy" title="Copy to Clipboard"><span class="icon icon-copy"></span></button>
+                        </div>
+                        <div class="details-actions-grid" style="margin-top: var(--spacing-large);">
+                             <button id="loadDataBtn" class="btn secondary">
+                                <span class="icon icon-list"></span> Load Data
+                            </button>
+                        </div>
+                    </section>
+
+                    <section class="content-section">
+                        <h3 class="section-title">Clear Data by Storage Type</h3>
+                        <p class="detail-description-text">Select which storage types you want to clear. This action cannot be undone for the selected storage areas.</p>
+                        <div class="checkbox-group" style="margin-bottom: var(--spacing-large);">
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="clearChromeLocal" value="chromeLocal">
+                                <span class="checkmark"></span>
+                                Chrome Local Storage (<code class="storage-size" data-storage="chromeLocal">...</code>)
+                            </label>
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="clearChromeSync" value="chromeSync">
+                                <span class="checkmark"></span>
+                                Chrome Sync Storage (<code class="storage-size" data-storage="chromeSync">...</code>)
+                            </label>
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="clearWebLocal" value="webLocal">
+                                <span class="checkmark"></span>
+                                Web Local Storage (<code class="storage-size" data-storage="webLocal">...</code>)
+                            </label>
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="clearWebSession" value="webSession">
+                                <span class="checkmark"></span>
+                                Web Session Storage (<code class="storage-size" data-storage="webSession">...</code>)
+                            </label>
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="clearChromeManaged" value="chromeManaged" disabled>
+                                <span class="checkmark"></span>
+                                Chrome Managed Storage (Read-only)
+                                <span class="tooltip-trigger" style="margin-left: var(--spacing-small);"><span class="icon icon-help"></span><span class="tooltip-content">Managed storage cannot be cleared by the extension.</span></span>
+                            </label>
+                        </div>
+                        <div class="details-actions-grid">
+                            <button id="clearSelectedDataBtn" class="btn danger">
+                                <span class="icon icon-trash"></span> Clear Selected Data
+                            </button>
+                        </div>
+                    </section>
+                </div>
+                <div class="api-error-display" id="dataManagementError">
+                    <span class="icon icon-error"></span>
+                    <p class="error-message"></p>
+                </div>
+            </div>
+
+            <div class="loading-overlay" id="loading-overlay" hidden>
+                <div class="spinner"></div>
+                <p>Processing...</p>
+            </div>
+        </main>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <div class="modal-overlay" id="confirmation-modal">
+        <div class="modal-content">
+            <h3 id="modal-title">Confirm Action</h3>
+            <p id="modal-message">Are you sure you want to proceed with this action?</p>
+            <div class="modal-actions">
+                <button class="btn secondary" id="modal-cancel">Cancel</button>
+                <button class="btn danger" id="modal-confirm">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/backup_restore.js"></script>
+</body>
+</html>
