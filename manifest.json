@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "modcore Extension Manager",
   "short_name": "modcore EM",
-  "version": "2.3.81",
+  "version": "2.3.82",
   "description": "Effortlessly manage your browser extensions with advanced grouping, profiling, and control features.",
   "homepage_url": "https://github.com/modcoretech/modcore-extension-manager",
   "author": "modcore",
