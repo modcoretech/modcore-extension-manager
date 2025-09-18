@@ -1,0 +1,59 @@
+{
+  "extensionName": {
+    "message": "modcore Extension Manager",
+    "description": "Name of the extension."
+  },
+  "extensionShortName": {
+    "message": "modcore EM",
+    "description": "Short name of the extension."
+  },
+  "extensionDescription": {
+    "message": "Effortlessly manage your browser extensions with advanced grouping, profiling, and control features.",
+    "description": "Description of the extension."
+  },
+
+  
+
+  "offlineBannerMessage": {
+    "message": "You appear to be offline or experiencing connection issues."
+  },
+  "offlineHelpIconTitle": {
+    "message": "More information about connection problems"
+  },
+  "offlineDismissButton": {
+    "message": "Dismiss"
+  },
+  "modalTitle": {
+    "message": "Troubleshooting Connection Issues"
+  },
+  "modalIntroText": {
+    "message": "This message indicates a potential problem with your internet connection. Here are common steps to try:"
+  },
+  "modalCloseButton": {
+    "message": "Got it!"
+  },
+  "step1": {
+    "message": "Check Your Connection: Ensure you are connected to the correct Wi-Fi or your Ethernet cable is plugged in."
+  },
+  "step2": {
+    "message": "Restart Equipment: Turn off your router and modem for 30 seconds, then turn them back on."
+  },
+  "step3": {
+    "message": "Reload Page: A simple refresh can fix temporary glitches. Press F5 or Cmd+R."
+  },
+  "step4": {
+    "message": "Test Other Sites: See if you can access other websites like google.com."
+  },
+  "step5": {
+    "message": "Disable VPN/Proxy: Temporarily turn off any VPN or proxy services you're using."
+  },
+  "step6": {
+    "message": "Firewall/Antivirus: Check your security software to ensure it's not blocking your browser."
+  },
+  "step7": {
+    "message": "Restart Computer: A full system restart can resolve many underlying issues."
+  },
+  "temporaryOnlineMessage": {
+    "message": "You're back online!"
+  }
+}
