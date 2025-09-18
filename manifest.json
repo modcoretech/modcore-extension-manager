@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "modcore Extension Manager",
-  "short_name": "modcore EM",
-  "version": "2.3.82",
-  "description": "Effortlessly manage your browser extensions with advanced grouping, profiling, and control features.",
+  "name": "__MSG_extensionName__",
+  "short_name": "__MSG_extensionShortName__",
+  "version": "2.3.83",
+  "description": "__MSG_extensionDescription__",
   "homepage_url": "https://github.com/modcoretech/modcore-extension-manager",
   "author": "modcore",
   "permissions": [
@@ -12,7 +12,7 @@
     "commands",
     "alarms",
     "tabs"
-  ],
+    ],
   "background": {
     "service_worker": "src/js/background.js"
   },
@@ -32,12 +32,10 @@
     }
   ],
   "options_ui": {
-    "page": "src/html/backup.html",
+    "page": "src/html/backup_restore.html",
     "open_in_tab": true
   },
-  "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'"
-  },
+
   "web_accessible_resources": [
     {
       "resources": ["src/html/details.html"],
@@ -49,5 +47,6 @@
       "id": "ngde@web.de",
       "strict_min_version": "42.0"
     }
-  }
+  },
+  "default_locale": "en"
 }
