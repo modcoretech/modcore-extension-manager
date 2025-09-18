@@ -28,7 +28,7 @@
                     <img src="../../public/icons/svg/rules.svg" alt="" aria-hidden="true">
                 </a>
                 <button id="help-modal-trigger" class="header-icon-btn" aria-label="Help and Information" title="Get help, report issues, or provide feedback.">
-                    <img src="../../public/icons/svg/help.svg" alt="" aria-hidden="true">
+                    <img src="../../public/icons/svg/dots-circle1.svg" alt="" aria-hidden="true">
                 </button>
             </div>
         </div>
@@ -53,21 +53,24 @@
         </div>
 
         <div id="bulk-actions-container" class="bulk-actions-container" style="display: none;">
-             <span id="selected-count" aria-live="polite">0 selected</span>
-             <select id="bulk-assign-group-select" aria-label="Assign selected extensions to group" title="Assign all selected extensions to a new or existing group, or remove them from any group.">
-                 <option value="" disabled selected>Assign to Group...</option>
-                 <option value="--remove--">Remove from Group</option>
-             </select>
-             <button id="bulk-enable-button" class="button-small button-success" title="Enable all selected extensions.">
-                 <img src="../../public/icons/svg/power.svg" alt="" aria-hidden="true"> Enable
-             </button>
-             <button id="bulk-disable-button" class="button-small button-danger" title="Disable all selected extensions.">
-                 <img src="../../public/icons/svg/power.svg" alt="" aria-hidden="true"> Disable
-             </button>
-             <button id="bulk-uninstall-button" class="button-small button-danger" title="Uninstall all selected extensions. This action is permanent.">
-                 <img src="../../public/icons/svg/trash.svg" alt="" aria-hidden="true"> Uninstall
-             </button>
-        </div>
+    <span id="selected-count" aria-live="polite">0 selected</span>
+    <div class="bulk-actions-dropdown">
+        <button id="bulk-assign-action-btn" class="button-small" aria-haspopup="true" aria-expanded="false">
+            Assign To...
+        </button>
+        <div id="bulk-assign-dropdown-menu" class="bulk-actions-dropdown-menu" role="menu">
+            </div>
+    </div>
+    <button id="bulk-enable-button" class="button-small button-success" title="Enable all selected extensions.">
+        <img src="../../public/icons/svg/power.svg" alt="" aria-hidden="true"> Enable
+    </button>
+    <button id="bulk-disable-button" class="button-small button-danger" title="Disable all selected extensions.">
+        <img src="../../public/icons/svg/power.svg" alt="" aria-hidden="true"> Disable
+    </button>
+    <button id="bulk-uninstall-button" class="button-small button-danger" title="Uninstall all selected extensions. This action is permanent.">
+        <img src="../../public/icons/svg/trash.svg" alt="" aria-hidden="true"> Uninstall
+    </button>
+</div>
 
         <span id="success-message" class="feedback-message success-message" style="display: none;" aria-live="polite" role="status"></span>
         <span id="error-message" class="feedback-message error-message" style="display: none;" aria-live="assertive" role="alert"></span>
@@ -81,7 +84,7 @@
 
         <div id="extension-list-header" class="extension-list-header">
              <input type="checkbox" id="select-all-checkbox" title="Select or deselect all extensions currently visible on this page." aria-label="Select/Deselect All Visible Extensions">
-             <span>Extension <em class="subtle-hint-header">(Drag to Reorder)</em></span>
+             <span>Extension</span>
              <span class="header-actions-label">Actions</span>
         </div>
         <div id="extension-list" aria-live="polite">
@@ -120,7 +123,7 @@
             </div>
 
             <div id="modal-group-list-section" class="modal-section">
-                <h3>Existing Groups <span class="subtle-hint">(Drag to Reorder)</span></h3>
+                <h3>Existing Groups</h3>
                 <ul id="modal-group-management-list" aria-live="polite">
                     </ul>
                 <div class="group-actions-bottom-bar">
@@ -159,7 +162,10 @@
                         <option value="disable">Always Disable</option>
                     </select>
                 </div>
-                 <p class="subtle-hint modal-hint">Assign a global keyboard shortcut. Use `Ctrl+Shift+<Key>` or `Alt+Shift+<Key>`.</p>
+                 <p class="subtle-hint modal-hint">
+                    Assign a global keyboard shortcut to quickly switch to this group. Use Ctrl+Shift+ or Alt+Shift+.
+                   <a href="rules.html" target="_blank" rel="noopener noreferrer">Set up an automation rule for this group...</a>
+                </p>
                  <span id="modal-group-config-error-message" class="feedback-message error-message modal-feedback" style="display: none;" aria-live="assertive"></span>
             </div>
 
@@ -202,7 +208,7 @@
             </div>
 
             <div id="modal-profile-list-section" class="modal-section">
-                <h3>Existing Profiles <span class="subtle-hint">(Drag to Reorder)</span></h3>
+                <h3>Existing Profiles</h3>
                  <ul id="modal-profile-management-list" aria-live="polite">
                     </ul>
             </div>
@@ -221,7 +227,10 @@
                         <label for="profile-config-shortcut-input" class="label-inline">Shortcut:</label>
                         <input type="text" id="profile-config-shortcut-input" placeholder="e.g., Ctrl+Shift+P" aria-label="Keyboard shortcut to apply this profile" maxlength="20">
                     </div>
-                    <p class="subtle-hint modal-hint">Assign a global keyboard shortcut to quickly switch to this profile. Use `Ctrl+Shift+<Key>` or `Alt+Shift+<Key>`.</p>
+                    <p class="subtle-hint modal-hint">
+                        Assign a global keyboard shortcut to quickly switch to this profile. Use Ctrl+Shift+ or Alt+Shift+.
+                        <a href="rules.html" target="_blank" rel="noopener noreferrer">Set up an automation rule for this profile...</a>
+                    </p>
                     <span id="profile-config-shortcut-message" class="feedback-message error-message modal-feedback" style="display: none;"></span>
                 </div>
 
@@ -248,49 +257,56 @@
 
     <!-- New Help Modal Structure -->
     <div id="help-modal" class="modal-overlay" style="display: none;" aria-hidden="true">
-        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="help-modal-title">
-            <button class="modal-close-button" aria-label="Close Help and Information" title="Close Help Modal">&times;</button>
-            <h2 id="help-modal-title">Help & Information</h2>
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="help-modal-title">
+        <button class="modal-close-button" aria-label="Close Help and Information" title="Close Help Modal">&times;</button>
+        <h2 id="help-modal-title">Help & Information</h2>
 
-            <div class="modal-section">
-                <p class="modal-hint">Thank you for using modcore Extension Manager! Here are some resources to help you.</p>
-                <ul class="help-links-list">
-                    <li>
-                        <a href="https://github.com/Nitra-Global/NG-Extension-Manager/discussions" target="_blank" rel="noopener noreferrer">
-                            <img src="../../public/icons/svg/chat.svg" alt="" aria-hidden="true">
-                            <span>Discuss & Ask Questions</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="https://github.com/Nitra-Global/NG-Extension-Manager/issues" target="_blank" rel="noopener noreferrer">
-                            <img src="../../public/icons/svg/error.svg" alt="" aria-hidden="true">
-                            <span>Report an Issue</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="https://github.com/modcoretech/modcore-extension-manager/wiki" target="_blank" rel="noopener noreferrer">
-                            <img src="../../public/icons/svg/help.svg" alt="" aria-hidden="true">
-                            <span>View Documentation</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="https://forms.gle/BwnxtmQQcE3Y4fNb8" target="_blank" rel="noopener noreferrer">
-                            <img src="../../public/icons/svg/feedback.svg" alt="" aria-hidden="true">
-                            <span>Give Feedback</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="https://sites.google.com/view/ng-extension-manager/general-info/donations?authuser=0" target="_blank" rel="noopener noreferrer">
-                            <img src="../../public/icons/svg/support.svg" alt="" aria-hidden="true">
-                            <span>Donate & Support</span>
-                        </a>
-                    </li>
-                </ul>
-            </div>
-
-            <p class="subtle-hint modal-hint text-center">Version 2.3.81</p>
+        <div class="modal-section">
+            <p class="modal-hint">Thank you for using modcore Extension Manager! Here are some resources to help you.</p>
+            <ul class="help-links-list">
+                <li>
+                    <a href="https://github.com/Nitra-Global/NG-Extension-Manager/discussions" target="_blank" rel="noopener noreferrer">
+                        <img src="../../public/icons/svg/chat.svg" alt="" aria-hidden="true">
+                        <span>Discuss & Ask Questions</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="https://github.com/Nitra-Global/NG-Extension-Manager/issues" target="_blank" rel="noopener noreferrer">
+                        <img src="../../public/icons/svg/error.svg" alt="" aria-hidden="true">
+                        <span>Report an Issue</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="https://github.com/modcoretech/modcore-extension-manager/wiki" target="_blank" rel="noopener noreferrer">
+                        <img src="../../public/icons/svg/help.svg" alt="" aria-hidden="true">
+                        <span>View Documentation</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="https://forms.gle/BwnxtmQQcE3Y4fNb8" target="_blank" rel="noopener noreferrer">
+                        <img src="../../public/icons/svg/feedback.svg" alt="" aria-hidden="true">
+                        <span>Give Feedback</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="https://sites.google.com/view/ng-extension-manager/general-info/donations?authuser=0" target="_blank" rel="noopener noreferrer">
+                        <img src="../../public/icons/svg/support.svg" alt="" aria-hidden="true">
+                        <span>Donate & Support</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="https://sites.google.com/view/modcore-pricing/modcore-extension-manager" target="_blank" rel="noopener noreferrer">
+                        <img src="../../public/icons/svg/store.svg" alt="" aria-hidden="true">
+                        <span>Marketplace</span>
+                    </a>
+                </li>
+            </ul>
         </div>
+
+        <p class="subtle-hint modal-hint text-center" id="footer-info"></p>
     </div>
+</div>
+
 
     <script src="../js/popup.js"></script>
 </body>
