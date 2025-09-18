@@ -3,184 +3,307 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cloud Sync Settings</title>
+    <title>Cloud Sync</title>
     <link rel="stylesheet" href="../css/cloud-sync.css">
     <link rel="stylesheet" href="../../public/fonts/fonts.css">
 </head>
 <body>
 
     <div class="page-wrapper">
-        <div class="content-area">
-            <div class="container content-panel">
-                <h1>Cloud Sync Settings</h1>
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <img src="../../public/icons/svg/cloud.svg" alt="Extension Logo" class="header-logo no-mask">
+                <h1 class="sidebar-title">Cloud Sync</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <ul>
+                    <li><button class="sidebar-button active" data-panel="status-panel"><span class="icon icon-info"></span>Status</button></li>
+                    <li><button class="sidebar-button" data-panel="options-panel"><span class="icon icon-settings"></span>Options</button></li>
+                    <li><button class="sidebar-button" data-panel="actions-panel"><span class="icon icon-toggle-on"></span>Actions</button></li>
+                    <li><button class="sidebar-button" data-panel="history-panel"><span class="icon icon-code"></span>History</button></li>
+                    <li><button class="sidebar-button" data-panel="log-panel"><span class="icon icon-list"></span>Log</button></li>
+                </ul>
+            </nav>
+            <div class="sidebar-footer">
+                <p>Sync v2.0</p>
+            </div>
+        </aside>
 
-                <div class="dev-warning-box">
-                    <h3>⚠️ This feature is currently in development.</h3>
-                    <p>
-                        Functionality may be unstable, and unexpected data loss could occur.
-                        Please use manual backups for critical data.
-                    </p>
-                </div>
-
-                <div class="tab-bar">
-                    <div class="tab-link active" data-panel="status-panel">Status & Usage</div>
-                    <div class="tab-link" data-panel="options-panel">Sync Options</div>
-                    <div class="tab-link" data-panel="actions-panel">Manual Actions</div>
-                    <div class="tab-link" data-panel="log-panel">Sync Log</div>
-                </div>
-
-                <div class="panel-container">
-                    <div id="status-panel" class="panel active content-section">
-                        <div class="tip-box">
-                            <h3>What is Cloud Sync?</h3>
-                            <p>
-                                Cloud Sync backs up your extension's settings to your Google account, keeping them in sync across all your devices. This helps you avoid data loss and makes it easy to set up on a new computer.
-                            </p>
-                        </div>
-                        <div class="option-group">
-                            <h2>Overall Sync Status</h2>
-                            <p>
-                                **Chrome Sync Status:** <span id="chromeSyncStatus" class="status-indicator status-unknown">Checking...</span>
-                            </p>
-                            <p>
-                                **Extension Sync Enabled:** <span id="extensionSyncStatus" class="status-indicator status-unknown">Checking...</span>
-                            </p>
-                            <p>
-                                **Last Automatic Sync:** <span id="lastAutoSyncTimestamp">Never</span>
-                            </p>
-                            <hr class="divider">
-                            <h2>Current Sync Usage</h2>
-                            <p>This shows how much of your cloud storage quota is being used. A 100 KB limit applies to all your synced data.</p>
-                            <div id="syncProgressBarContainer">
-                                <div id="syncProgressBar">
-                                    <div id="syncProgress"></div>
-                                    <div id="syncProgressText"></div>
-                                </div>
-                                <div class="quota-info">
-                                    Total Quota: 100 KB
-                                </div>
+        <main class="content-area">
+            <div id="status-panel" class="content-panel active">
+                <div class="panel-header">
+                    <h2>Status & Usage</h2>
+                    <p>Monitor your sync status and data usage. A 100 KB quota applies to all synced data.</p>
+              </div>
+                <div class="panel-content">
+                    <div class="warning-box">
+                     <h3>⚠️ Cloud Sync is a preview feature and still in development.</h3>
+                     <p>You may encounter bugs or data issues. Avoid using it for critical backups. <a href="https://github.com/modcoretech/modcore-extension-manager/issues" class="report-issue-link">Report issues here</a>.</p>
+                    </div>
+                    <div class="content-section">
+                        <h3 class="section-title small-title">Overall Status</h3>
+                        <div class="details-grid">
+                            <div class="detail-item">
+                                <span class="detail-label">Chrome Sync</span>
+                                <span id="chromeSyncStatus" class="detail-value status-indicator status-unknown" data-tooltip-id="chromeSyncTooltip">Checking...</span>
                             </div>
-                            <div id="statusMessage" class="status-message info">Checking sync status...</div>
+                            <div class="detail-item">
+                                <span class="detail-label">Auto Sync</span>
+                                <span id="extensionSyncStatus" class="detail-value status-indicator status-unknown" data-tooltip-id="autoSyncTooltip">Checking...</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Last Sync</span>
+                                <span id="lastSyncTimestamp" class="detail-value">Never</span>
+                            </div>
                         </div>
                     </div>
+                    <div class="content-section">
+                        <h3 class="section-title small-title">Current Quota Usage</h3>
+                        <div id="syncProgressBarContainer">
+                            <div id="syncProgressBar">
+                                <div id="syncProgress"></div>
+                                <div id="syncProgressText">0 KB / 100 KB</div>
+                            </div>
+                            <div class="quota-info">
+                                <span id="totalBytesUsed">0</span> bytes used of 102,400 bytes
+                            </div>
+                        </div>
+                        <div id="statusMessage" class="status-message info" role="status" aria-live="polite">Checking sync status...</div>
+                    </div>
+                    <div class="content-section">
+                        <h3 class="section-title small-title">Quota Breakdown</h3>
+                        <div id="quotaBreakdown" class="quota-breakdown-container">
+                            <p class="placeholder-text">Sync data to see a breakdown of storage usage.</p>
+                        </div>
+                        <p class="small-text-muted">
+                            Note: This breakdown reflects the size of currently selected data types. Chrome's total sync storage might include
+                            additional overhead or metadata not displayed here, so your actual quota usage may be slightly higher than the sum shown.
+                        </p>
+                    </div>
+                </div>
+            </div>
 
-                    <div id="options-panel" class="panel content-section">
+            <div id="options-panel" class="content-panel">
+                <div class="panel-header">
+                    <h2>Sync Options</h2>
+                    <p>Configure automatic syncing, what data to sync, and how your device is identified.</p>
+                </div>
+                <div class="panel-content">
+                    <div class="content-section">
+                        <h3 class="section-title small-title">Selective Sync</h3>
+                        <p>Choose which data categories to sync. Unchecking an item will prevent it from being sent to or restored from the cloud. Not all data is stored in Cloud Sync.</p>
+                        <div id="selectiveSyncOptions" class="option-grid">
+                            </div>
+                    </div>
+                    <div class="content-section">
+                        <h3 class="section-title small-title">Automatic Syncing</h3>
                         <div class="option-group">
-                            <h2>Automatic Syncing</h2>
                             <div class="option-item">
-                                <label for="enableAutoSync">
-                                    <input type="checkbox" id="enableAutoSync">
-                                    Enable Automatic Background Sync
-                                </label>
-                                <p>Automatically saves your data to the cloud periodically.</p>
+                                <label for="enableAutoSync"><input type="checkbox" id="enableAutoSync">Enable Automatic Background Sync</label>
+                                <p>Periodically saves your selected data to the cloud.</p>
                             </div>
                             <div class="option-item">
-                                <label for="syncOnStartup">
-                                    <input type="checkbox" id="syncOnStartup">
-                                    Sync on Browser Startup
-                                </label>
+                                <label for="syncOnStartup"><input type="checkbox" id="syncOnStartup">Sync on Browser Startup</label>
                                 <p>Trigger a sync every time your browser is launched.</p>
                             </div>
                             <div class="option-item">
-                                <label for="syncOnChange">
-                                    <input type="checkbox" id="syncOnChange">
-                                    Sync on Data Change
-                                </label>
-                                <p>Automatically syncs your data shortly after you make a change (e.g., saving a rule or group). This is highly recommended.</p>
+                                <label for="syncInterval">Automatic Sync Interval:</label>
+                                <select id="syncInterval" class="form-input">
+                                    <option value="60">Every 1 Hour</option>
+                                    <option value="180">Every 3 Hours</option>
+                                    <option value="360">Every 6 Hours</option>
+                                    <option value="720">Every 12 Hours</option>
+                                    <option value="1440">Every 24 Hours</option>
+                                </select>
+                                <p class="small-text-muted">
+                                    Sets how often the automatic background sync will run. Please note: Chrome's alarm API
+                                    is designed for approximate intervals. Actual sync times may vary and are subject to
+                                    browser activity, system resources, and internal Chrome optimizations. Syncs may be
+                                    delayed if the browser is closed or inactive. This is a Chrome limitation, not an
+                                    extension issue.
+                                </p>
                             </div>
-                            <div class="option-item">
-                                <label for="syncInterval">
-                                    Automatic Sync Interval:
-                                    <select id="syncInterval" class="form-input">
-                                        <option value="60">Every 1 Hour</option>
-                                        <option value="180">Every 3 Hours</option>
-                                        <option value="360">Every 6 Hours</option>
-                                        <option value="720">Every 12 Hours</option>
-                                        <option value="1440">Every 24 Hours</option>
-                                    </select>
-                                </label>
-                                <p>Sets how often the automatic background sync alarm will run.</p>
-                            </div>
-                        </div>
-                        
-                        <div class="option-group">
-                            <h2>Device Naming</h2>
-                            <p>Choose how this device will be identified in the sync log.</p>
-                            <div class="option-item">
-                                <label>
-                                    <input type="radio" name="deviceNameOption" value="userAgent" checked>
-                                    Use Full User Agent
-                                </label>
-                                <p>Uses your browser's full technical identifier.</p>
-                            </div>
-                            <div class="option-item">
-                                <label>
-                                    <input type="radio" name="deviceNameOption" value="browser">
-                                    Use Browser Name
-                                </label>
-                                <p>Uses a simplified name like "Chrome on Windows".</p>
-                            </div>
-                            <div class="option-item">
-                                <label>
-                                    <input type="radio" name="deviceNameOption" value="custom">
-                                    Use a Custom Name:
-                                </label>
-                                <input type="text" id="customDeviceName" placeholder="e.g., My Desktop PC" class="form-input custom-name-input" disabled>
-                                <p class="muted-text">**Current Device ID:** <span id="currentDeviceId">Loading...</span></p>
-                            </div>
-                        </div>
-
-                        <div class="option-group">
-                            <h2>Deactivating Sync</h2>
-                            <p>To stop syncing or remove your data from the cloud, you have a few options:</p>
-                            <ul>
-                                <li>**Disable Auto Sync:** Just turn off the checkbox above.</li>
-                                <li>**Clear Cloud Data:** Go to the "Manual Actions" tab and use the "Clear" button. This is permanent.</li>
-                                <li>**Disable Chrome Sync:** You can also turn off sync for your entire browser in Chrome's settings.</li>
-                            </ul>
                         </div>
                     </div>
-
-                    <div id="actions-panel" class="panel content-section">
-                        <div class="warning-box">
-                            <h3>Warning: Use with Care!</h3>
-                            <p>These actions can overwrite or delete your data permanently. Make sure you know what you are doing.</p>
-                        </div>
-                        <div class="option-group">
-                            <h2>Manual Sync Actions</h2>
-                            <p>Sync your data on demand with these buttons.</p>
-                            <div class="button-group">
-                                <button id="syncNowBtn" class="btn primary">Sync Local Data to Cloud</button>
-                                <button id="restoreBtn" class="btn success">Restore from Cloud</button>
-                            </div>
-                            <p class="muted-text text-center top-margin-small">
-                                **Warning:** Restoring will **overwrite** your current local data.
+                    <div class="content-section">
+                        <h3 class="section-title small-title">Retention Policies</h3>
+                        <div class="option-item">
+                            <label for="historyRetentionPolicy">Delete history entries:</label>
+                            <select id="historyRetentionPolicy" class="form-input">
+                                <option value="10">Keep last 10 entries (Default)</option>
+                                <option value="30d">Older than 30 days</option>
+                                <option value="60d">Older than 60 days</option>
+                                <option value="90d">Older than 90 days</option>
+                                <option value="never">Never (keep all)</option>
+                            </select>
+                            <p class="small-text-muted">
+                                Configures how long history entries are kept. Old entries will be automatically
+                                cleaned up periodically. This affects history visible on this device and in the cloud.
                             </p>
                         </div>
-                        <div class="option-group">
-                            <h2>Clear Synced Data</h2>
-                            <p>This permanently deletes all your synced extension data from the cloud.</p>
-                            <div class="button-group text-center">
-                                <button id="clearSyncBtn" class="btn danger">Clear My Synced Data from Cloud</button>
-                            </div>
+                        <div class="option-item">
+                            <label for="logRetentionPolicy">Delete log entries:</label>
+                            <select id="logRetentionPolicy" class="form-input">
+                                <option value="100">Keep last 100 entries (Default)</option>
+                                <option value="30d">Older than 30 days</option>
+                                <option value="60d">Older than 60 days</option>
+                                <option value="90d">Older than 90 days</option>
+                                <option value="never">Never (keep all)</option>
+                            </select>
+                            <p class="small-text-muted">
+                                Configures how long log entries are kept. Old entries will be automatically
+                                cleaned up periodically. This only affects the log visible on this device.
+                            </p>
                         </div>
                     </div>
-                    
-                    <div id="log-panel" class="panel content-section">
-                        <div class="option-group">
-                            <h2>Sync Log & History</h2>
-                            <p>A history of all sync events, including manual actions and automatic backups. This can help you troubleshoot issues.</p>
-                            <div id="syncLog">
-                                <p class="text-center muted-text-log">No sync events recorded yet.</p>
-                            </div>
+                    <div class="content-section">
+                        <h3 class="section-title small-title">Data Management</h3>
+                        <div class="button-group">
+                            <button id="exportHistoryBtn" class="btn secondary"><span class="icon icon-download"></span>Export History</button>
+                            <button id="exportLogBtn" class="btn secondary"><span class="icon icon-download"></span>Export Log</button>
                         </div>
                     </div>
-
                 </div>
+            </div>
+
+            <div id="actions-panel" class="content-panel">
+                <div class="panel-header">
+                    <h2>Manual Actions</h2>
+                    <p>Manually manage your cloud data. Use these actions with caution.</p>
+                </div>
+                <div class="panel-content">
+                     <div class="warning-box">
+                        <h3>Use with Care!</h3>
+                        <p>These actions can overwrite or delete your data permanently. Restoring from the cloud will replace your current local data.</p>
+                    </div>
+                    <div class="content-section">
+                        <h3 class="section-title small-title">Manual Sync</h3>
+                        <div class="button-group">
+                            <button id="syncNowBtn" class="btn primary"><span class="icon icon-toggle-on"></span>Sync to Cloud</button>
+                            <button id="restoreBtn" class="btn secondary"><span class="icon icon-grid"></span>Restore from Cloud</button>
+                        </div>
+                    </div>
+                    <div class="content-section">
+                        <h3 class="section-title small-title">Danger Zone</h3>
+                        <div class="button-group">
+                            <button id="clearSyncBtn" class="btn danger tertiary"><span class="icon icon-trash"></span>Clear All Cloud Data</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="history-panel" class="content-panel">
+                 <div class="panel-header">
+                    <h2>Version History</h2>
+                    <p>View and restore previous versions of your synced data. History loads automatically and updates as you type.</p>
+                </div>
+                <div class="panel-content">
+                    <div class="content-section">
+                        <h3 class="section-title small-title">Filter History</h3>
+                        <div class="filter-controls compact">
+                            <input type="text" id="historySearchInput" class="form-input" placeholder="Search history...">
+                            <label for="historyDateRange">Date Range:</label>
+                            <select id="historyDateRange" class="form-input">
+                                <option value="all">All Time</option>
+                                <option value="24h">Last 24 Hours</option>
+                                <option value="7d">Last 7 Days</option>
+                                <option value="30d">Last 30 Days</option>
+                                <option value="custom">Custom Range</option>
+                            </select>
+                            <div id="historyCustomDateRange" style="display: none;">
+                                <input type="date" id="historyStartDate" class="form-input">
+                                <span>to</span>
+                                <input type="date" id="historyEndDate" class="form-input">
+                            </div>
+                        </div>
+                    </div>
+                    <div id="versionHistory" class="version-history-container">
+                        <p class="placeholder-text">Loading history...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="log-panel" class="content-panel">
+                <div class="panel-header">
+                    <h2>Sync Log</h2>
+                    <p>A detailed log of all sync events, including automatic and manual actions. The log loads automatically and updates as you type.</p>
+                </div>
+                <div class="panel-content">
+                     <div class="content-section">
+                        <h3 class="section-title small-title">Filter Log</h3>
+                        <div class="filter-controls compact">
+                            <input type="text" id="logSearchInput" class="form-input" placeholder="Search log...">
+                            <label for="logDateRange">Date Range:</label>
+                            <select id="logDateRange" class="form-input">
+                                <option value="all">All Time</option>
+                                <option value="24h">Last 24 Hours</option>
+                                <option value="7d">Last 7 Days</option>
+                                <option value="30d">Last 30 Days</option>
+                                <option value="custom">Custom Range</option>
+                            </select>
+                            <div id="logCustomDateRange" style="display: none;">
+                                <input type="date" id="logStartDate" class="form-input">
+                                <span>to</span>
+                                <input type="date" id="logEndDate" class="form-input">
+                            </div>
+                        </div>
+                    </div>
+                    <div id="syncLog" class="sync-log-container">
+                        <p class="placeholder-text">Loading log...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="confirmDialogOverlay" class="modal-overlay">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="confirmDialogTitle">
+            <h3 id="confirmDialogTitle">Are you sure?</h3>
+            <p id="confirmDialogMessage">This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button id="confirmCancelBtn" class="btn secondary">Cancel</button>
+                <button id="confirmOkBtn" class="btn primary">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="conflictDialogOverlay" class="modal-overlay">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="conflictDialogTitle">
+            <h3 id="conflictDialogTitle">🤝 Sync Conflict</h3>
+            <p id="conflictDialogMessage">Your local data has changed since the last sync. How would you like to proceed?</p>
+            <div class="modal-actions">
+                <button id="conflictKeepLocalBtn" class="btn secondary">Keep My Local Data</button>
+                <button id="conflictKeepCloudBtn" class="btn primary">Overwrite with Cloud Data</button>
             </div>
         </div>
     </div>
     
+    <div id="toast-container"></div>
+
+    <div id="chromeSyncTooltip" class="tooltip">
+        <p><strong>Chrome Sync Status:</strong></p>
+        <ul>
+            <li><strong>Active:</strong> Chrome's built-in sync is enabled and actively synchronizing data for your profile. This is required for extension cloud sync.</li>
+            <li><strong>Inactive / Warning:</strong> Chrome sync might be paused, disabled, or encountering issues. Ensure you are signed into Chrome and sync is enabled for "Extension data" in Chrome's sync settings.</li>
+            <li><strong>Checking...:</strong> The extension is currently querying Chrome for the sync status.</li>
+        </ul>
+        <p class="small-text-muted">
+            This status reflects Chrome's overall sync state for your profile, which is required for this extension's cloud sync to function.
+        </p>
+    </div>
+
+    <div id="autoSyncTooltip" class="tooltip">
+        <p><strong>Automatic Background Sync Status:</strong></p>
+        <ul>
+            <li><strong>Enabled:</strong> The extension is configured to periodically sync your data to the cloud in the background.</li>
+            <li><strong>Disabled:</strong> Automatic syncing is turned off. You will need to sync manually via the Actions panel.</li>
+            <li><strong>Checking...:</strong> The extension is determining the current auto-sync setting.</li>
+        </ul>
+        <p class="small-text-muted">
+            This controls whether this specific extension will automatically manage your data in Chrome Sync storage.
+        </p>
+    </div>
+
     <script src="../js/cloud-sync.js"></script>
 
 </body>
