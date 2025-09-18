@@ -1,0 +1,58 @@
+{
+  "extensionName": {
+    "message": "modcore Extension Manager",
+    "description": "Nom de l’extension."
+  },
+  "extensionShortName": {
+    "message": "modcore EM",
+    "description": "Nom court de l’extension."
+  },
+  "extensionDescription": {
+    "message": "Gérez facilement vos extensions de navigateur avec des fonctions avancées de regroupement, de profilage et de contrôle.",
+    "description": "Description de l’extension."
+  },
+
+  
+  "offlineBannerMessage": {
+    "message": "Vous semblez être hors ligne ou rencontrer des problèmes de connexion."
+  },
+  "offlineHelpIconTitle": {
+    "message": "Plus d'informations sur les problèmes de connexion"
+  },
+  "offlineDismissButton": {
+    "message": "Fermer"
+  },
+  "modalTitle": {
+    "message": "Dépannage des problèmes de connexion"
+  },
+  "modalIntroText": {
+    "message": "Ce message indique un problème potentiel avec votre connexion Internet. Voici les étapes courantes à suivre :"
+  },
+  "modalCloseButton": {
+    "message": "J'ai compris !"
+  },
+  "step1": {
+    "message": "Vérifiez votre Connexion : Assurez-vous d'être connecté au bon Wi-Fi ou que votre câble Ethernet est bien branché."
+  },
+  "step2": {
+    "message": "Redémarrez vos Équipements : Éteignez votre routeur et votre modem pendant 30 secondes, puis rallumez-les."
+  },
+  "step3": {
+    "message": "Rechargez la Page : Un simple rafraîchissement peut parfois corriger des problèmes temporaires. Appuyez sur F5 ou Cmd+R."
+  },
+  "step4": {
+    "message": "Testez d'Autres Sites : Voyez si vous pouvez accéder à d'autres sites web comme google.com."
+  },
+  "step5": {
+    "message": "Désactivez le VPN/Proxy : Désactivez temporairement tout service VPN ou proxy que vous utilisez."
+  },
+  "step6": {
+    "message": "Pare-feu/Antivirus : Vérifiez votre logiciel de sécurité pour vous assurer qu'il ne bloque pas votre navigateur."
+  },
+  "step7": {
+    "message": "Redémarrez l'Ordinateur : Un redémarrage complet du système peut résoudre de nombreux problèmes sous-jacents."
+  },
+  "temporaryOnlineMessage": {
+    "message": "Vous êtes de nouveau en ligne !"
+  }
+}
