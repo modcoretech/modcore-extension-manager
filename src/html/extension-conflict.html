@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Advanced Extension Check</title>
+    <title>Extension Conflict Check</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="../../public/fonts/fonts.css">
@@ -42,8 +42,9 @@
 
             /* Risk & Status Colors */
             --risk-critical-color: #ff3b30; /* Apple Red */
-            --risk-warning-color: #fbbc04; /* Apple Yellow */
-            --risk-info-color: #007aff;    /* Apple Blue */
+            --risk-high-color: #ff9500; /* Apple Orange */
+            --risk-medium-color: #ffcc00; /* Apple Yellow */
+            --risk-low-color: #007aff;    /* Apple Blue */
             --status-success-color: #34a853; /* Apple Green */
 
             /* Light Theme Palette */
@@ -67,8 +68,9 @@
             --scrollbar-thumb-hover: #a0a0a0;
             --icon-color: var(--on-surface-variant-color);
             --risk-critical-container: rgba(255, 59, 48, 0.1);
-            --risk-warning-container: rgba(255, 204, 0, 0.1);
-            --risk-info-container: rgba(0, 122, 255, 0.1);
+            --risk-high-container: rgba(255, 149, 0, 0.1);
+            --risk-medium-container: rgba(255, 204, 0, 0.1);
+            --risk-low-container: rgba(0, 122, 255, 0.1);
 
             /* Tooltip Colors (Dark for Light Theme) */
             --tooltip-background-color: #313131;
@@ -96,12 +98,14 @@
                 --scrollbar-thumb-hover: #8e8e93;
                 --icon-color: var(--on-surface-variant-color);
                 --risk-critical-color: #ff453a;
-                --risk-warning-color: #ffc107;
-                --risk-info-color: #0a84ff;
+                --risk-high-color: #ff9f0a;
+                --risk-medium-color: #ffd60a;
+                --risk-low-color: #0a84ff;
                 --status-success-color: #30d158;
                 --risk-critical-container: rgba(255, 69, 58, 0.15);
-                --risk-warning-container: rgba(255, 214, 10, 0.15);
-                --risk-info-container: rgba(10, 132, 255, 0.15);
+                --risk-high-container: rgba(255, 159, 10, 0.15);
+                --risk-medium-container: rgba(255, 214, 10, 0.15);
+                --risk-low-container: rgba(10, 132, 255, 0.15);
 
                 /* Tooltip Colors (Light for Dark Theme) */
                 --tooltip-background-color: #f5f5f7;
@@ -123,7 +127,7 @@
         body {
             font-family: var(--font-family-sans-serif);
             background-color: var(--background-color);
-            color: var(--on-background-color); /* Ensure text color adapts to theme */
+            color: var(--on-background-color);
             font-size: var(--body-large);
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
@@ -147,11 +151,18 @@
             justify-content: space-between;
             align-items: center;
             flex-shrink: 0;
+            gap: var(--spacing-large);
         }
         .header h1 {
             font-size: var(--headline-small);
             font-weight: var(--font-weight-semibold);
-            color: var(--on-surface-color); /* Ensure header title color adapts */
+            color: var(--on-surface-color);
+        }
+        .header-meta {
+            font-size: var(--body-small);
+            color: var(--text-muted);
+            text-align: left;
+            flex-grow: 1;
         }
         .header .actions { display: flex; gap: var(--spacing-medium); }
         
@@ -194,7 +205,7 @@
         .icon-info { -webkit-mask-image: url(../../public/icons/svg/info.svg); }
         .icon-check { -webkit-mask-image: url(../../public/icons/svg/check.svg); }
         .icon-error { -webkit-mask-image: url(../../public/icons/svg/error.svg); }
-        .icon-arrow-right { -webkit-mask-image: url(../../public/icons/svg/arrow-right.svg); } /* New icon for arrow */
+        .icon-arrow-right { -webkit-mask-image: url(../../public/icons/svg/arrow-right.svg); }
         
         .tooltip-trigger {
             position: relative;
@@ -205,14 +216,14 @@
         .tooltip-trigger .icon { color: var(--text-muted); }
         .tooltip-trigger:hover .icon { color: var(--primary-color); }
         .tooltip-content {
-            position: fixed; /* Changed to fixed for dynamic positioning */
-            background-color: var(--tooltip-background-color); /* Using new tooltip specific variables */
-            color: var(--tooltip-text-color); /* Using new tooltip specific variables */
+            position: fixed;
+            background-color: var(--tooltip-background-color);
+            color: var(--tooltip-text-color);
             padding: var(--spacing-small) var(--spacing-medium);
             border-radius: var(--border-radius-medium);
             font-size: var(--body-small);
             font-weight: var(--font-weight-normal);
-            font-family: var(--font-family-sans-serif); /* Added font-family */
+            font-family: var(--font-family-sans-serif);
             width: max-content;
             max-width: 280px;
             z-index: 1000;
@@ -221,12 +232,11 @@
             transition: opacity var(--transition-duration-fast), transform var(--transition-duration-fast);
             pointer-events: none;
             line-height: 1.4;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* Added subtle shadow */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
-        /* No hover styles here, JavaScript will handle visibility and position */
 
         /* ==========================================================================
-           Button Styles
+           Button & Form Styles
            ========================================================================== */
         .btn {
             font-family: inherit;
@@ -256,6 +266,19 @@
         .btn.tertiary { background-color: transparent; border: none; }
         .btn.tertiary:not(:disabled):hover { background-color: var(--surface-container); color: var(--primary-color); }
 
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-small);
+            cursor: pointer;
+            font-size: var(--body-medium);
+            color: var(--on-surface-variant-color);
+            user-select: none;
+        }
+        .checkbox-container input {
+            cursor: pointer;
+        }
+
         /* ==========================================================================
            Loading, Placeholders & Status
            ========================================================================== */
@@ -283,6 +306,13 @@
         .placeholder-title { font-size: var(--title-large); font-weight: var(--font-weight-semibold); color: var(--on-surface-color); }
         .placeholder-text { max-width: 45ch; }
 
+        #initial-scan-screen {
+             gap: var(--spacing-extra-large); /* Increased gap */
+        }
+         #initial-scan-screen .placeholder-text {
+            margin-bottom: var(--spacing-medium);
+         }
+
         /* ==========================================================================
            Collapsible Sections & Result Items
            ========================================================================== */
@@ -296,21 +326,21 @@
             padding: 0; margin-bottom: var(--spacing-medium);
             cursor: pointer; display: flex; align-items: center;
             gap: var(--spacing-small);
-            width: 100%; /* Ensure header takes full width for click area */
-            text-align: left; /* Align text to the left */
+            width: 100%;
+            text-align: left;
         }
         .header-title {
             font-size: var(--title-large);
             font-weight: var(--font-weight-semibold);
-            color: var(--on-surface-color); /* Ensure title color adapts */
-            flex-grow: 1; /* Allow title to take available space */
-            font-family: var(--font-family-sans-serif); /* Added font-family */
+            color: var(--on-surface-color);
+            flex-grow: 1;
+            font-family: var(--font-family-sans-serif);
         }
         .arrow {
             width: 1em; height: 1em;
             transition: transform var(--transition-duration-medium);
             background-color: var(--on-surface-variant-color);
-            -webkit-mask-image: url(../../public/icons/svg/arrow-right.svg); /* Linked external SVG */
+            -webkit-mask-image: url(../../public/icons/svg/arrow-right.svg);
             mask-image: url(../../public/icons/svg/arrow-right.svg);
         }
         .collapsible-header.active .arrow { transform: rotate(90deg); }
@@ -330,13 +360,24 @@
         .issue-card-header {
             padding: var(--spacing-large);
             border-bottom: 1px solid var(--outline-color);
-            color: var(--on-surface-color); /* Ensure text color adapts */
+            color: var(--on-surface-color);
+            border-left: 4px solid var(--risk-low-color); /* Default border color */
         }
-        .issue-card-header.critical { border-left: 4px solid var(--risk-critical-color); padding-left: var(--spacing-medium); }
-        .issue-card-header.warning { border-left: 4px solid var(--risk-warning-color); padding-left: var(--spacing-medium); }
-        .issue-card-header.info { border-left: 4px solid var(--risk-info-color); padding-left: var(--spacing-medium); }
+        .issue-card-header.critical { border-left-color: var(--risk-critical-color); }
+        .issue-card-header.high { border-left-color: var(--risk-high-color); }
+        .issue-card-header.medium { border-left-color: var(--risk-medium-color); }
+        .issue-card-header.low { border-left-color: var(--risk-low-color); }
+        
         .issue-title { font-weight: var(--font-weight-semibold); font-size: var(--title-medium); display: flex; align-items: center; gap: var(--spacing-small); }
         .issue-description { color: var(--on-surface-variant-color); font-size: var(--body-medium); margin-top: var(--spacing-small); }
+        .recommended-action {
+            margin-top: var(--spacing-medium);
+            padding-top: var(--spacing-medium);
+            border-top: 1px dashed var(--outline-color);
+            font-size: var(--body-medium);
+            color: var(--on-surface-variant-color);
+        }
+        .recommended-action strong { color: var(--on-surface-color); }
         .alternatives-list { font-size: var(--body-medium); margin-top: var(--spacing-medium); padding-top: var(--spacing-medium); border-top: 1px dashed var(--outline-color); }
 
         .extension-item {
@@ -347,7 +388,7 @@
 
         .extension-icon { width: 36px; height: 36px; border-radius: var(--border-radius-medium); flex-shrink: 0; }
         .extension-info { flex-grow: 1; }
-        .extension-name { font-weight: var(--font-weight-medium); color: var(--on-surface-color); /* Ensure name color adapts */ }
+        .extension-name { font-weight: var(--font-weight-medium); color: var(--on-surface-color); }
         .extension-meta { font-size: var(--body-small); color: var(--text-muted); }
         .extension-meta .version::before { content: 'v'; }
         .extension-meta .id { font-family: var(--font-family-monospace); }
@@ -357,10 +398,12 @@
             font-size: var(--body-small); font-weight: var(--font-weight-semibold);
             padding: 2px var(--spacing-small); border-radius: 4px;
             display: inline-flex; align-items: center; gap: 4px;
+            text-transform: capitalize;
         }
         .risk-badge.critical { background-color: var(--risk-critical-container); color: var(--risk-critical-color); }
-        .risk-badge.warning { background-color: var(--risk-warning-container); color: var(--risk-warning-color); }
-        .risk-badge.info { background-color: var(--risk-info-container); color: var(--risk-info-color); }
+        .risk-badge.high { background-color: var(--risk-high-container); color: var(--risk-high-color); }
+        .risk-badge.medium { background-color: var(--risk-medium-container); color: var(--risk-medium-color); }
+        .risk-badge.low { background-color: var(--risk-low-container); color: var(--risk-low-color); }
 
         /* ==========================================================================
            Animations
@@ -394,10 +437,10 @@
         }
         .modal-content {
             background-color: var(--surface-color);
-            padding: var(--spacing-extra-large) calc(var(--spacing-extra-large) * 1.5); /* Increased horizontal padding */
+            padding: var(--spacing-extra-large) calc(var(--spacing-extra-large) * 1.5);
             border-radius: var(--border-radius-large);
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-            max-width: 500px; /* Increased max-width */
+            max-width: 500px;
             width: 90%;
             text-align: center;
             transform: translateY(20px);
@@ -430,25 +473,33 @@
 
     <header class="header">
         <h1>Extension Status</h1>
+        <div id="header-meta" class="header-meta"></div>
         <div class="actions">
-            <button id="refreshCacheButton" class="btn tertiary" aria-label="Refresh extension data">Refresh Data</button>
-            <button id="checkButton" class="btn primary" aria-label="Run scan for extension issues">Run Scan</button>
+            <button id="refreshCacheButton" class="btn tertiary" aria-label="Refresh data and rescan">Refresh Data</button>
         </div>
     </header>
 
     <main id="results" class="content-area" role="main" aria-live="polite">
-        <div id="placeholder" class="placeholder">
+        <div id="initial-scan-screen" class="placeholder" style="display: none;">
              <span class="icon icon-info" aria-hidden="true"></span>
-            <div class="placeholder-title">Check Your Extensions</div>
-            <p class="placeholder-text">Click "Run Scan" to check for potential conflicts, deprecated items, and other issues among your installed extensions. This helps keep your browser running smoothly and securely.</p>
+            <div class="placeholder-title">Check Your Extensions for Conflicts</div>
+            <p class="placeholder-text">Scan your installed extensions to identify potential conflicts, find deprecated items, and get recommendations for a smoother, safer Browse experience.</p>
+            <button id="startScanButton" class="btn primary">Start Scan</button>
+            <label for="autoScanCheckbox" class="checkbox-container">
+                <input type="checkbox" id="autoScanCheckbox" />
+                <span>Automatically scan when opening this page</span>
+                <span class="tooltip-trigger" role="tooltip" aria-describedby="auto-scan-tooltip">
+                    <span class="icon icon-help" aria-hidden="true"></span>
+                    <span id="auto-scan-tooltip" class="tooltip-content">If checked, a scan will automatically run the next time you open this page, but only if the previous scan's data has expired (after 24 hours).</span>
+                </span>
+            </label>
         </div>
     </main>
 
-    <div id="loading-spinner" class="loading-spinner" role="status" aria-label="Loading content"></div>
-    
+    <div id="loading-spinner" class="loading-spinner" role="status" aria-label="Loading content..."></div>
+
     <footer id="footer" class="footer" role="contentinfo"></footer>
 
-    <!-- Custom Confirmation Modal -->
     <div id="confirmationModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalMessage">
         <div class="modal-content">
             <h3 id="modalTitle">Confirm Action</h3>
@@ -459,7 +510,6 @@
             </div>
         </div>
     </div>
-
 
     <script src="../js/conflict.js"></script>
 </body>
