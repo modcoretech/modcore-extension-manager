@@ -103,7 +103,7 @@
         { name: "webAuthenticationProxy", description: "Proxy Web Authentication (WebAuthn) requests.", risk: "High", link: "https://developer.chrome.com/docs/extensions/reference/api/webAuthenticationProxy/" },
         { name: "webNavigation", description: "Receive notifications about navigation request status.", risk: "Medium", link: "https://developer.chrome.com/docs/extensions/reference/api/webNavigation/" },
         { name: "webRequest", description: "Observe, analyze, and modify network requests.", risk: "High", link: "https://developer.chrome.com/docs/extensions/reference/api/webRequest/" },
-        { name: "webRequestBlocking", description: "Deprecated in MV3, but allows synchronous blocking in `webRequest` API.", risk: "High", link: "https://developer.chrome.com/docs/extensions/reference/api/webRequest/#blocking-responses" },
+        { name: "webRequestBlocking", description: "Deprecated in MV3, allows synchronous blocking in webRequest.", risk: "High", link: "https://developer.chrome.com/docs/extensions/reference/api/webRequest/#blocking-responses" },
         { name: "windows", description: "Interact with browser windows.", risk: "Medium", link: "https://developer.chrome.com/docs/extensions/reference/api/windows/" },
         // Common non-API permissions
         { name: "activeTab", description: "Grants temporary access to the active tab when the user invokes the extension.", risk: "Low", link: "https://developer.chrome.com/docs/extensions/develop/concepts/activeTab/" },
@@ -116,6 +116,19 @@
         { name: "usbDevices", description: "Find and connect to specific USB devices.", risk: "High", link: "https://developer.chrome.com/docs/extensions/mv3/declare_permissions/#usb-devices" },
         { name: "certificateProvider", description: "Provide client certificates to the browser.", risk: "High", link: "https://developer.chrome.com/docs/extensions/reference/api/certificateProvider/" },
         { name: "networking.config", description: "Configure network proxies.", risk: "High", link: "https://developer.chrome.com/docs/extensions/reference/api/networking_config/" },
+        { name: "accessibilityFeatures.read", description: "Read accessibility features settings (e.g. screen reader support).", risk: "Medium", link: "https://developer.chrome.com/docs/extensions/reference/api/accessibilityFeatures/#property-accessibilityFeatures.read" },
+        { name: "accessibilityFeatures.modify", description: "Modify accessibility settings such as screen magnifier or high contrast mode.", risk: "High", link: "https://developer.chrome.com/docs/extensions/reference/api/accessibilityFeatures/#property-accessibilityFeatures.modify" },
+        { name: "certificateProvider", description: "Provide client TLS certificates to authenticate users via hardware-backed or software credentials.", risk: "High", link: "https://developer.chrome.com/docs/extensions/reference/api/certificateProvider/" },
+        { name: "sessions.restore", description: "Allows restoring closed tabs/windows using session ID.", risk: "Medium", link: "https://developer.chrome.com/docs/extensions/reference/api/sessions/#method-restore" },
+        { name: "networkState", description: "Query the current network connectivity status.", risk: "Low", link: "https://developer.chrome.com/docs/extensions/reference/api/networkingPrivate/#method-getState" },
+        { name: "system.network", description: "Access system-level network interface metadata (e.g., MAC, IP).", risk: "Medium", link: "https://developer.chrome.com/docs/extensions/reference/api/system_network/" },
+        { name: "storageManaged", description: "Access read-only configuration set by enterprise admins.", risk: "Low", link: "https://developer.chrome.com/docs/extensions/reference/api/storage/#property-managed" },
+        { name: "searchProvider", description: "Replace or modify the default search engine.", risk: "High", link: "https://developer.chrome.com/docs/extensions/reference/api/search/" },
+        { name: "webRequestAuthProvider", description: "Handle HTTP authentication challenges via extensions.", risk: "High", link: "https://developer.chrome.com/docs/extensions/reference/api/webRequest/#authentication" },
+        { name: "notifications.buttons", description: "Add action buttons to notifications for user interactions.", risk: "Low", link: "https://developer.chrome.com/docs/extensions/reference/api/notifications/#type-Button" },
+        { name: "userScripts", description: "Register user scripts that run in isolated worlds and only on declared host permissions.", risk: "Medium", link: "https://developer.chrome.com/docs/extensions/reference/api/userScripts/" },
+        { name: "downloads.open", description: "Programmatically open downloaded files.", risk: "Medium", link: "https://developer.chrome.com/docs/extensions/reference/api/downloads/#method-open" },
+
         // Host permissions placeholder
         { name: "host", description: "Access specific websites or patterns (URLs). Grants ability to read and change data on matching sites.", risk: "Varies", link: "https://developer.chrome.com/docs/extensions/mv3/match_patterns/" }
     ];
@@ -134,11 +147,10 @@
     const dom = {};
 
     // == Utility Functions ==
-    const log = (...args) => { if (ENABLE_DEV_LOGGING) console.log('[NG Details]', ...args); };
-    const warn = (...args) => { if (ENABLE_DEV_LOGGING) console.warn('[NG Details]', ...args); };
-    const error = (...args) => { console.error('[NG Details]', ...args); };
+    const log = (...args) => { if (ENABLE_DEV_LOGGING) console.log('[EM Details]', ...args); };
+    const warn = (...args) => { if (ENABLE_DEV_LOGGING) console.warn('[EM Details]', ...args); };
+    const error = (...args) => { console.error('[EM Details]', ...args); };
 
-    // Removed escapeHTML as innerHTML is no longer used for dynamic content.
     // Ensure all dynamic text content is set via textContent.
 
     const getElem = (id) => document.getElementById(id);
@@ -501,9 +513,14 @@
             }
         });
     }
+    
 
     function renderPermissionsList(container, permissions, type) {
-        container.innerHTML = ''; // Clear existing content
+        // Clear existing content using a safe method
+        while (container.firstChild) {
+            container.removeChild(container.firstChild);
+        }
+
         if (!permissions || permissions.length === 0) {
             const text = type === 'api' ? 'No API permissions requested.' : 'No host permissions requested.';
             const placeholder = createPlaceholderElement(text, 'info');
@@ -512,6 +529,7 @@
             container.appendChild(placeholder);
             return;
         }
+
         const fragment = document.createDocumentFragment();
         permissions.forEach(perm => {
             const def = findPermissionDefinition(perm, type);
@@ -669,11 +687,11 @@
                 } else {
                     const notListedDiv = document.createElement('div');
                     notListedDiv.className = 'support-message support-not-listed';
-                    notListedDiv.textContent = '...'; // Initial placeholder
+                    notListedDiv.textContent = ''; // Initial placeholder
                     const h4 = document.createElement('h4');
-                    h4.textContent = 'Support Information Not Available';
+                    h4.textContent = 'No Support Listing';
                     const p = document.createElement('p');
-                    p.textContent = 'This extension has not been added to our voluntary support directory.';
+                    p.textContent = 'This extension hasn’t joined our "Support the Developer" program yet. Developers can apply to receive direct support from users like you.';
                     notListedDiv.appendChild(h4);
                     notListedDiv.appendChild(p);
                     fragment.appendChild(notListedDiv);
