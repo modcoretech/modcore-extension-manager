@@ -1,0 +1,58 @@
+{
+  "extensionName": {
+    "message": "modcore Extension Manager",
+    "description": "Nombre de la extensión."
+  },
+  "extensionShortName": {
+    "message": "modcore EM",
+    "description": "Nombre corto de la extensión."
+  },
+  "extensionDescription": {
+    "message": "Administra tus extensiones de navegador sin esfuerzo con funciones avanzadas de agrupación, perfiles y control.",
+    "description": "Descripción de la extensión."
+  },
+
+  
+  "offlineBannerMessage": {
+    "message": "Parece que no tienes conexión o que estás experimentando problemas de conexión."
+  },
+  "offlineHelpIconTitle": {
+    "message": "Más información sobre los problemas de conexión"
+  },
+  "offlineDismissButton": {
+    "message": "Cerrar"
+  },
+  "modalTitle": {
+    "message": "Solución de problemas de conexión"
+  },
+  "modalIntroText": {
+    "message": "Este mensaje indica un problema potencial con tu conexión a internet. Aquí tienes algunos pasos comunes a seguir:"
+  },
+  "modalCloseButton": {
+    "message": "Entendido"
+  },
+  "step1": {
+    "message": "Verifica tu Conexión: Asegúrate de estar conectado a la red Wi-Fi correcta o de que tu cable Ethernet esté enchufado."
+  },
+  "step2": {
+    "message": "Reinicia los Equipos: Apaga tu router y módem durante 30 segundos y luego enciéndelos de nuevo."
+  },
+  "step3": {
+    "message": "Recarga la Página: Una simple recarga puede solucionar fallos temporales. Presiona F5 o Cmd+R."
+  },
+  "step4": {
+    "message": "Prueba Otros Sitios: Comprueba si puedes acceder a otros sitios web como google.com."
+  },
+  "step5": {
+    "message": "Desactiva VPN/Proxy: Desactiva temporalmente cualquier servicio de VPN o proxy que estés usando."
+  },
+  "step6": {
+    "message": "Firewall/Antivirus: Revisa tu software de seguridad para asegurarte de que no está bloqueando tu navegador."
+  },
+  "step7": {
+    "message": "Reinicia la Computadora: Un reinicio completo del sistema puede resolver muchos problemas subyacentes."
+  },
+  "temporaryOnlineMessage": {
+    "message": "¡Ya estás de nuevo en línea!"
+  }
+}
