@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extension Activity History | modcore EM</title>
+    <meta name="description" content="Review and manage the activity history of your browser extensions.">
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="../css/history.css">
+    <link rel="stylesheet" href="../../public/fonts/fonts.css">
+</head>
+<body>
+    <div class="page-wrapper">
+        <aside class="sidebar">
+            <header class="sidebar-header">
+                <img src="../../public/icons/png/modcore-em.png" alt="Modcore Logo" class="header-logo no-mask">
+                <h1 class="sidebar-title">Activity History</h1>
+            </header>
+            <nav class="sidebar-nav" aria-label="History Sections">
+                <ul>
+                    <li>
+                        <button class="sidebar-button active" data-panel-target="panel-history" aria-current="page" aria-controls="panel-history">
+                            <span class="icon icon-list" aria-hidden="true"></span>
+                            <span>History</span>
+                        </button>
+                    </li>
+                    <li>
+                        <button class="sidebar-button" data-panel-target="panel-settings" aria-controls="panel-settings">
+                            <span class="icon icon-settings" aria-hidden="true"></span>
+                            <span>Settings</span>
+                        </button>
+                    </li>
+                    <li>
+                        <button class="sidebar-button" data-panel-target="panel-help" aria-controls="panel-help">
+                            <span class="icon icon-help" aria-hidden="true"></span>
+                            <span>Help</span>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+            <footer class="sidebar-footer">
+                 <p>&copy; <span id="current-year">2025</span> modcore</p>
+             </footer>
+        </aside>
+
+        <main class="content-area">
+            <div id="initial-loading-indicator" class="loading-overlay" role="status" aria-live="polite">
+                <div class="spinner" aria-hidden="true"></div>
+                <p>Loading History...</p>
+            </div>
+
+            <section id="panel-history" class="content-panel active" aria-labelledby="history-panel-title" tabindex="-1">
+                <header class="panel-header">
+                    <h2 id="history-panel-title">Extension Activity Log</h2>
+                    <p id="history-panel-description">Review a chronological log of events for all your extensions, such as installations, updates, and changes in status. Use the controls below to search, filter, and manage your history data.</p>
+                </header>
+                <div class="panel-content">
+                    <div class="history-controls">
+                        <div class="history-search">
+                            <label for="search-input" class="visually-hidden">Search history...</label>
+                            <span class="icon icon-search" aria-hidden="true"></span>
+                            <input type="search" id="search-input" class="text-input" placeholder="Search by extension name or event details..." aria-controls="history-list-container">
+                        </div>
+                        <div class="header-actions">
+                            <button id="filter-toggle-btn" class="btn secondary" aria-controls="filter-panel" aria-expanded="false" aria-label="Toggle filters">
+                                <span class="icon icon-filter" aria-hidden="true"></span>
+                                <span class="btn-text">Filter</span>
+                            </button>
+                            <button id="clear-all-btn" class="btn tertiary danger" aria-label="Clear all history">
+                                <span class="icon icon-trash" aria-hidden="true"></span>
+                                <span class="btn-text">Clear All</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="filter-panel" class="filter-panel">
+                        <div class="filter-group">
+                            <strong class="filter-title">Event Types</strong>
+                            <div class="checkbox-group" id="event-type-filters">
+                            </div>
+                        </div>
+                        <div class="filter-group">
+                            <strong class="filter-title">Date Range</strong>
+                            <div class="date-range-group">
+                                <label for="start-date-input" class="visually-hidden">Start Date</label>
+                                <input type="date" id="start-date-input" class="text-input" placeholder="Start Date">
+                                <label for="end-date-input" class="visually-hidden">End Date</label>
+                                <input type="date" id="end-date-input" class="text-input" placeholder="End Date">
+                            </div>
+                        </div>
+                         <div class="filter-actions">
+                            <button id="reset-filters-btn" class="btn tertiary">Reset Filters</button>
+                        </div>
+                    </div>
+
+                    <div id="history-content-wrapper" class="content-section" aria-live="polite">
+                        <div id="history-list-container">
+                            <div id="history-list" class="history-list"></div>
+                            <p id="no-history-message" class="placeholder-message" hidden>No history records found.</p>
+                            <div id="pagination-controls" class="pagination-controls" hidden>
+                                <button id="prev-page-btn" class="btn tertiary" disabled>
+                                    <span class="icon icon-chevron-left" aria-hidden="true"></span> Previous
+                                </button>
+                                <div class="page-info">
+                                    Page <span id="current-page-display">1</span> of <span id="total-pages-display">1</span>
+                                </div>
+                                <button id="next-page-btn" class="btn tertiary" disabled>
+                                    Next <span class="icon icon-chevron-right" aria-hidden="true"></span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="panel-settings" class="content-panel" aria-labelledby="settings-panel-title" hidden tabindex="-1">
+                <header class="panel-header">
+                    <h2 id="settings-panel-title">History Settings</h2>
+                    <p>Configure how extension activity is tracked and stored.</p>
+                </header>
+                <div class="panel-content">
+                    <div class="content-section">
+                        <h3 class="section-title small-title">Tracking</h3>
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <strong>Enable History Tracking</strong>
+                                <p class="text-secondary">Globally enable or disable the recording of extension activities.</p>
+                            </div>
+                            <input type="checkbox" id="tracking-enabled-toggle" class="toggle-switch" checked>
+                        </div>
+                    </div>
+                    <div class="content-section">
+                         <h3 class="section-title small-title">Data Management</h3>
+                         <div class="setting-item">
+                             <div class="setting-label">
+                                <strong>Maximum Records</strong>
+                                <p class="text-secondary">Set a maximum number of records to store before pruning old data.</p>
+                             </div>
+                             <div class="prune-controls">
+                                 <label for="record-limit-input" class="visually-hidden">Record limit</label>
+                                 <input type="number" id="record-limit-input" class="text-input" value="1000" min="100">
+                                 <span>records</span>
+                             </div>
+                         </div>
+                         <div class="setting-item">
+                             <div class="setting-label">
+                                 <strong>Prune on Limit Exceed</strong>
+                                 <p class="text-secondary">Automatically prune oldest records when the maximum limit is reached.</p>
+                             </div>
+                             <input type="checkbox" id="prune-on-limit-toggle" class="toggle-switch" checked>
+                         </div>
+                         <div class="setting-item">
+                             <div class="setting-label">
+                                 <strong>Prune History (by Days)</strong>
+                                 <p class="text-secondary">Automatically delete history records older than a specified number of days.</p>
+                             </div>
+                             <div class="prune-controls">
+                                 <label for="prune-days-input" class="visually-hidden">Days to keep</label>
+                                 <input type="number" id="prune-days-input" class="text-input" value="90" min="1">
+                                 <span>days</span>
+                                 <button id="prune-now-btn" class="btn secondary">Prune Now</button>
+                             </div>
+                         </div>
+                         <div class="setting-item">
+                              <div class="setting-label">
+                                 <strong>Custom Pruning</strong>
+                                 <p class="text-secondary">Prune records based on advanced criteria.</p>
+                             </div>
+                             <div class="prune-controls">
+                                 <button id="prune-inactive-btn" class="btn tertiary">Prune Inactive</button>
+                                 <button id="prune-by-type-btn" class="btn tertiary">Prune by Type</button>
+                             </div>
+                         </div>
+                         <div class="setting-item details-actions-grid">
+                            <input type="file" id="import-input" accept=".json" hidden>
+                            <button id="import-btn" class="btn secondary">Import JSON</button>
+                            <button id="export-btn" class="btn secondary">Export JSON</button>
+                         </div>
+                     </div>
+                     <div class="content-section">
+                         <h3 class="section-title small-title">Display Options</h3>
+                          <div class="setting-item">
+                            <div class="setting-label">
+                                <strong>Sort Order</strong>
+                                <p class="text-secondary">Choose the chronological order for displaying history logs.</p>
+                            </div>
+                            <select id="sort-order-select" class="select-input">
+                                <option value="desc">Newest First</option>
+                                <option value="asc">Oldest First</option>
+                                <option value="name">Extension Name (A-Z)</option>
+                                <option value="type">Event Type</option>
+                                <option value="group">Group by Extension</option>
+                            </select>
+                         </div>
+                          <div class="setting-item">
+                            <div class="setting-label">
+                                <strong>Logs per Page</strong>
+                                <p class="text-secondary">The number of history records to display on each page.</p>
+                            </div>
+                            <div class="prune-controls">
+                                <label for="logs-per-page-input" class="visually-hidden">Logs per page</label>
+                                <input type="number" id="logs-per-page-input" class="text-input" value="25" min="1">
+                                <span>logs</span>
+                            </div>
+                         </div>
+                         <div class="setting-item">
+                            <div class="setting-label">
+                                <strong>Display Timestamps</strong>
+                                <p class="text-secondary">Show or hide the timestamp next to each log entry.</p>
+                            </div>
+                            <input type="checkbox" id="display-timestamps-toggle" class="toggle-switch" checked>
+                         </div>
+                         <div class="setting-item">
+                             <div class="setting-label">
+                                 <strong>Compact Mode</strong>
+                                 <p class="text-secondary">Reduce the size of log entries to display more on screen.</p>
+                             </div>
+                             <input type="checkbox" id="compact-mode-toggle" class="toggle-switch">
+                         </div>
+                    </div>
+                    <div class="settings-actions">
+                         <button id="save-settings-btn" class="btn primary">Save Settings</button>
+                    </div>
+                </div>
+            </section>
+
+            <section id="panel-help" class="content-panel" aria-labelledby="help-panel-title" hidden tabindex="-1">
+                 <header class="panel-header">
+                    <h2 id="help-panel-title">Help & Information</h2>
+                    <p>Find answers to common questions about the history tracking feature.</p>
+                </header>
+                <div class="panel-content">
+                     <div class="content-section">
+                         <h3 class="section-title small-title">Frequently Asked Questions</h3>
+                         <details class="faq-item">
+                            <summary>How is my history data stored?</summary>
+                            <p>Your history is stored locally on your computer using the `chrome.storage.local` API. It is not synced to the cloud and is not sent to any remote servers, ensuring your privacy.</p>
+                         </details>
+                         <details class="faq-item">
+                             <summary>What types of events are tracked?</summary>
+                             <p>The system tracks key lifecycle events, including when an extension is installed, updated, uninstalled, enabled, or disabled. These events provide a clear timeline of changes to your extensions.</p>
+                         </details>
+                         <details class="faq-item">
+                             <summary>Why is some history missing for an uninstalled extension?</summary>
+                             <p>When an extension is uninstalled, its name and icon are removed from Chrome's records. The log will show "Unknown" for these details, but the event itself (e.g., "uninstalled") is preserved.</p>
+                         </details>
+                          <details class="faq-item">
+                            <summary>How do the pruning options work?</summary>
+                            <p>You can set a maximum number of records to keep or automatically delete records older than a certain number of days. These options help you manage storage space. Additionally, you can manually prune inactive extension history or specific event types at any time.</p>
+                         </details>
+                         <details class="faq-item">
+                            <summary>How can I backup and restore my history?</summary>
+                            <p>Use the 'Export JSON' and 'Import JSON' buttons in the main History panel. This allows you to create a local backup of your activity log, which can be re-imported at a later time or on a different device.</p>
+                        </details>
+                     </div>
+                     <div class="content-section">
+                        <h3 class="section-title small-title">Keyboard Shortcuts</h3>
+                        <ul class="shortcut-list">
+                            <li><kbd>Alt</kbd> + <kbd>F</kbd> Focus Search Box</li>
+                            <li><kbd>Alt</kbd> + <kbd>G</kbd> Toggle Filter Panel</li>
+                            <li><kbd>Alt</kbd> + <kbd>R</kbd> Reset Filters</li>
+                            <li><kbd>Alt</kbd> + <kbd>C</kbd> Clear All History</li>
+                            <li><kbd>Alt</kbd> + <kbd>S</kbd> Open Settings</li>
+                            <li><kbd>Alt</kbd> + <kbd>H</kbd> Open Help</li>
+                            <li><kbd>Alt</kbd> + <kbd>&lt;</kbd> Go to Previous Page</li>
+                            <li><kbd>Alt</kbd> + <kbd>&gt;</kbd> Go to Next Page</li>
+                        </ul>
+                        <p>Additional features may be available through add-ons in the Marketplace. Visit the <a href="https://sites.google.com/view/modcore-pricing/modcore-extension-manager/add-ons" target="_blank" rel="noopener noreferrer">modcore Marketplace</a> for more information.</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+    <div id="limit-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" hidden>
+        <div class="modal-content">
+            <h3 id="modal-title">History Limit Exceeded</h3>
+            <p>Your history has exceeded the maximum limit of <span id="modal-limit-value"></span> records.</p>
+            <p>Would you like to automatically prune the oldest records, or disable history tracking completely?</p>
+            <div class="modal-actions">
+                <button id="modal-prune-btn" class="btn primary">Prune Oldest Records</button>
+                <button id="modal-disable-btn" class="btn secondary danger">Disable History</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="prune-by-type-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="prune-modal-title" hidden>
+        <div class="modal-content">
+            <h3 id="prune-modal-title">Prune by Event Type</h3>
+            <p>Select which types of events to delete from your history.</p>
+            <div class="checkbox-group" id="prune-type-options"></div>
+            <div class="modal-actions">
+                <button id="prune-type-cancel-btn" class="btn secondary">Cancel</button>
+                <button id="prune-type-confirm-btn" class="btn danger" disabled>Prune</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-backdrop" class="modal-backdrop" hidden></div>
+
+    <script src="../js/history.js"></script>
+    <script src="../js/profile-cards.js"></script>
+</body>
+</html>
