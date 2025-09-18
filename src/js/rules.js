@@ -297,7 +297,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     /** Populates the action type select based on target type. */
     const populateActionTypeSelect = (targetType, selectedAction = 'enable') => {
-        // Clear existing options without using innerHTML
         while (ruleActionSelect.firstChild) {
             ruleActionSelect.removeChild(ruleActionSelect.firstChild);
         }
@@ -447,7 +446,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Ensure that any existing options are preserved if they match new values
         const currentSelectedValue = filterTargetTypeSelect.value;
         
-        // Clear existing options without using innerHTML
         while (filterTargetTypeSelect.firstChild) {
             filterTargetTypeSelect.removeChild(filterTargetTypeSelect.firstChild);
         }
@@ -497,7 +495,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const hasRules = allRules.length > 0;
         noRulesPlaceholder.style.display = !hasRules ? 'block' : 'none';
-        // Clear children for noRulesPlaceholder, previously using innerHTML implicitely
         if (!hasRules) {
             noRulesPlaceholder.textContent = ''; // Clear existing content
             noRulesPlaceholder.appendChild(createElement('span', 'icon icon-list'));
@@ -531,7 +528,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const hasResults = rulesListContainer.children.length > 0;
         noResultsPlaceholder.style.display = hasRules && !hasResults ? 'block' : 'none';
-        // Clear children for noResultsPlaceholder, previously using innerHTML implicitely
         if (hasRules && !hasResults) {
             noResultsPlaceholder.textContent = ''; // Clear existing content
             noResultsPlaceholder.appendChild(createElement('span', 'icon icon-search'));
