@@ -6,287 +6,186 @@
     <title data-i18n="pageTitle">TrustGuard Analysis | modcore Extension Manager</title>
     <meta name="description" data-i18n="pageDescription" content="Get a detailed TrustGuard analysis of your browser extensions, assessing their permissions and potential risks to your privacy and security.">
     <meta name="color-scheme" content="light dark">
-
-    <style>
-        /* General Reset & Base Styles */
-        :root {
-            /* Typography */
-            --font-family-sans-serif: 'modcore-inter-font-custom', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-            --font-family-monospace: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
-
-            --headline-extra-large: 38px;
-            --headline-large: 30px;
-            --headline-medium: 24px;
-            --headline-small: 20px;
-            --title-large: 18px;
-            --title-medium: 16px;
-            --body-extra-large: 16px;
-            --body-large: 15px;
-            --body-medium: 14px;
-            --body-small: 12px;
-            --label-large: 12px;
-
-            --font-weight-regular: 400;
-            --font-weight-medium: 500;
-            --font-weight-semibold: 600;
-            --font-weight-bold: 700;
-
-            /* Colors (Apple-inspired UI) */
-            --color-primary: #007AFF; /* System Blue */
-            --color-primary-container: rgba(0, 122, 255, 0.1);
-            --color-on-primary: #FFFFFF;
-
-            /* Light Mode Palette */
-            --color-text-light: #1d1d1f;
-            --color-text-secondary-light: #6e6e73;
-            --color-background-light: #f5f5f7;
-            --color-container-light: #ffffff;
-            --color-border-light: #dcdce1;
-            --color-shadow-light: rgba(0, 0, 0, 0.08);
-
-            /* Dark Mode Palette */
-            --color-text-dark: #f5f5f7;
-            --color-text-secondary-dark: #8e8e93;
-            --color-background-dark: #000000;
-            --color-container-dark: #1c1c1e;
-            --color-border-dark: #3a3a3c;
-            --color-shadow-dark: rgba(0, 0, 0, 0.4);
-
-            /* Dynamic Colors */
-            --color-text: var(--color-text-light);
-            --color-text-secondary: var(--color-text-secondary-light);
-            --color-background: var(--color-background-light);
-            --color-container: var(--color-container-light);
-            --color-border: var(--color-border-light);
-            --color-shadow: var(--color-shadow-light);
-
-            /* Spacing & Radius */
-            --space-xs: 4px; --space-s: 8px; --space-m: 16px; --space-l: 24px; --space-xl: 32px; --space-2xl: 48px; --space-3xl: 64px;
-            --radius-s: 6px; --radius-m: 12px; --radius-l: 18px; --radius-xl: 24px; --radius-circular: 50%;
-        }
-
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --color-text: var(--color-text-dark);
-                --color-text-secondary: var(--color-text-secondary-dark);
-                --color-background: var(--color-background-dark);
-                --color-container: var(--color-container-dark);
-                --color-border: var(--color-border-dark);
-                --color-shadow: var(--color-shadow-dark);
-            }
-        }
-
-        /* Base Styles */
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        html { scroll-behavior: smooth; }
-        body {
-            font-family: var(--font-family-sans-serif);
-            background-color: var(--color-background);
-            color: var(--color-text);
-            line-height: 1.55;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-
-        /* Page Layout */
-        .page-wrapper { display: flex; justify-content: center; padding: var(--space-2xl) var(--space-l); }
-        .main-content { max-width: 920px; width: 100%; }
-
-        /* Header */
-        .page-header {
-            display: flex; flex-direction: column; align-items: center; text-align: center;
-            padding-bottom: var(--space-xl); margin-bottom: var(--space-2xl);
-            border-bottom: 1px solid var(--color-border);
-        }
-        .extension-identity { display: flex; align-items: center; gap: var(--space-l); margin-bottom: var(--space-m); }
-        .extension-icon {
-            width: 64px; height: 64px; border-radius: var(--radius-m);
-            box-shadow: 0 4px 12px var(--color-shadow); background-color: var(--color-container);
-        }
-        .extension-name { font-size: var(--headline-extra-large); font-weight: var(--font-weight-bold); line-height: 1.1; letter-spacing: -0.02em; }
-        .header-title { font-size: var(--headline-medium); font-weight: var(--font-weight-semibold); color: var(--color-text-secondary); }
-
-        /* Common Section Styles */
-        .content-section {
-            background-color: var(--color-container); border-radius: var(--radius-l);
-            padding: var(--space-xl); margin-bottom: var(--space-2xl);
-            border: 1px solid var(--color-border); transition: box-shadow 0.3s ease;
-        }
-        .section-header { margin-bottom: var(--space-l); text-align: center; }
-        .section-header h2 {
-            font-size: var(--headline-large); font-weight: var(--font-weight-bold);
-            margin-bottom: var(--space-s); letter-spacing: -0.015em;
-        }
-        .section-description { font-size: var(--body-large); color: var(--color-text-secondary); max-width: 750px; margin: 0 auto; }
-
-        /* Score Card */
-        .score-card-container { display: flex; justify-content: center; padding: var(--space-m) 0; }
-        .score-card {
-            display: flex; flex-direction: column; align-items: center; text-align: center;
-            padding: var(--space-xl); background-color: var(--color-background);
-            border-radius: var(--radius-xl); border: 1px solid var(--color-border);
-            box-shadow: 0 8px 25px var(--color-shadow); max-width: 480px; width: 100%;
-        }
-        .score-value {
-            font-size: 92px; font-weight: var(--font-weight-bold);
-            line-height: 1; margin-bottom: var(--space-s); transition: color 0.3s ease;
-        }
-        .score-category {
-            font-size: var(--headline-small); font-weight: var(--font-weight-bold); text-transform: uppercase;
-            letter-spacing: 0.05em; padding: var(--space-s) var(--space-l); border-radius: var(--radius-m);
-            color: var(--color-on-primary); margin-bottom: var(--space-m); transition: background-color 0.3s ease;
-        }
-        .score-explanation { font-size: var(--body-extra-large); color: var(--color-text-secondary); max-width: 420px; }
-
-        /* Score Category Colors */
-        .risk-excellent { background-color: #28a745; }
-        .risk-low { background-color: #17a2b8; }
-        .risk-moderate { background-color: #ffc107; color: #1d1d1f !important; }
-        .risk-high { background-color: #fd7e14; }
-        .risk-critical { background-color: #dc3545; }
-        .risk-unknown { background-color: #6e6e73; }
-
-        /* Risk Summary / Insights */
-        .risk-summary-container { padding-top: var(--space-s); }
-        .risk-summary-list { list-style: none; display: grid; gap: var(--space-l); }
-        .risk-summary-item {
-            display: flex; align-items: flex-start; gap: var(--space-m);
-            padding: var(--space-l); border: 1px solid var(--color-border);
-            border-radius: var(--radius-m); background-color: var(--color-background);
-        }
-        .risk-summary-icon-wrapper {
-            flex-shrink: 0; width: 44px; height: 44px; border-radius: var(--radius-circular);
-            display: flex; align-items: center; justify-content: center;
-            font-size: var(--headline-small); font-weight: var(--font-weight-bold);
-        }
-        .risk-summary-icon-wrapper.risk-excellent { background-color: rgba(40, 167, 69, 0.15); color: #28a745; }
-        .risk-summary-icon-wrapper.risk-low { background-color: rgba(23, 162, 184, 0.15); color: #17a2b8; }
-        .risk-summary-icon-wrapper.risk-moderate { background-color: rgba(255, 193, 7, 0.15); color: #e8a100; }
-        .risk-summary-icon-wrapper.risk-high { background-color: rgba(253, 126, 20, 0.15); color: #fd7e14; }
-        .risk-summary-icon-wrapper.risk-critical { background-color: rgba(220, 53, 69, 0.15); color: #dc3545; }
-        .risk-summary-icon-wrapper.risk-unknown { background-color: rgba(110, 110, 115, 0.15); color: #8e8e93; }
-        .risk-summary-content { flex-grow: 1; }
-        .risk-summary-title { font-size: var(--title-large); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-xs); }
-        .risk-summary-text { font-size: var(--body-large); color: var(--color-text-secondary); }
-
-        /* --- Style for formatted text from JS --- */
-        .risk-summary-text strong {
-            font-weight: var(--font-weight-semibold);
-            color: var(--color-text);
-        }
-        .risk-summary-text code {
-            font-family: var(--font-family-monospace);
-            background-color: rgba(128, 128, 128, 0.15);
-            padding: 2px 5px;
-            border-radius: var(--radius-s);
-            font-size: 13px;
-        }
-
-        /* Modals and Toasts */
-        .modal-overlay {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(0, 0, 0, 0.5); backdrop-filter: blur(8px);
-            justify-content: center; align-items: center; z-index: 1000;
-        }
-        .modal-content {
-            background-color: var(--color-container); padding: var(--space-xl); border-radius: var(--radius-l);
-            box-shadow: 0 10px 40px var(--color-shadow); max-width: 480px; width: 90%;
-            text-align: center; color: var(--color-text);
-        }
-        .modal-actions { display: flex; justify-content: center; gap: var(--space-m); margin-top: var(--space-l); }
-        #toast-container {
-            position: fixed; bottom: var(--space-l); right: var(--space-l);
-            z-index: 1001; display: flex; flex-direction: column-reverse; gap: var(--space-s);
-        }
-        .toast {
-            background-color: var(--color-container); color: var(--color-text);
-            border: 1px solid var(--color-border); padding: var(--space-m);
-            border-radius: var(--radius-m); font-size: var(--body-large);
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2); opacity: 0;
-            transform: translateY(20px); transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
-        }
-        .toast.show { opacity: 1; transform: translateY(0); }
-
-        /* Responsive Design */
-        @media (max-width: 768px) {
-            .page-wrapper { padding: var(--space-l) var(--space-m); }
-            .extension-icon { width: 56px; height: 56px; }
-            .extension-name { font-size: var(--headline-large); }
-            .header-title { font-size: var(--title-large); }
-            .score-value { font-size: 80px; }
-            .score-category { font-size: var(--title-medium); }
-            .content-section { padding: var(--space-l); }
-        }
-    </style>
+    <link rel="stylesheet" href="../css/trustguard.css">
     <link rel="stylesheet" href="../../public/fonts/fonts.css">
 </head>
 <body>
     <div class="page-wrapper">
         <main class="main-content">
-            <header class="page-header">
-                <div class="extension-identity">
-                    <img id="extension-icon" src="../../public/icons/svg/terminal.svg" alt="Extension Icon" class="extension-icon">
-                    <h1 id="extension-name" class="extension-name">TrustGuard Analysis</h1>
-                </div>
-                <h2 class="header-title" data-i18n="headerTitle">Comprehensive Security & Privacy Report</h2>
-            </header>
 
-            <section class="content-section" aria-labelledby="trust-score-heading">
-                <div class="section-header">
-                    <h2 id="trust-score-heading" data-i18n="overallScoreTitle">Overall Trust Score</h2>
-                    <p class="section-description" data-i18n="overallScoreDescription">
-                        This score reflects the extension's potential risk based on its requested permissions. A higher score signifies greater trustworthiness and a lower-risk profile.
-                    </p>
-                </div>
-                <div class="score-card-container">
-                    <div class="score-card">
-                        <div id="trust-score-value" class="score-value">--</div>
-                        <div id="trust-score-category" class="score-category risk-unknown" data-i18n="analyzingStatus">Analyzing...</div>
-                        <p id="score-explanation" class="score-explanation" data-i18n="scoreExplanation">
-                            The assessment considers the quantity and severity of permissions, highlighting those that could compromise your data or browser integrity.
-                        </p>
+            <div id="all-extensions-view">
+                <header class="page-header all-extensions-header">
+                    <h1 class="extension-name">TrustGuard Dashboard</h1>
+                    <h2 class="header-title">Overall Security & Privacy Overview</h2>
+                </header>
+
+                <section id="overview-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Overall Risk Summary</h2>
+                        <p class="section-description">A high-level summary of your installed extensions' security and privacy postures. Use this to quickly identify potential risks across your browser.</p>
                     </div>
-                </div>
-            </section>
+                    <div class="overview-stats">
+                        <div class="stat-card">
+                            <h3 id="total-extensions-count" class="stat-count">--</h3>
+                            <p>Total Extensions</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 id="enabled-extensions-count" class="stat-count">--</h3>
+                            <p>Enabled Extensions</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 id="critical-risk-count" class="stat-count">--</h3>
+                            <p>Critical Risk</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 id="high-risk-count" class="stat-count">--</h3>
+                            <p>High Risk</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 id="moderate-risk-count" class="stat-count">--</h3>
+                            <p>Moderate Risk</p>
+                        </div>
+                    </div>
+                </section>
 
-            <section class="content-section" aria-labelledby="security-insights-heading">
-                <div class="section-header">
-                    <h2 id="security-insights-heading" data-i18n="securityInsightsTitle">Key Security Insights</h2>
-                    <p class="section-description" data-i18n="securityInsightsDescription">
-                        Primary security capabilities this extension can access. These insights highlight potential vulnerabilities or elevated system access that could impact your browser's security.
-                    </p>
-                </div>
-                <div class="risk-summary-container">
-                    <ul id="security-insights-list" class="risk-summary-list">
-                        </ul>
-                </div>
-            </section>
+                <section class="content-section">
+                    <div class="section-header">
+                        <h2>Top Permissions by Count</h2>
+                        <p class="section-description">Click a permission to view all extensions that use it.</p>
+                    </div>
+                    <ul id="permission-count-list" class="dashboard-list"></ul>
+                </section>
 
-            <section class="content-section" aria-labelledby="privacy-insights-heading">
-                <div class="section-header">
-                    <h2 id="privacy-insights-heading" data-i18n="privacyInsightsTitle">Key Privacy Insights</h2>
-                    <p class="section-description" data-i18n="privacyInsightsDescription">
-                        How this extension might interact with your personal data and Browse habits. This section highlights permissions with direct implications for your privacy.
-                    </p>
-                </div>
-                <div class="risk-summary-container">
-                    <ul id="privacy-insights-list" class="risk-summary-list">
-                         </ul>
-                </div>
-            </section>
+                <section class="content-section">
+                    <div class="section-header">
+                        <h2>Extensions by Risk Rating</h2>
+                        <p class="section-description">Click a risk category to view all extensions within that rating.</p>
+                    </div>
+                    <ul id="risk-rating-list" class="dashboard-list"></ul>
+                </section>
+                
+                <section class="content-section">
+                    <div class="section-header">
+                        <h2>All Extensions</h2>
+                        <p class="section-description">Search for extensions by name or view a detailed TrustGuard report by selecting one.</p>
+                        <div class="search-container">
+                            <input type="search" id="permission-search-input" placeholder="Search extensions by name, permission, or risk level...">
+                        </div>
+                    </div>
+                    <ul id="all-extensions-list" class="all-extensions-list"></ul>
+                </section>
+            </div>
+
+            <div id="single-extension-view" style="display: none;">
+                <header class="page-header">
+                    <button id="back-to-dashboard-btn" class="back-button">← Back to Dashboard</button>
+                    <div class="extension-identity">
+                        <img id="extension-icon" src="../../public/icons/svg/terminal.svg" alt="Extension Icon" class="extension-icon">
+                        <h1 id="extension-name" class="extension-name">TrustGuard Analysis</h1>
+                    </div>
+                    <h2 class="header-title">Comprehensive Security & Privacy Report</h2>
+                </header>
+
+                <section class="content-section" aria-labelledby="trust-score-heading">
+                    <div class="section-header">
+                        <h2 id="trust-score-heading">Overall Trust Score</h2>
+                        <p class="section-description">This score reflects the extension's potential risk based on its requested permissions. A higher score signifies greater trustworthiness and a lower-risk profile.</p>
+                        <p class="section-note"><strong>Note:</strong> The scores are based on a heuristic model and should be considered as a guide only. They do not guarantee an extension's safety but highlight permissions that warrant closer review.</p>
+                    </div>
+                    <div class="score-cards-container">
+                        <div class="score-card is-main">
+                            <div id="trust-score-value" class="score-value">--</div>
+                            <div id="trust-score-category" class="score-category risk-unknown">Analyzing...</div>
+                            <p id="score-explanation" class="score-explanation">The assessment considers the quantity and severity of permissions, highlighting those that could compromise your data or browser integrity.</p>
+                        </div>
+                        <div class="score-card is-secondary">
+                            <div class="secondary-score-header">
+                                <h4 class="secondary-score-title">Security Score</h4>
+                                <div class="score-graph-container">
+                                    <div id="security-score-graph" class="score-graph">
+                                        <div id="security-score-value" class="score-value">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="score-card is-secondary">
+                            <div class="secondary-score-header">
+                                <h4 class="secondary-score-title">Privacy Score</h4>
+                                <div class="score-graph-container">
+                                    <div id="privacy-score-graph" class="score-graph">
+                                        <div id="privacy-score-value" class="score-value">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="content-section" aria-labelledby="what-if-heading">
+                    <div class="section-header">
+                        <h2 id="what-if-heading">"What If" Sandbox</h2>
+                        <p class="section-description">Temporarily disable permissions below to see how the overall score would change. This helps you understand the impact of each permission on the extension's risk profile.</p>
+                    </div>
+                    <div class="what-if-sandbox-container">
+                        <div class="what-if-score-card">
+                            <div class="what-if-score-value" id="what-if-score-value">--</div>
+                            <div class="what-if-score-category" id="what-if-score-category">Simulated Score</div>
+                        </div>
+                        <div id="what-if-sandbox"></div>
+                    </div>
+                </section>
+
+                <section class="content-section" aria-labelledby="anomaly-heading">
+                    <div class="section-header">
+                        <h2 id="anomaly-heading">AI-Powered Anomaly Detection</h2>
+                        <p class="section-description">This analysis uses a heuristic model to identify unusual permission requests that may not align with the extension's stated purpose, which could be a sign of hidden functionality or misuse.</p>
+                    </div>
+                    <div class="anomaly-report-container">
+                        <div id="anomaly-report"></div>
+                    </div>
+                </section>
+
+                <section class="content-section" aria-labelledby="least-privilege-heading">
+                    <div class="section-header">
+                        <h2 id="least-privilege-heading">Least Privilege Recommendations</h2>
+                        <p class="section-description">This section suggests potential areas where the extension may be requesting more permissions than are necessary for its core function.</p>
+                    </div>
+                    <div class="least-privilege-container">
+                        <div id="least-privilege-recommendations"></div>
+                    </div>
+                </section>
+
+                <section class="content-section" aria-labelledby="synergy-heading">
+                    <div class="section-header">
+                        <h2 id="synergy-heading">Permission Synergy Heatmap</h2>
+                        <p class="section-description">This table highlights dangerous combinations of permissions and their additional risk penalty. The more points, the greater the combined risk.</p>
+                    </div>
+                    <div id="permission-synergy-table" class="synergy-table"></div>
+                </section>
+
+                <section class="content-section" aria-labelledby="all-permissions-heading">
+                    <div class="section-header">
+                        <h2 id="all-permissions-heading">Categorized Permissions Report</h2>
+                        <p class="section-description">A detailed breakdown of every permission this extension requests, grouped by risk level.</p>
+                    </div>
+                    <div class="detailed-report-container">
+                        <div id="all-permissions-list" class="all-permissions-list-container"></div>
+                    </div>
+                </section>
+            </div>
+
+            <div id="filtered-extensions-view" style="display: none;">
+                <header class="page-header all-extensions-header">
+                    <button id="back-from-filtered-btn" class="back-button">← Back to Dashboard</button>
+                    <h1 id="filtered-view-header" class="extension-name">Filtered Extensions</h1>
+                    <h2 class="header-title">Extensions Matching Your Filter</h2>
+                </header>
+                <section class="content-section">
+                    <ul id="filtered-extensions-list" class="all-extensions-list"></ul>
+                </section>
+            </div>
 
         </main>
-    </div>
-
-    <div id="custom-confirm-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-message">
-        <div class="modal-content">
-            <h3 id="modal-title" data-i18n="modalConfirmTitle">Confirm Action</h3>
-            <p id="modal-message" data-i18n="modalConfirmMessage">Are you sure?</p>
-            <div class="modal-actions">
-                <button id="modal-cancel-button" class="btn secondary" data-i18n="modalCancelButton">Cancel</button>
-                <button id="modal-confirm-button" class="btn primary" data-i18n="modalConfirmButton">Confirm</button>
-            </div>
-        </div>
     </div>
 
     <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
