@@ -465,7 +465,7 @@ img.header-logo.no-mask {
     text-align: left;
     min-height: 44px;
 }
-/* MODIFIED: Removed transform on hover to prevent horizontal scrolling */
+
 .sidebar-button:not(:disabled):hover {
     background-color: var(--surface-container-high);
     color: var(--primary-color);
@@ -665,7 +665,7 @@ button.btn-icon.active { background-color: var(--primary-container-color); color
 .detail-item { display: flex; flex-direction: column; gap: var(--spacing-extra-small); }
 .detail-item.detail-item-full-width { grid-column: 1 / -1; }
 
-.detail-label { font-size: var(--label-large); font-weight: var(--font-weight-medium); color: var(--text-muted); text-transform: uppercase; display: inline-flex; align-items: center; gap: var(--spacing-small); }
+.detail-label { font-size: var(--label-large); font-weight: var(--font-weight-medium); color: var(--text-muted); display: inline-flex; align-items: center; gap: var(--spacing-small); }
 .detail-value { font-size: var(--body-large); color: var(--on-surface-color); word-break: break-word; display: flex; align-items: center; gap: var(--spacing-small); }
 .detail-value.emphasis { font-size: var(--title-large); font-weight: var(--font-weight-semibold); }
 .detail-value a { word-break: break-all; }
@@ -678,39 +678,88 @@ button.btn-icon.active { background-color: var(--primary-container-color); color
 
 
 /* ==========================================================================
-   Tooltip Styles
+   Tooltip Styles – Accessible, User-Friendly
    ========================================================================== */
-.tooltip-trigger { position: relative; display: inline-flex; cursor: help; }
-.tooltip-trigger .icon-help { color: var(--text-muted); }
-.tooltip-trigger:hover .icon-help, .tooltip-trigger:focus .icon-help { color: var(--primary-color); }
 
+.tooltip-trigger {
+  position: relative;
+  display: inline-flex;
+  cursor: help;
+  outline: none;
+}
+
+.tooltip-trigger:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.tooltip-trigger .icon-help {
+  color: var(--text-muted);
+  transition: color 0.2s;
+}
+
+.tooltip-trigger:hover .icon-help,
+.tooltip-trigger:focus .icon-help {
+  color: var(--primary-color);
+}
+
+/* Tooltip content */
 .tooltip-content {
-    position: absolute;
-    bottom: calc(100% + var(--spacing-small));
-    left: 50%;
-    transform: translateX(-50%);
-    background-color: var(--surface-container-highest);
-    color: var(--on-surface-color);
-    padding: var(--spacing-small) var(--spacing-medium);
-    border-radius: var(--border-radius-medium);
-    font-size: var(--body-small);
-    width: max-content;
-    max-width: 300px;
-    z-index: 100;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity .2s, transform .2s;
-    pointer-events: none;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  position: absolute;
+  bottom: calc(100% + var(--spacing-small));
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--surface-variant-color);
+  color: var(--on-surface-color);
+  padding: var(--spacing-small) var(--spacing-medium);
+  border-radius: var(--border-radius-medium);
+  font-size: var(--body-small);
+  line-height: 1.4;
+  max-width: 300px;
+  width: max-content;
+  z-index: 100;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  text-align: start;
+  font-weight: var(--font-weight-normal);
 }
 
+/* Fix for out-of-screen tooltips */
+@media (max-width: 500px) {
+  .tooltip-content {
+    max-width: calc(100vw - 2rem);
+    left: 1rem;
+    right: 1rem;
+    transform: none;
+  }
+}
+
+/* Dark mode shadow */
 @media (prefers-color-scheme: dark) {
-    .tooltip-content {
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
+  .tooltip-content {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
 }
 
-.tooltip-trigger:hover .tooltip-content, .tooltip-trigger:focus .tooltip-content, .tooltip-trigger:focus-within .tooltip-content { opacity: 1; visibility: visible; }
+/* Show on hover/focus */
+.tooltip-trigger:hover .tooltip-content,
+.tooltip-trigger:focus-within .tooltip-content,
+.tooltip-trigger:focus .tooltip-content {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* Optional: Flip above if not enough space */
+@media (max-height: 500px) {
+  .tooltip-content {
+    bottom: auto;
+    top: calc(100% + var(--spacing-small));
+  }
+}
 
 
 /* ==========================================================================
@@ -719,20 +768,22 @@ button.btn-icon.active { background-color: var(--primary-container-color); color
 .permissions-controls { display: flex; justify-content: space-between; align-items: center; gap: var(--spacing-extra-large); margin-bottom: var(--spacing-extra-large); padding-bottom: var(--spacing-medium); border-bottom: 1px solid var(--outline-color); }
 .permissions-search { position: relative; flex-grow: 1; max-width: 450px; }
 
+/* Search icon and input alignment fix */
 #permission-search-input {
-    font-family: inherit;
-    width: 100%;
-    padding: var(--spacing-small) var(--spacing-medium) var(--spacing-small) var(--spacing-double-extra-large);
-    font-size: var(--body-large);
-    border: 1px solid var(--outline-color);
-    border-radius: var(--border-radius-large);
-    background-color: var(--surface-color);
-    color: var(--on-surface-color);
+  font-family: inherit;
+  width: 100%;
+  padding: var(--spacing-small) var(--spacing-medium) var(--spacing-small) var(--spacing-double-extra-large);
+  font-size: var(--body-large);
+  border: 1px solid var(--outline-color);
+  border-radius: var(--border-radius-large);
+  background-color: var(--surface-color);
+  color: var(--on-surface-color);
 }
+
 #permission-search-input:focus { border-color: var(--primary-color); outline: 2px solid var(--primary-color); }
 
 .permissions-layout-toggle { display: flex; gap: var(--spacing-small); }
-.permissions-list { margin-top: var(--spacing-large); }
+.permissions-list { margin-top: var(--spacing-large); transition: all 0.3s ease-in-out; }
 .permissions-list.list-view { display: flex; flex-direction: column; gap: var(--spacing-small); }
 .permissions-list.grid-view { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--spacing-medium); }
 
