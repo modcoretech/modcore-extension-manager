@@ -1,0 +1,58 @@
+{
+  "extensionName": {
+    "message": "modcore Extension Manager",
+    "description": "Nome dell'estensione."
+  },
+  "extensionShortName": {
+    "message": "modcore EM",
+    "description": "Nome breve dell'estensione."
+  },
+  "extensionDescription": {
+    "message": "Gestisci facilmente le estensioni del browser con funzionalità avanzate di raggruppamento, profilazione e controllo.",
+    "description": "Descrizione dell'estensione."
+  },
+
+  
+  "offlineBannerMessage": {
+    "message": "Sembra che tu sia offline o che stia riscontrando problemi di connessione."
+  },
+  "offlineHelpIconTitle": {
+    "message": "Maggiori informazioni sui problemi di connessione"
+  },
+  "offlineDismissButton": {
+    "message": "Chiudi"
+  },
+  "modalTitle": {
+    "message": "Risoluzione dei problemi di connessione"
+  },
+  "modalIntroText": {
+    "message": "Questo messaggio indica un potenziale problema con la tua connessione Internet. Ecco alcuni passaggi comuni da provare:"
+  },
+  "modalCloseButton": {
+    "message": "Capito!"
+  },
+  "step1": {
+    "message": "Controlla la Tua Connessione: Assicurati di essere connesso alla rete Wi-Fi corretta o che il cavo Ethernet sia inserito."
+  },
+  "step2": {
+    "message": "Riavvia i Dispositivi: Spegni il router e il modem per 30 secondi, quindi riaccendili."
+  },
+  "step3": {
+    "message": "Ricarica la Pagina: Un semplice aggiornamento può risolvere problemi temporanei. Premi F5 o Cmd+R."
+  },
+  "step4": {
+    "message": "Prova Altri Siti: Vedi se riesci ad accedere ad altri siti web come google.com."
+  },
+  "step5": {
+    "message": "Disabilita VPN/Proxy: Disattiva temporaneamente qualsiasi servizio VPN o proxy che stai utilizzando."
+  },
+  "step6": {
+    "message": "Firewall/Antivirus: Controlla il tuo software di sicurezza per assicurarti che non stia bloccando il tuo browser."
+  },
+  "step7": {
+    "message": "Riavvia il Computer: Un riavvio completo del sistema può risolvere molti problemi sottostanti."
+  },
+  "temporaryOnlineMessage": {
+    "message": "Sei di nuovo online!"
+  }
+}
