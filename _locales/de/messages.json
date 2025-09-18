@@ -1,0 +1,58 @@
+{
+  "extensionName": {
+    "message": "modcore Extension Manager",
+    "description": "Name der Erweiterung."
+  },
+  "extensionShortName": {
+    "message": "modcore EM",
+    "description": "Kurzname der Erweiterung."
+  },
+  "extensionDescription": {
+    "message": "Verwalten Sie Ihre Browser-Erweiterungen mühelos mit erweiterten Gruppierungs-, Profilierungs- und Kontrollfunktionen.",
+    "description": "Beschreibung der Erweiterung."
+  },
+
+
+  "offlineBannerMessage": {
+    "message": "Sie scheinen offline zu sein oder Verbindungsprobleme zu haben."
+  },
+  "offlineHelpIconTitle": {
+    "message": "Weitere Informationen zu Verbindungsproblemen"
+  },
+  "offlineDismissButton": {
+    "message": "Schließen"
+  },
+  "modalTitle": {
+    "message": "Fehlerbehebung bei Verbindungsproblemen"
+  },
+  "modalIntroText": {
+    "message": "Diese Meldung deutet auf ein potenzielles Problem mit Ihrer Internetverbindung hin. Hier sind häufige Schritte, die Sie versuchen können:"
+  },
+  "modalCloseButton": {
+    "message": "Verstanden!"
+  },
+  "step1": {
+    "message": "Verbindung prüfen: Stellen Sie sicher, dass Sie mit dem richtigen WLAN verbunden sind oder Ihr Netzwerkkabel eingesteckt ist."
+  },
+  "step2": {
+    "message": "Geräte neu starten: Schalten Sie Router und Modem für 30 Sekunden aus und dann wieder ein."
+  },
+  "step3": {
+    "message": "Seite neu laden: Ein einfaches Neuladen kann vorübergehende Fehler beheben. Drücken Sie F5 oder Cmd+R."
+  },
+  "step4": {
+    "message": "Andere Seiten testen: Prüfen Sie, ob Sie andere Websites wie google.com aufrufen können."
+  },
+  "step5": {
+    "message": "VPN/Proxy deaktivieren: Schalten Sie vorübergehend alle verwendeten VPN- oder Proxy-Dienste aus."
+  },
+  "step6": {
+    "message": "Firewall/Antivirus: Prüfen Sie Ihre Sicherheitssoftware, um sicherzustellen, dass sie Ihren Browser nicht blockiert."
+  },
+  "step7": {
+    "message": "Computer neu starten: Ein Neustart des Systems kann viele grundlegende Probleme lösen."
+  },
+  "temporaryOnlineMessage": {
+    "message": "Sie sind wieder online!"
+  }
+}
