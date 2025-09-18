@@ -687,9 +687,9 @@ button.btn-icon.active { background-color: var(--primary-container-color); color
 }
 
 .select-input {
-    appearance: none; /* Remove default select styling */
+    appearance: none;
     -webkit-appearance: none;
-    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="%238e8e93" d="M4.94 6.06L8 9.12l3.06-3.06L12 6l-4 4-4-4z"/></svg>');
+    background-image: url('../../public/icons/svg/arrow-down.svg'); /* Placeholder for arrow icon */
     background-repeat: no-repeat;
     background-position: right var(--spacing-medium) center;
     background-size: 16px;
