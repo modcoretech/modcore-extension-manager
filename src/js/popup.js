@@ -34,9 +34,10 @@ const ICON_PATHS = {
     deleteGroup: '../../public/icons/svg/trash.svg',
     enableGroup: '../../public/icons/svg/power.svg',
     disableGroup: '../../public/icons/svg/power.svg',
+    assignGroup: '../../public/icons/svg/groups.svg',
     prevPage: '../../public/icons/svg/arrow-left.svg',
     nextPage: '../../public/icons/svg/arrow-right.svg',
-    profiles: '../../public/icons/svg/layers.svg',
+    profiles: '../../public/icons/svg/profiles.svg',
     addProfile: '../../public/icons/svg/plus.svg',
     deleteProfile: '../../public/icons/svg/trash.svg',
     applyProfile: '../../public/icons/svg/check.svg',
@@ -80,7 +81,8 @@ const elements = {
     // Bulk Actions
     bulkActionsContainer: document.getElementById('bulk-actions-container'),
     selectedCountSpan: document.getElementById('selected-count'),
-    bulkAssignGroupSelect: document.getElementById('bulk-assign-group-select'),
+    bulkAssignActionButton: document.getElementById('bulk-assign-action-btn'),
+    bulkAssignDropdownMenu: document.getElementById('bulk-assign-dropdown-menu'),
     bulkEnableButton: document.getElementById('bulk-enable-button'),
     bulkDisableButton: document.getElementById('bulk-disable-button'),
     bulkUninstallButton: document.getElementById('bulk-uninstall-button'),
@@ -150,6 +152,10 @@ let selectedProfileIds = new Set();
 let ephemeralFeedbackTimeout;
 let currentConfiguringProfileId = null;
 let currentConfiguringGroupName = null;
+
+// ADD THESE NEW VARIABLES
+let contextMenuElement = null;
+let currentContextMenuExtensionId = null;
 
 const activeShortcutHandlers = new Map();
 
@@ -474,8 +480,7 @@ async function addGroup(groupName) {
         saveOrderPreference('groupOrder', prefs.groupOrder);
     }
     await updateGroupFilterDropdown();
-    await updateAssignGroupDropdownsInList();
-    await updateBulkAssignGroupDropdown();
+    await populateBulkAssignDropdownMenu();
     await displayGroupManagementListInModal();
     showModalMessage(`Group "${sanitizeText(trimmedName)}" added successfully.`, 'success', true);
     await registerKeyboardShortcuts();
@@ -527,8 +532,7 @@ async function deleteGroups(groupNamesToDelete) {
 
         selectedGroupNames.clear();
         await updateGroupFilterDropdown();
-        await updateAssignGroupDropdownsInList();
-        await updateBulkAssignGroupDropdown();
+        await populateBulkAssignDropdownMenu();
         await displayGroupManagementListInModal();
         showModalMessage(`${deletedCount} group(s) deleted.`, 'success', true);
         
@@ -567,8 +571,7 @@ async function ungroupAllExtensions() {
 
     await saveGroups(newGroups);
     await updateGroupFilterDropdown();
-    await updateAssignGroupDropdownsInList();
-    await updateBulkAssignGroupDropdown();
+    await populateBulkAssignDropdownMenu();
     await displayGroupManagementListInModal();
     showModalMessage(`Successfully ungrouped ${changedCount} extension(s).`, 'success');
     await renderExtensionList(getCurrentPage());
@@ -625,7 +628,7 @@ async function assignExtensionToGroup(extensionId, groupName) {
             setTimeout(() => extensionItem.classList.remove('item-feedback-highlight', 'info'), ITEM_FEEDBACK_HIGHLIGHT_DURATION);
         }
         await updateGroupFilterDropdown();
-        await updateBulkAssignGroupDropdown();
+        await populateBulkAssignDropdownMenu();
         if (elements.groupModal?.style.display === 'flex') {
             await displayGroupManagementListInModal();
         } else if (elements.groupConfigurationModal?.style.display === 'flex') {
@@ -665,8 +668,7 @@ async function assignMultipleExtensionsToGroup(extensionIds, groupName) {
     if (changed) {
         await saveGroups(groups);
         await updateGroupFilterDropdown();
-        await updateAssignGroupDropdownsInList();
-        await updateBulkAssignGroupDropdown();
+        await populateBulkAssignDropdownMenu();
         if (elements.groupModal?.style.display === 'flex') {
             await displayGroupManagementListInModal();
         } else if (elements.groupConfigurationModal?.style.display === 'flex') {
@@ -693,7 +695,7 @@ async function getOrderedGroupNames() {
         .sort((a, b) => (groups[a].name || "").localeCompare(groups[b].name || "", undefined, { sensitivity: 'base' })); // Use group.name for sorting
     return [...orderedNames, ...groupsNotInOrder];
 }
-async function populateGroupSelect(selectElement, includeAllOption = false, includeNoGroupOption = false, includeRemoveOption = false) {
+async function populateGroupSelect(selectElement, includeAllOption = false, includeNoGroupOption = false) {
     if (!selectElement) return;
     const currentVal = selectElement.value;
     selectElement.innerHTML = '';
@@ -704,16 +706,11 @@ async function populateGroupSelect(selectElement, includeAllOption = false, incl
     }
     if (includeNoGroupOption) {
         const option = document.createElement('option');
-        option.value = "";
+        option.value = "no-group";
         option.textContent = "No Group";
         selectElement.appendChild(option);
     }
-     if (includeRemoveOption) {
-        const option = document.createElement('option');
-        option.value = "--remove--";
-        option.textContent = "Remove from Group";
-        selectElement.appendChild(option);
-    }
+
     const groups = await getGroups();
     const orderedGroupNames = await getOrderedGroupNames();
     orderedGroupNames.forEach(groupName => {
@@ -721,9 +718,7 @@ async function populateGroupSelect(selectElement, includeAllOption = false, incl
         const count = groupData?.members?.length || 0;
         const option = document.createElement('option');
         option.value = groupName; // Use the actual groupName as value
-        option.textContent = selectElement === elements.groupFilter
-            ? `${sanitizeText(groupData.name)} (${count})` // Use groupData.name for display
-            : sanitizeText(groupData.name); // Use groupData.name for display
+        option.textContent = `${sanitizeText(groupData.name)} (${count})`; // Use groupData.name for display
         selectElement.appendChild(option);
     });
     if (Array.from(selectElement.options).some(opt => opt.value === currentVal)) {
@@ -731,11 +726,11 @@ async function populateGroupSelect(selectElement, includeAllOption = false, incl
     } else if (includeAllOption) {
         selectElement.value = 'all';
     } else if (includeNoGroupOption) {
-        selectElement.value = '';
+        selectElement.value = 'no-group';
     }
 }
 async function updateGroupFilterDropdown() {
-    await populateGroupSelect(elements.groupFilter, true, false);
+    await populateGroupSelect(elements.groupFilter, true, true);
     const persistedGroupFilter = getPreferences().filters.group;
     if (elements.groupFilter && Array.from(elements.groupFilter.options).some(opt => opt.value === persistedGroupFilter)) {
         elements.groupFilter.value = persistedGroupFilter;
@@ -743,44 +738,119 @@ async function updateGroupFilterDropdown() {
         elements.groupFilter.value = 'all';
     }
 }
-async function updateBulkAssignGroupDropdown() {
-    if (elements.bulkAssignGroupSelect) {
-        const placeholderOption = document.createElement('option');
-        placeholderOption.value = "";
-        placeholderOption.textContent = "Assign to Group...";
-        placeholderOption.disabled = true;
 
-        await populateGroupSelect(elements.bulkAssignGroupSelect, false, false, true);
-        elements.bulkAssignGroupSelect.insertBefore(placeholderOption, elements.bulkAssignGroupSelect.firstChild);
-        elements.bulkAssignGroupSelect.value = "";
-    }
-}
-async function populateAssignGroupDropdown(selectElement, extensionId) {
-    if (!selectElement) return;
-    const groups = await getGroups();
-    let currentGroupForExtension = "";
-    // Iterate over Object.values to check 'members' array efficiently
-    Object.values(groups).forEach(groupData => {
-        if (groupData.members.includes(extensionId)) currentGroupForExtension = groupData.name; // Use groupData.name as value
-    });
-    await populateGroupSelect(selectElement, false, true);
-    selectElement.value = currentGroupForExtension;
-}
-async function handleAssignGroupChange(event) {
-    const selectElement = event.target.closest('.assign-group-select');
-    if (selectElement?.dataset.extensionId) {
-         await assignExtensionToGroup(selectElement.dataset.extensionId, selectElement.value);
-    }
-}
-async function updateAssignGroupDropdownsInList() {
-    const selects = elements.extensionList?.querySelectorAll('.assign-group-select');
-    if (!selects) return;
-    for (const select of selects) {
-        if (select.dataset.extensionId) {
-            await populateAssignGroupDropdown(select, select.dataset.extensionId);
+async function populateBulkAssignDropdownMenu() {
+    const menu = elements.bulkAssignDropdownMenu;
+    if (!menu) return;
+    menu.innerHTML = ''; // Clear previous items
+
+    const fragment = document.createDocumentFragment();
+
+    // --- Create Menu Item Helper ---
+    const createMenuItem = (text, action, value = '', icon = '') => {
+        const button = document.createElement('button');
+        button.className = 'menu-item';
+        button.dataset.action = action;
+        if (value) button.dataset.value = value;
+        button.setAttribute('role', 'menuitem');
+
+        if (icon) {
+            const img = document.createElement('img');
+            img.src = icon;
+            img.alt = '';
+            button.appendChild(img);
         }
+
+        const span = document.createElement('span');
+        span.textContent = text;
+        button.appendChild(span);
+
+        // Add a chevron for items that open a submenu
+        if (action === 'open-submenu') {
+            const chevron = document.createElement('img');
+            chevron.src = '../../public/icons/svg/arrow-right.svg';
+            chevron.alt = 'Open submenu';
+            chevron.className = 'chevron-right';
+            button.appendChild(chevron);
+        }
+
+        return button;
+    };
+
+    // --- Main Menu View ---
+    const mainView = document.createElement('div');
+    mainView.className = 'dropdown-view active-view';
+    mainView.id = 'bulk-assign-main-view';
+    mainView.appendChild(createMenuItem('Groups', 'open-submenu', 'groups-view', '../../public/icons/svg/groups.svg'));
+    mainView.appendChild(createMenuItem('Profiles', 'open-submenu', 'profiles-view', '../../public/icons/svg/profiles.svg'));
+
+    // --- Groups Submenu View ---
+    const groupsView = document.createElement('div');
+    groupsView.className = 'dropdown-view';
+    groupsView.id = 'groups-view';
+
+    const groupsHeader = document.createElement('div');
+    groupsHeader.className = 'submenu-header';
+    const backBtnGroups = document.createElement('button');
+    backBtnGroups.className = 'back-button';
+    backBtnGroups.dataset.action = 'go-back';
+    backBtnGroups.innerHTML = `<img src="../../public/icons/svg/arrow-left.svg" alt="Back"> <span>Groups</span>`;
+    groupsHeader.appendChild(backBtnGroups);
+    groupsView.appendChild(groupsHeader);
+
+    const groupsSubmenu = document.createElement('div');
+    groupsSubmenu.className = 'submenu';
+    const groups = await getGroups();
+    const orderedGroupNames = await getOrderedGroupNames();
+    if (orderedGroupNames.length > 0) {
+        orderedGroupNames.forEach(groupName => {
+            groupsSubmenu.appendChild(createMenuItem(sanitizeText(groups[groupName].name), 'assign-group', groupName));
+        });
     }
+    const removeGroupItem = createMenuItem('Remove from all Groups', 'assign-group', '--remove--');
+    removeGroupItem.classList.add('danger');
+    groupsSubmenu.appendChild(removeGroupItem);
+    groupsView.appendChild(groupsSubmenu);
+
+
+    // --- Profiles Submenu View ---
+    const profilesView = document.createElement('div');
+    profilesView.className = 'dropdown-view';
+    profilesView.id = 'profiles-view';
+
+    const profilesHeader = document.createElement('div');
+    profilesHeader.className = 'submenu-header';
+    const backBtnProfiles = document.createElement('button');
+    backBtnProfiles.className = 'back-button';
+    backBtnProfiles.dataset.action = 'go-back';
+    backBtnProfiles.innerHTML = `<img src="../../public/icons/svg/arrow-left.svg" alt="Back"> <span>Profiles</span>`;
+    profilesHeader.appendChild(backBtnProfiles);
+    profilesView.appendChild(profilesHeader);
+
+    const profilesSubmenu = document.createElement('div');
+    profilesSubmenu.className = 'submenu';
+    const profiles = await getProfiles();
+    const orderedProfileIds = await getOrderedProfileIds();
+    if (orderedProfileIds.length > 0) {
+        orderedProfileIds.forEach(profileId => {
+            const profile = profiles[profileId];
+            if (profile) {
+                profilesSubmenu.appendChild(createMenuItem(sanitizeText(profile.name), 'assign-profile', profileId));
+            }
+        });
+    }
+    const removeProfileItem = createMenuItem('Remove from all Profiles', 'remove-profile', 'all');
+    removeProfileItem.classList.add('danger');
+    profilesSubmenu.appendChild(removeProfileItem);
+    profilesView.appendChild(profilesSubmenu);
+
+    // --- Append all views ---
+    fragment.appendChild(mainView);
+    fragment.appendChild(groupsView);
+    fragment.appendChild(profilesView);
+    menu.appendChild(fragment);
 }
+
 
 // --- Group Management Modal ---
 async function openGroupManagementModal() {
@@ -852,7 +922,7 @@ async function displayGroupManagementListInModal() {
         const li = document.createElement('li');
         li.className = 'no-groups-message';
         li.setAttribute('role', 'status');
-        li.textContent = 'No groups created yet. Use the input above.';
+        li.textContent = 'No groups created yet. Use the input above to create a new group.';
         listElement.appendChild(li);
         updateBulkDeleteGroupsUI();
         return;
@@ -1230,8 +1300,7 @@ async function saveCurrentGroupConfiguration() {
 
     showGroupConfigMessage(`Configuration saved for "${sanitizeText(newName)}".`, 'success', true);
     await updateGroupFilterDropdown();
-    await updateAssignGroupDropdownsInList();
-    await updateBulkAssignGroupDropdown();
+    await populateBulkAssignDropdownMenu();
     await registerKeyboardShortcuts();
 }
 
@@ -1303,8 +1372,13 @@ async function filterAndSortExtensions(extensions) {
             if (statusFilter === 'enabled' && !ext.enabled) return false;
             if (statusFilter === 'disabled' && ext.enabled) return false;
         }
-        if (groupFilterValue !== 'all' && groupFilterValue !== 'no-group') {
-            if (!groups[groupFilterValue]?.members?.includes(ext.id)) return false; // Check against the correct key
+        if (groupFilterValue && groupFilterValue !== 'all') {
+            if (groupFilterValue === 'no-group') {
+                const isInAnyGroup = Object.values(groups).some(group => group.members.includes(ext.id));
+                if (isInAnyGroup) return false;
+            } else {
+                 if (!groups[groupFilterValue]?.members?.includes(ext.id)) return false;
+            }
         }
         if (searchTerms.length > 0) {
             const name = ext.name?.toLowerCase() || '';
@@ -1396,6 +1470,7 @@ async function renderExtensionList(page = 1) {
             const actions = document.createElement('div');
             actions.className = 'extension-actions';
 
+            // Helper function to create buttons
             const createButton = (text, iconSrc) => {
                 const button = document.createElement('button');
                 const img = document.createElement('img');
@@ -1423,12 +1498,6 @@ async function renderExtensionList(page = 1) {
             detailsButton.dataset.extensionId = extension.id;
             detailsButton.title = `View details for ${sanitizeText(extension.name)}`;
 
-            const assignGroupSelect = document.createElement('select');
-            assignGroupSelect.className = 'assign-group-select';
-            assignGroupSelect.dataset.extensionId = extension.id;
-            assignGroupSelect.title = "Assign to Group";
-            await populateAssignGroupDropdown(assignGroupSelect, extension.id); 
-
             const deleteButton = createButton(null, ICON_PATHS.delete);
             deleteButton.className = 'delete-button button-small button-danger icon-only';
             deleteButton.dataset.action = 'delete';
@@ -1438,7 +1507,6 @@ async function renderExtensionList(page = 1) {
 
             actions.appendChild(toggleButton);
             actions.appendChild(detailsButton);
-            actions.appendChild(assignGroupSelect);
             actions.appendChild(deleteButton);
 
             extensionItem.appendChild(checkbox);
@@ -1483,6 +1551,11 @@ async function refreshExtensionDataAndRender(page = 1) {
 
 // --- Extension Action Handlers (Delegation) ---
 function handleExtensionListClick(event) {
+    // Ignore right-clicks, as they are handled by the context menu
+    if (event.button === 2) {
+        return;
+    }
+
     const target = event.target;
 
     if (target.classList.contains('extension-select-checkbox')) {
@@ -1497,7 +1570,7 @@ function handleExtensionListClick(event) {
         }
         updateBulkActionsUI();
         updateSelectAllCheckboxState();
-        return; 
+        return;
     }
 
     const actionButton = target.closest('button[data-action]');
@@ -1505,7 +1578,7 @@ function handleExtensionListClick(event) {
 
     const action = actionButton.dataset.action;
     const extensionId = actionButton.dataset.extensionId;
-    if (!extensionId) return; 
+    if (!extensionId) return;
 
     switch (action) {
         case 'toggle':
@@ -1592,7 +1665,7 @@ function uninstallExtension(extensionId, sanitizedName) {
 
             await refreshExtensionDataAndRender(getCurrentPage()); 
             await updateGroupFilterDropdown(); 
-            await updateBulkAssignGroupDropdown(); 
+            await populateBulkAssignDropdownMenu();
             if (elements.groupModal?.style.display === 'flex') {
                 await displayGroupManagementListInModal(); 
             } else if (elements.groupConfigurationModal?.style.display === 'flex') {
@@ -1618,12 +1691,12 @@ function updateBulkActionsUI() {
     if (count > 0) {
         if(elements.selectedCountSpan) elements.selectedCountSpan.textContent = `${count} selected`;
         bulkContainer.style.display = 'flex';
-        [elements.bulkEnableButton, elements.bulkDisableButton, elements.bulkUninstallButton, elements.bulkAssignGroupSelect].forEach(el => {
+        [elements.bulkEnableButton, elements.bulkDisableButton, elements.bulkUninstallButton, elements.bulkAssignActionButton].forEach(el => {
             if (el) { el.disabled = false; }
         });
     } else {
         bulkContainer.style.display = 'none';
-        if(elements.bulkAssignGroupSelect) elements.bulkAssignGroupSelect.value = ""; 
+        toggleBulkAssignMenu(false);
     }
 }
 function updateSelectAllCheckboxState() {
@@ -1673,6 +1746,7 @@ function clearSelection() {
     });
     updateBulkActionsUI();
     updateSelectAllCheckboxState(); 
+    toggleBulkAssignMenu(false);
 }
 async function performBulkAction(action) {
     const idsToProcess = new Set(selectedExtensionIds); 
@@ -1732,7 +1806,7 @@ async function performBulkAction(action) {
 
     if (action === 'uninstall') {
         await updateGroupFilterDropdown(); 
-        await updateBulkAssignGroupDropdown();
+        await populateBulkAssignDropdownMenu();
         if (elements.groupModal?.style.display === 'flex') await displayGroupManagementListInModal();
         if (elements.profilesModal?.style.display === 'flex') await displayProfileManagementListInModal();
         if (currentConfiguringProfileId) await renderExtensionsForProfileConfiguration(currentConfiguringProfileId);
@@ -1740,16 +1814,340 @@ async function performBulkAction(action) {
     }
     await registerKeyboardShortcuts();
 }
-async function handleBulkAssignGroupChange(event) {
-    const selectedGroupName = event.target.value;
-    if (selectedExtensionIds.size === 0) {
-        event.target.value = ""; 
+function toggleBulkAssignMenu(show) {
+    const menu = elements.bulkAssignDropdownMenu;
+    const button = elements.bulkAssignActionButton;
+    if (!menu || !button) return;
+
+    if (show) {
+        menu.classList.add('visible');
+        button.setAttribute('aria-expanded', 'true');
+    } else {
+        menu.classList.remove('visible');
+        button.setAttribute('aria-expanded', 'false');
+    }
+}
+async function assignMultipleExtensionsToProfile(extensionIds, profileId) {
+    if (!extensionIds || extensionIds.size === 0 || !profileId) return;
+
+    const profiles = await getProfiles();
+    const profile = profiles[profileId];
+    if (!profile) {
+        showPopupMessage(`Error: Profile not found.`, 'error');
         return;
     }
-    if (selectedGroupName === "") return;
-    await assignMultipleExtensionsToGroup(selectedExtensionIds, selectedGroupName);
-    event.target.value = ""; 
+
+    let changed = false;
+    extensionIds.forEach(extId => {
+        // Assigns the extension and sets its state in the profile to enabled.
+        if (profile.extensionStates[extId] !== true) {
+            profile.extensionStates[extId] = true;
+            changed = true;
+        }
+    });
+
+    if (changed) {
+        await saveProfiles(profiles);
+        showPopupMessage(`${extensionIds.size} extension(s) added to profile "${sanitizeText(profile.name)}".`, 'success');
+    } else {
+        showPopupMessage(`All selected extensions were already in profile "${sanitizeText(profile.name)}".`, 'info', true);
+    }
+    clearSelection();
 }
+
+async function removeMultipleExtensionsFromAllProfiles(extensionIds) {
+    if (!extensionIds || extensionIds.size === 0) return;
+
+    const profiles = await getProfiles();
+    let changed = false;
+
+    Object.values(profiles).forEach(profile => {
+        extensionIds.forEach(extId => {
+            if (profile.extensionStates.hasOwnProperty(extId)) {
+                delete profile.extensionStates[extId];
+                changed = true;
+            }
+        });
+    });
+
+    if (changed) {
+        await saveProfiles(profiles);
+        showPopupMessage(`${extensionIds.size} extension(s) removed from all profiles where they existed.`, 'success');
+    } else {
+        showPopupMessage('Selected extensions were not found in any profiles.', 'info', true);
+    }
+    clearSelection();
+}
+
+
+async function addExtensionToProfile(extensionId, profileId) {
+    const profiles = await getProfiles();
+    const profile = profiles[profileId];
+    if (!profile) return;
+
+    const extension = allFetchedExtensions.find(ext => ext.id === extensionId);
+    if (!extension) return;
+
+    // Add to profile and set its state to its current enabled state
+    profile.extensionStates[extensionId] = extension.enabled;
+    await saveProfiles(profiles);
+    showActionFeedback(`Added to profile "${sanitizeText(profile.name)}".`, 'success');
+}
+
+async function removeExtensionFromAllProfiles(extensionId) {
+    const profiles = await getProfiles();
+    let changed = false;
+    Object.values(profiles).forEach(profile => {
+        if (profile.extensionStates.hasOwnProperty(extensionId)) {
+            delete profile.extensionStates[extensionId];
+            changed = true;
+        }
+    });
+
+    if (changed) {
+        await saveProfiles(profiles);
+        showActionFeedback(`Removed from all profiles.`, 'success');
+    }
+}
+
+
+function createContextMenu() {
+    if (document.getElementById('custom-context-menu')) return;
+
+    contextMenuElement = document.createElement('div');
+    contextMenuElement.id = 'custom-context-menu';
+    contextMenuElement.className = 'custom-context-menu';
+    document.body.appendChild(contextMenuElement);
+}
+
+// Modify hideContextMenu to remove the listener
+function hideContextMenu() {
+    if (contextMenuElement) {
+        contextMenuElement.classList.remove('visible');
+        contextMenuElement.removeEventListener('keydown', handleContextMenuKeyDown); // Remove listener when hiding
+    }
+    currentContextMenuExtensionId = null;
+}
+
+// Add this new function to handle keyboard navigation within the context menu
+function handleContextMenuKeyDown(event) {
+    const visibleItems = Array.from(contextMenuElement.querySelectorAll('.context-menu-item:not([style*="display: none"]):not(.context-menu-separator)'));
+    if (visibleItems.length === 0) return;
+
+    const focusedItem = document.activeElement;
+    let newFocusIndex = -1;
+
+    // Check if the currently focused element is within the context menu
+    const isInsideContextMenu = contextMenuElement.contains(focusedItem);
+
+    if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        if (!isInsideContextMenu || focusedItem.classList.contains('context-menu-info')) {
+            // If focus is not inside or on the info section, focus the first item
+            newFocusIndex = 0;
+        } else {
+            const currentIndex = visibleItems.indexOf(focusedItem);
+            newFocusIndex = (currentIndex + 1) % visibleItems.length;
+        }
+    } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        if (!isInsideContextMenu || focusedItem.classList.contains('context-menu-info')) {
+            // If focus is not inside or on the info section, focus the last item
+            newFocusIndex = visibleItems.length - 1;
+        } else {
+            const currentIndex = visibleItems.indexOf(focusedItem);
+            newFocusIndex = (currentIndex - 1 + visibleItems.length) % visibleItems.length;
+        }
+    } else if (event.key === 'Enter') {
+        if (isInsideContextMenu && focusedItem && focusedItem.classList.contains('context-menu-item')) {
+            event.preventDefault();
+            // Simulate a click on the focused item
+            focusedItem.click();
+            // Optional: If it's a submenu trigger, you might want to focus the submenu.
+            // This example simply clicks, which will open the submenu if applicable.
+        }
+    } else if (event.key === 'Escape') {
+        event.preventDefault();
+        hideContextMenu();
+        // Return focus to the element that opened the context menu, or a sensible default
+        const extensionItem = document.querySelector(`.extension-item[data-extension-id="${currentContextMenuExtensionId}"]`);
+        if (extensionItem) {
+            extensionItem.focus();
+        } else {
+            elements.searchInput?.focus();
+        }
+    }
+
+    if (newFocusIndex !== -1) {
+        visibleItems[newFocusIndex].focus();
+    }
+}
+
+
+async function populateAndShowContextMenu(extensionId, event) {
+    event.preventDefault();
+    event.stopPropagation();
+    currentContextMenuExtensionId = extensionId;
+
+    const extension = allFetchedExtensions.find(e => e.id === extensionId);
+    if (!extension) return;
+
+    // Clear previous menu content
+    contextMenuElement.innerHTML = '';
+
+    const fragment = document.createDocumentFragment();
+
+    // --- Helper to create menu items ---
+    const createMenuItem = (text, icon, action, isDanger = false) => {
+        const item = document.createElement('button');
+        item.className = 'context-menu-item';
+        if (isDanger) item.classList.add('danger');
+
+        const img = document.createElement('img');
+        img.src = icon;
+        img.alt = '';
+        item.appendChild(img);
+
+        const span = document.createElement('span');
+        span.textContent = text;
+        item.appendChild(span);
+
+        item.addEventListener('click', () => {
+            action();
+            hideContextMenu();
+        });
+        return item;
+    };
+
+    // --- Info Section ---
+    const infoDiv = document.createElement('div');
+    infoDiv.className = 'context-menu-info';
+    const nameStrong = document.createElement('strong');
+    nameStrong.textContent = extension.name;
+    infoDiv.appendChild(nameStrong);
+    const versionSpan = document.createElement('span');
+    versionSpan.textContent = `Version: ${extension.version}`;
+    infoDiv.appendChild(versionSpan);
+    const idSpan = document.createElement('span');
+    idSpan.textContent = `ID: ${extension.id.substring(0, 12)}...`;
+    idSpan.title = extension.id;
+    infoDiv.appendChild(idSpan);
+    fragment.appendChild(infoDiv);
+    fragment.appendChild(document.createElement('hr')).className = 'context-menu-separator';
+
+    // --- Membership Info Section ---
+    const groups = await getGroups();
+    const profiles = await getProfiles();
+    const memberOfGroups = Object.values(groups).filter(g => g.members.includes(extensionId));
+    const memberOfProfiles = Object.values(profiles).filter(p => p.extensionStates.hasOwnProperty(extensionId));
+
+    if (memberOfGroups.length > 0 || memberOfProfiles.length > 0) {
+        const membershipDiv = document.createElement('div');
+        membershipDiv.className = 'context-menu-membership';
+
+        if (memberOfGroups.length > 0) {
+            const groupStrong = document.createElement('strong');
+            groupStrong.textContent = 'In Groups:';
+            membershipDiv.appendChild(groupStrong);
+            const groupUl = document.createElement('ul');
+            memberOfGroups.forEach(g => {
+                const li = document.createElement('li');
+                li.textContent = sanitizeText(g.name);
+                groupUl.appendChild(li);
+            });
+            membershipDiv.appendChild(groupUl);
+        }
+
+        if (memberOfProfiles.length > 0) {
+            const profileStrong = document.createElement('strong');
+            profileStrong.textContent = 'In Profiles:';
+            membershipDiv.appendChild(profileStrong);
+            const profileUl = document.createElement('ul');
+            memberOfProfiles.forEach(p => {
+                const li = document.createElement('li');
+                li.textContent = sanitizeText(p.name);
+                profileUl.appendChild(li);
+            });
+            membershipDiv.appendChild(profileUl);
+        }
+
+        fragment.appendChild(membershipDiv);
+        fragment.appendChild(document.createElement('hr')).className = 'context-menu-separator';
+    }
+
+
+    // --- Actions ---
+    fragment.appendChild(createMenuItem('View Details', ICON_PATHS.details, () => openDetailsPage(extensionId)));
+
+    // --- Manage Groups (Submenu) ---
+    const groupMenuItem = createMenuItem('Assign to Group', ICON_PATHS.assignGroup, () => {});
+    groupMenuItem.appendChild(document.createTextNode('▶')).className = 'submenu-arrow';
+    const groupSubmenu = document.createElement('div');
+    groupSubmenu.className = 'context-menu-submenu';
+
+    const orderedGroupNames = await getOrderedGroupNames();
+    orderedGroupNames.forEach(groupName => {
+        const subItem = createMenuItem(sanitizeText(groups[groupName].name), ICON_PATHS.assignGroup, () => assignExtensionToGroup(extensionId, groupName));
+        groupSubmenu.appendChild(subItem);
+    });
+    groupSubmenu.appendChild(document.createElement('hr')).className = 'context-menu-separator';
+    const removeGroupItem = createMenuItem('Remove from all Groups', ICON_PATHS.ungroup, () => assignExtensionToGroup(extensionId, '--remove--'), true);
+    groupSubmenu.appendChild(removeGroupItem);
+    groupMenuItem.appendChild(groupSubmenu);
+    fragment.appendChild(groupMenuItem);
+
+    // --- Manage Profiles (Submenu) ---
+    const profileMenuItem = createMenuItem('Add to Profile', ICON_PATHS.profiles, () => {});
+    profileMenuItem.appendChild(document.createTextNode('▶')).className = 'submenu-arrow';
+    const profileSubmenu = document.createElement('div');
+    profileSubmenu.className = 'context-menu-submenu';
+
+    const orderedProfileIds = await getOrderedProfileIds();
+    orderedProfileIds.forEach(profileId => {
+        const subItem = createMenuItem(sanitizeText(profiles[profileId].name), ICON_PATHS.addProfile, () => addExtensionToProfile(extensionId, profileId));
+        profileSubmenu.appendChild(subItem);
+    });
+    profileSubmenu.appendChild(document.createElement('hr')).className = 'context-menu-separator';
+    const removeProfileItem = createMenuItem('Remove from all Profiles', ICON_PATHS.deleteProfile, () => removeExtensionFromAllProfiles(extensionId), true);
+    profileSubmenu.appendChild(removeProfileItem);
+    profileMenuItem.appendChild(profileSubmenu);
+    fragment.appendChild(profileMenuItem);
+
+
+    fragment.appendChild(document.createElement('hr')).className = 'context-menu-separator';
+    fragment.appendChild(createMenuItem('Uninstall', ICON_PATHS.delete, () => confirmAndDeleteExtension(extensionId, extension.name), true));
+
+    contextMenuElement.appendChild(fragment);
+
+    // --- Position and Show ---
+    const { clientX: mouseX, clientY: mouseY } = event;
+    const { innerWidth, innerHeight } = window;
+    const { offsetWidth: menuWidth, offsetHeight: menuHeight } = contextMenuElement;
+
+    let top = mouseY;
+    let left = mouseX;
+
+    if (mouseY + menuHeight > innerHeight) {
+        top = innerHeight - menuHeight - 5;
+    }
+    if (mouseX + menuWidth > innerWidth) {
+        left = innerWidth - menuWidth - 5;
+    }
+
+    contextMenuElement.style.top = `${top}px`;
+    contextMenuElement.style.left = `${left}px`;
+    contextMenuElement.classList.add('visible');
+
+    contextMenuElement.classList.add('visible');
+    // Add keyboard navigation listener
+    contextMenuElement.addEventListener('keydown', handleContextMenuKeyDown);
+    // Focus the first actionable item in the menu
+    const firstItem = contextMenuElement.querySelector('.context-menu-item');
+    if (firstItem) {
+        firstItem.focus();
+    }
+}
+
 
 // --- Pagination ---
 function getCurrentPage() {
@@ -1815,7 +2213,7 @@ async function setupFiltersAndSearch() {
     elements.groupFilter?.addEventListener('change', handleFilterOrSearchChange);
 
     await updateGroupFilterDropdown();
-    await updateBulkAssignGroupDropdown();
+    await populateBulkAssignDropdownMenu();
 
     elements.searchInput?.addEventListener('input', () => {
         clearTimeout(searchDebounceTimeout);
@@ -2001,6 +2399,7 @@ async function addProfile(profileName) {
     saveOrderPreference('profileOrder', prefs.profileOrder);
 
     await displayProfileManagementListInModal(); 
+    await populateBulkAssignDropdownMenu();
     showProfilesModalMessage(`Profile "${sanitizeText(trimmedName)}" added.`, 'success', true);
     await registerKeyboardShortcuts();
     return true;
@@ -2041,6 +2440,7 @@ async function deleteProfiles(profileIdsToDelete) {
 
         selectedProfileIds.clear();
         await displayProfileManagementListInModal();
+        await populateBulkAssignDropdownMenu();
         showProfilesModalMessage(`${deletedCount} profile(s) deleted.`, 'success', true);
         await registerKeyboardShortcuts();
     }
@@ -2130,6 +2530,7 @@ async function createProfileFromCurrentState() {
 
     hideLoading();
     await displayProfileManagementListInModal();
+    await populateBulkAssignDropdownMenu();
     showProfilesModalMessage(`Profile "${sanitizeText(profileName)}" created from current state.`, 'success', true);
     await registerKeyboardShortcuts();
 }
@@ -2178,7 +2579,7 @@ async function displayProfileManagementListInModal() {
         const li = document.createElement('li');
         li.className = 'no-profiles-message';
         li.setAttribute('role', 'status');
-        li.textContent = 'No profiles created yet.';
+        li.textContent = 'No profiles created yet. Use the input above to create a new profile.';
         listEl.appendChild(li);
         updateBulkDeleteProfilesUI();
         return;
@@ -2562,13 +2963,91 @@ function handleSelectAllProfilesChange(event) {
     updateBulkDeleteProfilesUI();
 }
 
-// --- Bulk Action Listeners Setup ---
 function setupBulkActionListeners() {
     elements.selectAllCheckbox?.addEventListener('change', handleSelectAllChange);
     elements.bulkEnableButton?.addEventListener('click', () => performBulkAction('enable'));
     elements.bulkDisableButton?.addEventListener('click', () => performBulkAction('disable'));
     elements.bulkUninstallButton?.addEventListener('click', () => performBulkAction('uninstall'));
-    elements.bulkAssignGroupSelect?.addEventListener('change', handleBulkAssignGroupChange);
+
+    // --- Hierarchical Dropdown Logic ---
+    const menu = elements.bulkAssignDropdownMenu;
+    const button = elements.bulkAssignActionButton;
+
+    const showView = (viewId) => {
+        const views = menu.querySelectorAll('.dropdown-view');
+        views.forEach(view => view.classList.remove('active-view'));
+        const targetView = menu.querySelector(`#${viewId}`);
+        if (targetView) {
+            targetView.classList.add('active-view');
+        }
+    };
+
+    button?.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const isVisible = menu.classList.contains('visible');
+        if (isVisible) {
+            toggleBulkAssignMenu(false);
+        } else {
+            // Recalculate position every time it opens
+            const buttonRect = button.getBoundingClientRect();
+            const popupRect = document.body.getBoundingClientRect();
+            
+            // Check space above and below WITHIN the popup/viewport
+            const spaceAbove = buttonRect.top;
+            const spaceBelow = popupRect.height - buttonRect.bottom;
+            
+            // Estimate menu height, can be dynamic if needed
+            const menuHeight = 220; 
+
+            // Position below if not enough space above AND more space below
+            if (spaceAbove < menuHeight && spaceBelow > spaceAbove) {
+                menu.classList.add('position-below');
+            } else {
+                menu.classList.remove('position-below');
+            }
+            showView('bulk-assign-main-view'); // Reset to main view
+            toggleBulkAssignMenu(true);
+        }
+    });
+
+    menu?.addEventListener('click', async (event) => {
+        const target = event.target.closest('button[data-action]');
+        if (!target) return;
+
+        const action = target.dataset.action;
+        const value = target.dataset.value;
+        const ids = selectedExtensionIds;
+
+        switch (action) {
+            case 'open-submenu':
+                showView(value);
+                break;
+            case 'go-back':
+                showView('bulk-assign-main-view');
+                break;
+            case 'assign-group':
+                if (ids.size > 0) await assignMultipleExtensionsToGroup(ids, value);
+                toggleBulkAssignMenu(false);
+                break;
+            case 'assign-profile':
+                 if (ids.size > 0) await assignMultipleExtensionsToProfile(ids, value);
+                toggleBulkAssignMenu(false);
+                break;
+            case 'remove-profile':
+                 if (ids.size > 0) await removeMultipleExtensionsFromAllProfiles(ids);
+                toggleBulkAssignMenu(false);
+                break;
+        }
+    });
+
+    // Close menu when clicking outside
+    document.addEventListener('click', (event) => {
+        if (!menu?.contains(event.target) && !button?.contains(event.target)) {
+            if (menu?.classList.contains('visible')) {
+                toggleBulkAssignMenu(false);
+            }
+        }
+    });
 }
 
 // --- Global Keyboard Shortcut Management ---
@@ -2737,26 +3216,31 @@ async function registerKeyboardShortcuts() {
 // --- Initialization ---
 async function initializePopup() {
     console.log("modcore EM Popup Initializing (v4.4)...");
-    
-    const extListHeaderSpan = elements.extensionListHeader?.querySelector('span:not(.header-actions-label) em');
-    if (extListHeaderSpan) extListHeaderSpan.remove();
-    const groupModalTitle = elements.groupModal?.querySelector('#modal-group-list-section h3 .subtle-hint');
-    if (groupModalTitle) groupModalTitle.remove();
-    const profileModalTitle = elements.profilesModal?.querySelector('#modal-profile-list-section h3 .subtle-hint');
-    if (profileModalTitle) profileModalTitle.remove();
+
+    createContextMenu(); // Create the context menu element on startup
 
     setupPagination();
-    const { clearAllFilters } = await setupFiltersAndSearch(); 
+    const { clearAllFilters } = await setupFiltersAndSearch();
     setupModalEventListeners();
     setupBulkActionListeners();
 
     elements.extensionList?.addEventListener('click', handleExtensionListClick);
-    elements.extensionList?.addEventListener('change', (event) => {
-        if (event.target.classList.contains('assign-group-select')) {
-            handleAssignGroupChange(event);
+    
+    // ADD a new listener for the context menu
+    elements.extensionList?.addEventListener('contextmenu', (event) => {
+        const item = event.target.closest('.extension-item');
+        if (item && item.dataset.extensionId) {
+            populateAndShowContextMenu(item.dataset.extensionId, event);
         }
     });
 
+    // Global listener to hide the context menu
+    document.addEventListener('click', (event) => {
+        if (!contextMenuElement?.contains(event.target)) {
+            hideContextMenu();
+        }
+    });
+    
     document.addEventListener('keydown', (event) => {
         const activeEl = document.activeElement;
         const isInputActive = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA');
@@ -2844,5 +3328,16 @@ async function initializePopup() {
 
     console.log("modcore EM Popup Initialized.");
 }
+
+
+// Set version and copyright info in one text block
+    const footerInfoElement = document.getElementById('footer-info');
+    if (footerInfoElement) {
+        const manifest = chrome.runtime.getManifest();
+        const currentYear = new Date().getFullYear();
+        const footerText = `Version ${manifest.version} | © ${currentYear} modcore`;
+        footerInfoElement.textContent = footerText;
+    }
+
 
 document.addEventListener('DOMContentLoaded', initializePopup);
