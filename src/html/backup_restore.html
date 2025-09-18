@@ -37,22 +37,35 @@
                         <div class="details-grid">
                             <div class="detail-item detail-item-full-width">
                                 <label for="backupFileName" class="detail-label">File Name</label>
-                                <input type="text" id="backupFileName" class="text-input" value="extension_backup">
+                                <input type="text" id="backupFileName" class="text-input" placeholder="e.g., extension_backup_2025-08-09">
                             </div>
-                            <div class="detail-item">
-                                <label for="backupFileType" class="detail-label">File Type</label>
-                                <select id="backupFileType" class="select-input">
-                                    <option value="json">JSON (.json)</option>
-                                    <option value="txt">Text (.txt)</option>
-                                    <option value="dat">Binary (.dat)</option>
-                                </select>
+                            <div class="detail-item detail-item-full-width">
+                                <p class="detail-label">Select Data to Include</p>
+                                <div class="checkbox-group">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="backupChromeLocal" value="chromeLocal" checked>
+                                        <span class="checkmark"></span> Chrome Local Storage
+                                    </label>
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="backupChromeSync" value="chromeSync" checked>
+                                        <span class="checkmark"></span> Chrome Sync Storage
+                                    </label>
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="backupWebLocal" value="webLocal" checked>
+                                        <span class="checkmark"></span> Web Local Storage
+                                    </label>
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="backupWebSession" value="webSession" checked>
+                                        <span class="checkmark"></span> Web Session Storage
+                                    </label>
+                                </div>
                             </div>
                             <div class="detail-item detail-item-full-width">
                                 <label class="checkbox-container">
                                     <input type="checkbox" id="enableEncryptionCheckbox">
                                     <span class="checkmark"></span>
                                     Encrypt Backup with Password
-                                    <span class="tooltip-trigger" style="margin-left: var(--spacing-small);"><span class="icon icon-help"></span><span class="tooltip-content">Adds an extra layer of security to your backup file.</span></span>
+                                    <span class="tooltip-trigger" style="margin-left: var(--spacing-small);"><span class="icon icon-help"></span><span class="tooltip-content">Adds an extra layer of security to your backup file by encrypting its contents with a password. This is highly recommended for sensitive data.</span></span>
                                 </label>
                             </div>
                         </div>
@@ -66,6 +79,13 @@
                                 <label for="confirmBackupPassword" class="detail-label">Confirm Password</label>
                                 <input type="password" id="confirmBackupPassword" class="text-input" placeholder="Re-enter password">
                             </div>
+                            <div class="detail-item detail-item-full-width" id="password-strength-container" hidden>
+                                <label class="detail-label">Password Strength</label>
+                                <div class="password-strength-meter">
+                                    <progress id="passwordStrengthBar" value="0" max="100"></progress>
+                                    <span id="passwordStrengthText" class="strength-text"></span>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="details-actions-grid" style="margin-top: var(--spacing-large);">
@@ -74,14 +94,14 @@
                             </button>
                         </div>
                     </section>
-
+                    
                     <section class="content-section" id="restore-backup-section">
                         <h3 class="section-title">Restore Backup</h3>
                         <div class="details-grid">
                             <div class="detail-item detail-item-full-width">
                                 <label for="restoreFile" class="detail-label">Select Backup File</label>
                                 <div class="file-upload-container">
-                                    <input type="file" id="restoreFile" class="file-input" accept=".json,.txt,.dat">
+                                    <input type="file" id="restoreFile" class="file-input" accept=".json">
                                     <label for="restoreFile" class="file-input-label btn secondary">
                                         <span class="icon icon-upload"></span> Choose File
                                     </label>
@@ -91,6 +111,28 @@
                             <div id="restorePasswordInputGroup" class="detail-item detail-item-full-width" hidden>
                                 <label for="restorePassword" class="detail-label">Encryption Password</label>
                                 <input type="password" id="restorePassword" class="text-input" placeholder="Password for encrypted backup">
+                            </div>
+                            <div class="detail-item detail-item-full-width" id="restore-options-container" hidden>
+                                <p class="detail-label">Select Data to Restore</p>
+                                <div class="checkbox-group">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="restoreChromeLocal" value="chromeLocal">
+                                        <span class="checkmark"></span> Restore Chrome Local Storage
+                                    </label>
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="restoreChromeSync" value="chromeSync">
+                                        <span class="checkmark"></span> Restore Chrome Sync Storage
+                                    </label>
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="restoreWebLocal" value="webLocal">
+                                        <span class="checkmark"></span> Restore Web Local Storage
+                                    </label>
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="restoreWebSession" value="webSession">
+                                        <span class="checkmark"></span> Restore Web Session Storage
+                                    </label>
+                                </div>
+                                <div class="metadata-display" id="backup-metadata"></div>
                             </div>
                         </div>
                         <div class="details-actions-grid" style="margin-top: var(--spacing-large);">
@@ -114,10 +156,18 @@
                 <div class="panel-content">
                     <section class="content-section">
                         <h3 class="section-title">View Stored Data</h3>
-                        <p class="detail-description-text">Below is the data currently stored by the extension across different storage areas (e.g., Chrome Local, Chrome Sync, Web Local, Web Session).</p>
-                        <div id="stored-data-display" class="code-block">
-                            <pre><code>No data loaded yet. Click 'Load Data' to view.</code></pre>
-                            <button class="btn-icon btn-copy" title="Copy to Clipboard"><span class="icon icon-copy"></span></button>
+                        <p class="detail-description-text">Below is the data currently stored by the extension across different storage areas.</p>
+                        <div class="details-actions-grid" style="margin-bottom: var(--spacing-medium);">
+                            <input type="text" id="dataSearchInput" class="text-input" placeholder="Search keys or values...">
+                             <button id="downloadLoadedDataBtn" class="btn secondary">
+                                <span class="icon icon-download"></span> Download
+                            </button>
+                        </div>
+                        <div id="data-view-container">
+                            <div id="stored-data-display" class="code-block" style="display: block;">
+                                <pre><code>No data loaded yet. Click 'Load Data' to view.</code></pre>
+                                <button class="btn-icon btn-copy" title="Copy to Clipboard"><span class="icon icon-copy"></span></button>
+                            </div>
                         </div>
                         <div class="details-actions-grid" style="margin-top: var(--spacing-large);">
                              <button id="loadDataBtn" class="btn secondary">
@@ -126,7 +176,7 @@
                         </div>
                     </section>
 
-                    <section class="content-section">
+                    <section class="content-section" id="clear-data-section">
                         <h3 class="section-title">Clear Data by Storage Type</h3>
                         <p class="detail-description-text">Select which storage types you want to clear. This action cannot be undone for the selected storage areas.</p>
                         <div class="checkbox-group" style="margin-bottom: var(--spacing-large);">
@@ -139,6 +189,7 @@
                                 <input type="checkbox" id="clearChromeSync" value="chromeSync">
                                 <span class="checkmark"></span>
                                 Chrome Sync Storage (<code class="storage-size" data-storage="chromeSync">...</code>)
+                                <span class="tooltip-trigger" style="margin-left: var(--spacing-small);"><span class="icon icon-help"></span><span class="tooltip-content">All data in Cloud Sync will be permanently deleted. If you’ve uploaded local data, checking this will remove it from the cloud. Deleting local data as well will make recovery impossible.</span></span>
                             </label>
                             <label class="checkbox-container">
                                 <input type="checkbox" id="clearWebLocal" value="webLocal">
@@ -149,6 +200,7 @@
                                 <input type="checkbox" id="clearWebSession" value="webSession">
                                 <span class="checkmark"></span>
                                 Web Session Storage (<code class="storage-size" data-storage="webSession">...</code>)
+                                <span class="tooltip-trigger" style="margin-left: var(--spacing-small);"><span class="icon icon-help"></span><span class="tooltip-content">This option may be empty because it’s not used by modcore Extension Manager. Deleting data here should have no effect.</span></span>
                             </label>
                             <label class="checkbox-container">
                                 <input type="checkbox" id="clearChromeManaged" value="chromeManaged" disabled>
@@ -191,5 +243,6 @@
     </div>
 
     <script src="../js/backup_restore.js"></script>
+    <script src="../js/profile-cards.js"></script>
 </body>
 </html>
