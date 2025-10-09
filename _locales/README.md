@@ -18,7 +18,7 @@ In such cases, we would aim to include support for as many languages as possible
 
 ### Why are there language files included already?
 
-The language files (currently available for English, German, Spanish, Italian, Russian, and French) are included specifically to localize the **extension description**. This description helps users from different regions understand the purpose and features of the extension in their native language. Since this text is stable and rarely changes, maintaining translations is practical and ensures broader accessibility for users worldwide.
+The language files (currently available for English, German, Spanish, Italian, Russian, French and Japanese) are included specifically to localize the **extension description**. This description helps users from different regions understand the purpose and features of the extension in their native language. Since this text is stable and rarely changes, maintaining translations is practical and ensures broader accessibility for users worldwide.
 
 Additionally, this setup allows third-party developers or modders to build upon the extension and add their own translations if they choose to do so.
 
@@ -29,5 +29,6 @@ Possibly. This depends on multiple factors: how the project evolves, whether loc
 Our intention is to support as many languages as possible — but this is not a commitment. It's equally possible that we’ll support fewer languages than expected if priorities shift.
 
 ### Can I contribute a translation?
+
 
 At this time, we do not have a formal process for accepting community translations. However, if you're interested in localizing the extension or helping prepare language files, feel free to reach out or fork the repository to contribute independently.
