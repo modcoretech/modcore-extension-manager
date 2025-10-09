@@ -1,0 +1,106 @@
+{
+  "extensionName": {
+    "message": "modcore Extension Manager",
+    "description": "拡張機能の名称。"
+  },
+  "extensionShortName": {
+    "message": "modcore EM",
+    "description": "拡張機能の短縮名。"
+  },
+  "extensionDescription": {
+    "message": "拡張されたグループ化、プロファイル管理、制御機能でブラウザー拡張機能を簡単に管理できます。",
+    "description": "拡張機能の説明。"
+  },
+
+
+  "offlineBannerMessage": {
+    "message": "オフラインであるか、接続に問題が発生しているようです。"
+  },
+  "offlineHelpIconTitle": {
+    "message": "接続の問題について詳しく見る"
+  },
+  "offlineDismissButton": {
+    "message": "閉じる"
+  },
+  "modalTitle": {
+    "message": "接続問題のトラブルシューティング"
+  },
+  "modalIntroText": {
+    "message": "このメッセージは、インターネット接続に問題がある可能性を示しています。次の一般的な手順をお試しください："
+  },
+  "modalCloseButton": {
+    "message": "了解しました！"
+  },
+  "step1": {
+    "message": "接続を確認：正しい Wi-Fi に接続しているか、LAN ケーブルが差し込まれているかを確認してください。"
+  },
+  "step2": {
+    "message": "デバイスを再起動：ルーターとモデムの電源を 30 秒間切り、再度入れてください。"
+  },
+  "step3": {
+    "message": "ページを再読み込み：一時的なエラーを解消できる場合があります。F5 または Cmd+R を押してください。"
+  },
+  "step4": {
+    "message": "他のページを確認：google.com などの他のウェブサイトが開けるか試してください。"
+  },
+  "step5": {
+    "message": "VPN/プロキシを無効化：使用している場合は一時的にオフにしてください。"
+  },
+  "step6": {
+    "message": "ファイアウォール/ウイルス対策：セキュリティソフトがブラウザーをブロックしていないか確認してください。"
+  },
+  "step7": {
+    "message": "コンピューターを再起動：システムを再起動することで多くの基本的な問題が解決されることがあります。"
+  },
+  "temporaryOnlineMessage": {
+    "message": "オンラインに復帰しました！"
+  },
+
+
+
+
+  "contributions_title": { "message": "貢献者と謝辞 - modcore" },
+  "sidebar_core_team": { "message": "コアチーム" },
+  "sidebar_authors": { "message": "作者" },
+  "sidebar_contributors": { "message": "貢献者" },
+  "sidebar_credits": { "message": "プロジェクト謝辞" },
+  "sidebar_tools_services": { "message": "ツールとサービス" },
+  "sidebar_legal_policies": { "message": "法的情報とポリシー" },
+  "sidebar_documents": { "message": "重要なドキュメント" },
+  "authors_title": { "message": "作者" },
+  "authors_description": { "message": "modcore Extension Manager の開発とデザインを担当するコアチーム。" },
+  "canvrs_role": { "message": "プロジェクトリーダー兼開発者" },
+  "canvrs_description": { "message": "プロジェクト開発とアーキテクチャ設計を主導し、コードから UI 設計まで幅広く担当しています。" },
+  "aliana_role": { "message": "共同創設者兼開発者" },
+  "aliana_description": { "message": "主要な開発者であり共同創設者として、シームレスで機能的な体験を実現するためにプロジェクト全体に関与しています。" },
+  "contributors_title": { "message": "貢献者" },
+  "contributors_description": { "message": "コミュニティからのすべての貢献に感謝しています。このセクションは近日中に公開予定です。" },
+  "contributors_coming_soon": { "message": "近日公開予定・ロック中" },
+  "credits_title": { "message": "ツールとサービス" },
+  "credits_description": { "message": "modcore Extension Manager は、以下の優れたツールの助けを借りて開発・運用されています。" },
+  "canva_description": { "message": "プロジェクトの特徴的なロゴやブランド素材の作成に使用されました。" },
+  "github_description": { "message": "プロジェクトの基盤。バージョン管理、コラボレーション、API リクエスト、データ取得に使用しています。" },
+  "inter_description": { "message": "拡張機能の UI の外観と印象を形作る、クリーンでプロフェッショナルなフォント。" },
+  "mynaui_description": { "message": "美しくデザインされた SVG アイコンのライブラリで、拡張機能のビジュアルと使いやすさを向上させています。" },
+  "google_services_description": { "message": "拡張機能の機能面を支える基盤。chrome.storage.sync によるデータ同期、Google フォームによるフィードバック収集、Chromium プラットフォームそのものが含まれます。" },
+  "policies_title": { "message": "重要なドキュメント" },
+  "policies_description": { "message": "modcore Extension Manager に関する公式ポリシーおよび法的文書のコレクション。" },
+  "creator_program_title": { "message": "modcore クリエイタープログラム ガイドライン" },
+  "creator_program_description": { "message": "拡張機能マーケットプレイスの開発者向け情報。" },
+  "sponsor_title": { "message": "modcore Extension Manager を支援する" },
+  "sponsor_description": { "message": "プロジェクトを金銭的にサポートする方法をご紹介します。" },
+  "privacy_title": { "message": "プライバシーポリシー" },
+  "privacy_description": { "message": "ユーザーデータの取り扱いと保護に関する詳細。" },
+  "license_title": { "message": "ライセンス契約" },
+  "license_description": { "message": "本プロジェクトの利用と配布を規定するオープンソースライセンス。" },
+  "security_title": { "message": "セキュリティポリシー" },
+  "security_description": { "message": "セキュリティ脆弱性の報告に関する方針。" },
+  "contributing_title": { "message": "貢献ガイドライン" },
+  "contributing_description": { "message": "コードに貢献したい開発者のためのガイド。" },
+  "code_of_conduct_title": { "message": "行動規範" },
+  "code_of_conduct_description": { "message": "安全で歓迎的な環境を維持するためのコミュニティ標準。" },
+  "readme_title": { "message": "プロジェクト README" },
+  "readme_description": { "message": "GitHub 上のプロジェクト概要。" },
+  "localization_title": { "message": "ローカライズサポートに関する注意" },
+  "localization_description": { "message": "言語サポートを追加・維持するための情報。" }
+}
