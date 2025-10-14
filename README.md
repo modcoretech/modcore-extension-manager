@@ -1,4 +1,6 @@
 # modcore Extension Manager
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fmodcoretech%2Fmodcore-extension-manager.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fmodcoretech%2Fmodcore-extension-manager?ref=badge_shield)
+
 
 **modcore Extension Manager** is a **privacy-focused**, **open-source** browser extension that gives users full control over their installed extensions. Developed and maintained by [modcore](https://github.com/modcoretech), it provides a comprehensive toolset to manage, analyze, and organize browser extensions **securely**, without collecting or transmitting personal data.  
 
@@ -119,6 +121,9 @@ modcore Extension Manager is released under the **modcore Open-Use License Agree
 See [LICENSE.md](https://github.com/modcoretech/modcore-extension-manager/blob/main/LICENSE.md) for full details.
 
 ---
+
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fmodcoretech%2Fmodcore-extension-manager.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fmodcoretech%2Fmodcore-extension-manager?ref=badge_large)
 
 ## Support
 
