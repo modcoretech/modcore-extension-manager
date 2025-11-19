@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_extensionName__",
   "short_name": "__MSG_extensionShortName__",
-  "version": "2.3.83",
+  "version": "2.3.84",
   "description": "__MSG_extensionDescription__",
   "homepage_url": "https://github.com/modcoretech/modcore-extension-manager",
   "author": "modcore",
@@ -11,12 +11,19 @@
     "management",
     "commands",
     "alarms",
-    "tabs"
-    ],
+    "tabs",
+    "downloads",
+    "contextMenus"
+  ],
   "background": {
     "service_worker": "src/js/background.js"
   },
+  "host_permissions": [
+    "https://chrome.google.com/webstore/detail/",
+    "https://chromewebstore.google.com/detail/"
+  ],
   "action": {
+    "default_title": "modcore Extension Manager",
     "default_popup": "src/html/popup.html",
     "default_icon": {
       "128": "public/icons/png/modcore-em.png"
@@ -35,7 +42,6 @@
     "page": "src/html/backup_restore.html",
     "open_in_tab": true
   },
-
   "web_accessible_resources": [
     {
       "resources": ["src/html/details.html"],
@@ -45,8 +51,11 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "ngde@web.de",
-      "strict_min_version": "42.0"
+      "strict_min_version": "128.0"
     }
   },
-  "default_locale": "en"
+  "default_locale": "en",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
 }
