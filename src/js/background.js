@@ -421,3 +421,63 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         }
     }
 });
+
+
+// =========================================================================
+// CONTEXT MENU FOR GETTING CRX FILES
+// =========================================================================
+var ExtName;
+function getCRX() {
+    chrome.tabs.query({
+        active: true,
+        currentWindow: true
+    }, function(Tabs) {
+        if (Tabs[0].url.indexOf("chrome.google.com") >= 7 && Tabs[0].url.indexOf("chrome.google.com") < 9) //Classic Chrome Web Store
+        {
+            ExtName = (Tabs[0].title.split(" - Chrome Web Store")[0])
+                .replace(/[&\/\\:"*<>|?]/g, '');
+            var ExtID = Tabs[0].url.split("/")[6].split('?')[0];
+            var P1 = "https://clients2.google.com/service/update2/crx?response=redirect&nacl_arch=";
+            var P2 = "&prodversion=" + navigator.userAgent.split("Chrome/")[1].split(" ")[0] + "&acceptformat=crx2,crx3&x=id%3D" + ExtID + "%26installsource%3Dondemand%26uc";
+            chrome.runtime.getPlatformInfo(function(PlatformInfo) {
+                chrome.downloads.download({
+                    url: P1 + PlatformInfo.nacl_arch + P2,
+                    saveAs: true
+                });
+            });
+        } else if (Tabs[0].url.indexOf("chromewebstore.google.com") >= 7 && Tabs[0].url.indexOf("chromewebstore.google.com") < 9) {
+            ExtName = Tabs[0].title.replace(/[&\/\\:"*<>|?]/g, '');
+            var ExtID = Tabs[0].url.split("/")[5].split('?')[0];
+            var P1 = "https://clients2.google.com/service/update2/crx?response=redirect&nacl_arch=";
+            var P2 = "&prodversion=" + navigator.userAgent.split("Chrome/")[1].split(" ")[0] + "&acceptformat=crx2,crx3&x=id%3D" + ExtID + "%26installsource%3Dondemand%26uc";
+            chrome.runtime.getPlatformInfo(function(PlatformInfo) {
+                chrome.downloads.download({
+                    url: P1 + PlatformInfo.nacl_arch + P2,
+                    saveAs: true
+                });
+            });
+        } else {
+            console.log("Error");
+        }
+    });
+}
+chrome.contextMenus.create({
+    'id': 'getCRX',
+    'title': 'Get CRX of this extension',
+    'contexts': ['all'],
+    'documentUrlPatterns': [
+        'https://chrome.google.com/webstore/detail/*',
+        'https://chromewebstore.google.com/detail/*'
+    ]
+});
+chrome.contextMenus.onClicked.addListener(getCRX);
+chrome.downloads.onDeterminingFilename.addListener(function(Item, __Suggest) {
+    if (Item.url.indexOf("clients2.google.com/service/update2/crx") >= 7 && Item.url.indexOf("clients2.google.com/service/update2/crx") < 9) {
+        __Suggest({
+            filename: (ExtName + ' ' + Item.filename.substring(Item.filename.indexOf("_"))
+                .replace('_', '')
+                .replace(/_/g, '.'))
+        });
+        ExtName = undefined;
+    }
+});
