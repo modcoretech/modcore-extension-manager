@@ -26,7 +26,7 @@
     'use strict';
 
     // == Configuration ==
-    const ENABLE_DEV_LOGGING = true; // Set to false for production
+    const ENABLE_DEV_LOGGING = false; // Set to false for production
     const SEARCH_DEBOUNCE_MS = 150;
     const TOAST_DEFAULT_DURATION = 3500;
     const SUPPORT_DATA_URL = 'https://raw.githubusercontent.com/modcoretech/api/main/modcoreEM/support-data.json';
@@ -691,7 +691,16 @@
                     const h4 = document.createElement('h4');
                     h4.textContent = 'No Support Listing';
                     const p = document.createElement('p');
-                    p.textContent = 'This extension hasn’t joined our "Support the Developer" program yet. Developers can apply to receive direct support from users like you.';
+                    p.textContent = 'This extension hasn’t joined our "Support the Developer" program yet. Developers can apply to receive direct support from users like you. ';
+
+                    const learnMoreLink = document.createElement('a');
+                    learnMoreLink.href = 'https://sites.google.com/view/modcore-em-help/manage-extensions/details-page-features#h.sds0564ux3v8';
+                    learnMoreLink.target = '_blank';
+                    learnMoreLink.rel = 'noopener noreferrer';
+                    learnMoreLink.textContent = 'Learn more';
+                    learnMoreLink.className = 'learn-more-link';
+
+                    p.appendChild(learnMoreLink);
                     notListedDiv.appendChild(h4);
                     notListedDiv.appendChild(p);
                     fragment.appendChild(notListedDiv);
@@ -718,7 +727,8 @@
                 'This is a community-driven feature: Links are provided by developers and listed for your convenience.',
                 'We do not process payments: All transactions happen on third-party platforms. We do not handle any funds.',
                 'We cannot provide refunds or support: We cannot assist with payment disputes, refunds, or other issues.',
-                'Verification: We cannot fully verify every link. Please be diligent when providing support.'
+                'Verification: We cannot fully verify every link. Please be diligent when providing support.',
+                'Internet Connectivity: An active internet connection is required to access payment platforms.'
             ];
 
             disclaimers.forEach(text => {
@@ -803,7 +813,10 @@
     async function handleUninstallClick() {
         if (!extensionInfo || dom.uninstallButton.disabled) return;
         // Using textContent for messages
-        const confirmed = await showCustomConfirm(`Uninstall "${extensionInfo.name}"?`, "This is permanent and will remove the extension and its data.");
+        const confirmed = await showCustomConfirm(
+            `Uninstall "${extensionInfo.name}"?`,
+            "This action is permanent and will remove the extension and all of its associated data from your browser. Are you sure you want to continue?"
+        );
         if (!confirmed) return;
         dom.uninstallButton.disabled = true;
         chrome.management.uninstall(extensionId, { showConfirmDialog: false })
