@@ -94,9 +94,4 @@ Thank you for your interest in contributing to **modcore Extension Manager** (or
 If you have any questions, feel free to reach out:
 Email: [NGDE@WEB.DE](mailto:NGDE@WEB.DE)
 
-Thank you for contributing and helping improve **modcore Extension Manager**!
-## Need Help?
-If you have any questions, feel free to reach out:
-Email: [NGDE@WEB.DE](mailto:NGDE@WEB.DE)
-
-Thank you for contributing and helping improve **modcore Extension Manager**!
+Thank you for contributing and helping improve **modcore Extension Manager**.
