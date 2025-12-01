@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const PREFERENCES_STORAGE_KEY = 'extensionManagerPreferences_v4';
     const GROUPS_STORAGE_KEY = 'extensionManagerGroups_v4'; // Incremented for shortcutAction
     const PROFILES_STORAGE_KEY = 'extensionManagerProfiles_v2';
-    const DEFAULT_ICON_PLACEHOLDER = '../../public/icons/svg/updatelogo.svg'; // Assuming this path is valid
+    const DEFAULT_ICON_PLACEHOLDER = '../../public/icons/svg/updatelogo.svg';
 
     // --- Global State ---
     let allRules = [];
@@ -129,10 +129,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             actionIconClass = rule.action === 'enable' ? 'icon-toggle-on' : 'icon-toggle-off';
             actionText = `Action: ${rule.action.charAt(0).toUpperCase() + rule.action.slice(1)}`;
         } else if (rule.targetType === 'profile') {
-            actionIconClass = 'icon-profiles'; // Placeholder icon for apply profile - Assuming 'icon-profiles' exists or fallback
+            actionIconClass = 'icon-profiles'; // Placeholder icon for apply profile
             actionText = `Action: Apply Profile`;
         } else if (rule.targetType === 'group') {
-             actionIconClass = 'icon-groups'; // Placeholder icon for groups - Assuming 'icon-groups' exists or fallback
+             actionIconClass = 'icon-groups'; // Placeholder icon for groups
              if (rule.action === 'toggle') {
                 actionText = `Action: Toggle Group`;
             } else {
@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         // Rule Targets Display
         let targetsText = 'None';
-        let targetsIconClass = 'icon-grid'; // Default icon, assuming it's generic enough
+        let targetsIconClass = 'icon-grid'; // Default icon
         if (rule.targetType === 'extension') {
             const names = allExtensions.filter(ext => rule.targetIds.includes(ext.id)).map(ext => ext.name);
             targetsText = `Targets Extensions: ${names.join(', ') || 'None'}`;
@@ -161,12 +161,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else if (rule.targetType === 'profile') {
             const profile = allProfiles.find(p => p.id === rule.targetIds[0]); // Profiles only target one
             targetsText = `Targets Profile: ${profile ? sanitizeText(profile.name) : 'Unknown Profile'}`;
-            targetsIconClass = 'icon-profiles'; // Assuming you have an SVG for profiles icon
+            targetsIconClass = 'icon-profiles'; // SVG for profiles icon
         } else if (rule.targetType === 'group') {
             // Group IDs are their names in the data structure
             const groupNames = rule.targetIds.map(id => allGroups[id]?.name || id); 
             targetsText = `Targets Groups: ${groupNames.map(name => sanitizeText(name)).join(', ') || 'None'}`;
-            targetsIconClass = 'icon-groups'; // Assuming you have an SVG for groups icon
+            targetsIconClass = 'icon-groups'; // SVG for groups icon
         }
         const targetsCondition = createConditionElement(targetsIconClass, targetsText, false);
         targetsCondition.title = targetsText; // Use full text for tooltip
@@ -263,7 +263,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         items.forEach(item => {
-            // Use item.id for profiles, item.name for groups (as per your data structure)
+            // Use item.id for profiles, item.name for groups (as per data structure)
             const id = item.id || item.name; 
             const name = item.name;
             const itemImgSrc = item.icons && item.icons.length > 0 && item.icons[item.icons.length - 1].url
@@ -361,7 +361,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         clearValidationError(ruleTimeError);
         clearValidationError(daySelectorError);
         clearValidationError(ruleUrlError);
-        // Also ensure any invalid class on the target selector container is removed
         targetSelectorContainer.classList.remove('invalid-border');
     };
 
@@ -500,6 +499,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             noRulesPlaceholder.appendChild(createElement('span', 'icon icon-list'));
             noRulesPlaceholder.appendChild(createElement('h3', null, 'No Automation Rules Found'));
             noRulesPlaceholder.appendChild(createElement('p', null, 'Use the sidebar to "Add New Rule" and get started.'));
+            const learnMoreLink = createElement('a', null, 'Learn more about Automation Rules...');
+            learnMoreLink.href = "https://sites.google.com/view/modcore-em-help/manage-extensions/rules-page";
+            learnMoreLink.target = "_blank";
+            learnMoreLink.rel = "noopener noreferrer";
+            learnMoreLink.style.display = "block";
+            learnMoreLink.style.marginTop = "12px";
+            noRulesPlaceholder.appendChild(learnMoreLink);
         }
 
 
