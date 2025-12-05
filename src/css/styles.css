@@ -1,4 +1,4 @@
-/* styles.css - Apple-like UI (modcore EM) - Professional & Subtle Buttons - Animations & Reduced Motion */
+/* styles.css - (modcore EM) - Professional & Subtle Buttons - Animations & Reduced Motion */
 
 /* ==========================================================================
    Root Variables & Color Schemes
@@ -9,10 +9,10 @@
     --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
 
     /* --- Base Sizes & Radius --- */
-    --radius-sm: 6px;
-    --radius-md: 8px; /* Standardized radius for most interactive elements */
-    --radius-lg: 10px; /* Slightly larger for main containers/modals */
-    --radius-xl: 14px;
+    --radius-sm: 8px;
+    --radius-md: 10px; /* Standardized radius for most interactive elements */
+    --radius-lg: 14px; /* Slightly larger for main containers/modals */
+    --radius-xl: 16px;
     --radius-full: 9999px;
     --spacing-xs: 4px;
     --spacing-sm: 8px;
@@ -28,12 +28,12 @@
     --transition-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
 
 
-    /* --- Light Mode Colors (Inspired by Apple's UI) --- */
+    /* --- Light Mode Colors --- */
     --bg-light: #f5f5f7;
     --bg-gradient-start-light: #fcfcfd;
     --bg-gradient-end-light: #f0f0f2;
     --surface-light: #ffffff;
-    --surface-hover-light: #f0f0f0;
+    --surface-hover-light: #fff;
     --surface-selected-light: #e0e7ff;
     --border-light: #e6e6e6;
     --border-strong-light: #d4d4d4;
@@ -71,10 +71,10 @@
 
 @media (prefers-color-scheme: dark) {
     :root {
-      --bg-dark: #0e0e0e;
+      --bg-dark: #111112;
       --bg-gradient-start-dark: #1c1c1e;
-      --bg-gradient-end-dark: #0a0a0a;
-      --surface-dark: #0e0e0e;
+      --bg-gradient-end-dark: #111112;
+      --surface-dark: #111112;
       --surface-hover-dark: #2a2a2a;
       --surface-selected-dark: #202c40;
       --border-dark: #2a2a2a;
@@ -102,7 +102,7 @@
       --highlight-bg: var(--highlight-bg-dark);
       --highlight-text: var(--highlight-text-dark);
       --modal-backdrop-dark: rgba(0, 0, 0, 0.75);
-      --modal-bg-dark: #0e0e0e;
+      --modal-bg-dark: #111112;
       --shadow-sm: none;
       --shadow-md: none;
       --shadow-lg: none;
@@ -268,7 +268,7 @@ body {
   padding-bottom: var(--spacing-md);
   border-bottom: 1px solid var(--border);
   position: sticky; top: 0;
-  background-color: var(--surface);
+  backdrop-filter: blur(1px);
   z-index: 10;
   padding-top: var(--spacing-xs);
   transition: background-color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
@@ -1102,4 +1102,3 @@ select:disabled, input[type="text"]:disabled {
     overflow: hidden;
     text-overflow: ellipsis;
 }
-
