@@ -256,7 +256,7 @@ function showFeedbackMessage(message, type = 'error', location = 'popup', isEphe
 
     if (!targetElement) return;
 
-    targetElement.textContent = message; // Use textContent instead of innerHTML
+    targetElement.textContent = message;
     targetElement.style.display = 'flex';
     targetElement.setAttribute('aria-hidden', 'false');
     if (otherElement) {
@@ -1911,6 +1911,9 @@ async function removeExtensionFromAllProfiles(extensionId) {
 }
 
 
+
+// modcore Extension Manager - Context Menu
+
 function createContextMenu() {
     if (document.getElementById('custom-context-menu')) return;
 
@@ -1929,7 +1932,7 @@ function hideContextMenu() {
     currentContextMenuExtensionId = null;
 }
 
-// Add this new function to handle keyboard navigation within the context menu
+// new function to handle keyboard navigation within the context menu
 function handleContextMenuKeyDown(event) {
     const visibleItems = Array.from(contextMenuElement.querySelectorAll('.context-menu-item:not([style*="display: none"]):not(.context-menu-separator)'));
     if (visibleItems.length === 0) return;
@@ -2115,6 +2118,22 @@ async function populateAndShowContextMenu(extensionId, event) {
 
 
     fragment.appendChild(document.createElement('hr')).className = 'context-menu-separator';
+    fragment.appendChild(createMenuItem('Options', ICON_PATHS.configure, () => {
+        // Try to open the target extension's dedicated options page if it exposes one.
+        chrome.management.get(extensionId, (ext) => {
+            if (chrome.runtime.lastError) {
+                showActionFeedback(`Error: ${chrome.runtime.lastError.message}`, 'error');
+                return;
+            }
+            if (ext && ext.optionsUrl) {
+                chrome.tabs.create({ url: ext.optionsUrl });
+            } else {
+                // Fallback: open the extension's details page in chrome://extensions where Options (if available) can be accessed.
+                chrome.tabs.create({ url: `chrome://extensions/?id=${extensionId}` });
+                showActionFeedback('No dedicated Options page; opened extension details.', 'info');
+            }
+        });
+    }));
     fragment.appendChild(createMenuItem('Uninstall', ICON_PATHS.delete, () => confirmAndDeleteExtension(extensionId, extension.name), true));
 
     contextMenuElement.appendChild(fragment);
@@ -3335,7 +3354,7 @@ async function initializePopup() {
     if (footerInfoElement) {
         const manifest = chrome.runtime.getManifest();
         const currentYear = new Date().getFullYear();
-        const footerText = `Version ${manifest.version} | © ${currentYear} modcore`;
+        const footerText = `Version ${manifest.version} | © ${currentYear} modcore. Made in Germany.`;
         footerInfoElement.textContent = footerText;
     }
 
