@@ -1,32 +1,13 @@
 /**
  * Details Page Script v3.1 (Cache, UI Fixes, Transparency)
- *
  * Handles displaying extension details, permissions, status, and basic actions.
- * Fetches data using chrome.management API and support data from a remote JSON.
- * Defines permission details (description, risk) directly within this script.
- * Implements panel navigation, loading states, and toast notifications.
- * Adds debounced permission searching and list/grid layout toggle.
- * Includes refined accessibility features (ARIA, focus management, keyboard support).
- * Implements CSS-based tooltips for clarity (JS ensures focusability).
- * Adds copy-to-clipboard for key info.
- * Replaces window.confirm with a custom modal for uninstall.
- * Optimizes DOM interactions and event handling for performance.
- *
- * v3.1 Changes:
- * - Implemented TTL caching for developer support data to reduce network requests.
- * - Added significant transparency and disclaimer information to the Support panel.
- * - Fixed inverted color schemes for Toasts and Tooltips in dark/light mode via CSS update.
- * - Added more tooltips to the Overview panel for better user guidance.
- * - Systematically updated and verified all permission documentation links for MV3.
- * - Enhanced error messaging for clipboard API failures.
- * - Ensured search input font is consistent with the rest of the UI.
- * - Enhanced 'mayDisable' tooltip for clearer explanation.
  */
+
 (() => { // IIFE to encapsulate scope and prevent global variable pollution
     'use strict';
 
     // == Configuration ==
-    const ENABLE_DEV_LOGGING = false; // Set to false for production
+    const ENABLE_DEV_LOGGING = true; // Set to false for production
     const SEARCH_DEBOUNCE_MS = 150;
     const TOAST_DEFAULT_DURATION = 3500;
     const SUPPORT_DATA_URL = 'https://raw.githubusercontent.com/modcoretech/api/main/modcoreEM/support-data.json';
@@ -275,6 +256,7 @@
         dom.permissionsContentWrapper = getElem('permissions-content-wrapper');
         dom.permissionsActualContent = getElem('permissions-actual-content');
         dom.permissionSearchInput = getElem('permission-search-input');
+        dom.fiterButton = getElem('filter-btn');
         dom.layoutListButton = getElem('layout-list-btn');
         dom.layoutGridButton = getElem('layout-grid-btn');
         dom.apiPermCountSpan = getElem('api-perm-count');
@@ -769,6 +751,7 @@
     function setupPermissionControlsListeners() {
         const debouncedSearch = debounce(filterPermissions, SEARCH_DEBOUNCE_MS);
         addSafeListener(dom.permissionSearchInput, 'input', () => debouncedSearch(dom.permissionSearchInput.value));
+        addSafeListener(dom.fiterButton, 'click', handlePermissionFilterClick);
         addSafeListener(dom.layoutListButton, 'click', handleLayoutToggle);
         addSafeListener(dom.layoutGridButton, 'click', handleLayoutToggle);
     }
@@ -849,6 +832,30 @@
         }
     }
 
+    function updatePlaceholderVisibility(listContainer, visibleCount, searchTerm) {
+        const existingPlaceholder = listContainer.querySelector('.placeholder');
+        if (visibleCount === 0) {
+            if (!existingPlaceholder) {
+                const type = listContainer.id === 'api-permissions-list' ? 'api' : 'host';
+                const text = searchTerm
+                    ? `No ${type.toUpperCase()} permissions match your search.`
+                    : (type === 'api' ? 'No API permissions requested.' : 'No host permissions requested.');
+                const placeholder = createPlaceholderElement(text, 'info');
+                placeholder.dataset.initialText = text;
+                placeholder.dataset.listType = type;
+                listContainer.appendChild(placeholder);
+            } else {
+                // Update text if needed
+                const type = listContainer.id === 'api-permissions-list' ? 'api' : 'host';
+                existingPlaceholder.querySelector('.placeholder-text').textContent = searchTerm
+                    ? `No ${type.toUpperCase()} permissions match your search.`
+                    : existingPlaceholder.dataset.initialText || (type === 'api' ? 'No API permissions requested.' : 'No host permissions requested.');
+            }
+        } else if (existingPlaceholder) {
+            existingPlaceholder.remove();
+        }
+    }
+
     function filterPermissions(term = '') {
         term = term.trim().toLowerCase();
         ['api', 'host'].forEach(type => {
@@ -866,20 +873,172 @@
         });
     }
 
-    function updatePlaceholderVisibility(list, visibleCount, term) {
-        const placeholder = list?.querySelector('.placeholder');
-        if (!placeholder) return;
-        const totalCount = (placeholder.dataset.listType === 'api' ? extensionInfo.permissions : extensionInfo.hostPermissions)?.length || 0;
-        const placeholderTextSpan = placeholder.querySelector('.placeholder-text');
+    function handlePermissionFilterClick() {
+        if (!dom.fiterButton) return;
 
-        if (term && visibleCount === 0) {
-            setText(placeholderTextSpan, `No permissions found matching "${term}".`);
-            setElementVisibility(placeholder, true);
-        } else {
-            setElementVisibility(placeholder, totalCount === 0);
-            if (totalCount === 0) setText(placeholderTextSpan, placeholder.dataset.initialText);
+        // Persistent filter state
+        if (!window.__permissionFilters) {
+            window.__permissionFilters = { risk: 'all', scope: 'all' }; // scope = api|host|all
         }
+        const permissionFilters = window.__permissionFilters;
+
+        // Create dropdown once
+        if (!dom._filterDropdown) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'filter-dropdown-wrapper';
+            // Insert after filter button
+            dom.fiterButton.parentNode.insertBefore(wrapper, dom.fiterButton.nextSibling);
+
+            // Dropdown panel
+            const panel = document.createElement('div');
+            panel.className = 'filter-dropdown';
+            panel.setAttribute('role', 'menu');
+
+            // Risk group
+            const riskGroup = document.createElement('div');
+            riskGroup.className = 'group';
+            const riskTitle = document.createElement('h4');
+            riskTitle.textContent = 'Filter by risk';
+            riskGroup.appendChild(riskTitle);
+
+            const riskOptions = [
+                { id: 'risk-all', label: 'Show all', value: 'all' },
+                { id: 'risk-high', label: 'High risk', value: 'high' },
+                { id: 'risk-medium', label: 'Medium risk', value: 'medium' },
+                { id: 'risk-low', label: 'Low risk', value: 'low' },
+            ];
+            riskOptions.forEach(opt => {
+                const row = document.createElement('div');
+                row.className = 'option';
+                row.dataset.role = 'risk-option';
+                row.dataset.value = opt.value;
+                if (opt.value !== 'all') row.dataset.risk = opt.value;
+                const dot = document.createElement('span');
+                dot.className = 'dot';
+                row.appendChild(dot);
+                const txt = document.createElement('span');
+                txt.textContent = opt.label;
+                row.appendChild(txt);
+                if (opt.value === permissionFilters.risk) row.classList.add('active');
+                row.addEventListener('click', (e) => {
+                    permissionFilters.risk = opt.value;
+                    // toggle active
+                    panel.querySelectorAll('[data-role="risk-option"]').forEach(r => r.classList.remove('active'));
+                    row.classList.add('active');
+                    // immediately filter
+                    filterPermissions(dom.permissionSearchInput?.value || '');
+                });
+                riskGroup.appendChild(row);
+            });
+            panel.appendChild(riskGroup);
+
+            // Scope group (api/host/all)
+            const scopeGroup = document.createElement('div');
+            scopeGroup.className = 'group';
+            const scopeTitle = document.createElement('h4');
+            scopeTitle.textContent = 'Show';
+            scopeGroup.appendChild(scopeTitle);
+
+            const scopeOptions = [
+                { id: 'scope-all', label: 'All permissions', value: 'all' },
+                { id: 'scope-api', label: 'Only API permissions', value: 'api' },
+                { id: 'scope-host', label: 'Only host permissions', value: 'host' },
+            ];
+            scopeOptions.forEach(opt => {
+                const row = document.createElement('div');
+                row.className = 'option';
+                row.dataset.role = 'scope-option';
+                row.dataset.value = opt.value;
+                const txt = document.createElement('span');
+                txt.textContent = opt.label;
+                row.appendChild(txt);
+                if (opt.value === permissionFilters.scope) row.classList.add('active');
+                row.addEventListener('click', () => {
+                    permissionFilters.scope = opt.value;
+                    panel.querySelectorAll('[data-role="scope-option"]').forEach(r => r.classList.remove('active'));
+                    row.classList.add('active');
+                    filterPermissions(dom.permissionSearchInput?.value || '');
+                });
+                scopeGroup.appendChild(row);
+            });
+            panel.appendChild(scopeGroup);
+
+            // Footer (clear)
+            const footer = document.createElement('div');
+            footer.className = 'footer';
+            const clearBtn = document.createElement('button');
+            clearBtn.type = 'button';
+            clearBtn.className = 'clear-btn';
+            clearBtn.textContent = 'Reset filters';
+            clearBtn.addEventListener('click', () => {
+                permissionFilters.risk = 'all';
+                permissionFilters.scope = 'all';
+                panel.querySelectorAll('.option').forEach(o => o.classList.remove('active'));
+                // set defaults visually
+                panel.querySelector('[data-value="all"]').classList.add('active');
+                filterPermissions(dom.permissionSearchInput?.value || '');
+            });
+            footer.appendChild(clearBtn);
+            panel.appendChild(footer);
+
+            wrapper.appendChild(panel);
+            dom._filterDropdown = panel;
+
+            // Close dropdown on outside click
+            document.addEventListener('click', (ev) => {
+                if (!dom._filterDropdown) return;
+                if (!wrapper.contains(ev.target) && ev.target !== dom.fiterButton) {
+                    dom._filterDropdown.classList.remove('open');
+                }
+            }, { capture: true });
+        }
+
+        // Toggle dropdown visibility
+        dom._filterDropdown.classList.toggle('open');
+
+        function filterPermissions(term = '') {
+            term = (term || dom.permissionSearchInput?.value || '').trim().toLowerCase();
+            const { risk, scope } = permissionFilters;
+
+            ['api', 'host'].forEach(listType => {
+                const list = dom[`${listType}PermissionsList`];
+                if (!list) return;
+                const items = list.querySelectorAll('.permission-item');
+                let visibleCount = 0;
+                items.forEach(item => {
+                    const itemText = item.textContent.toLowerCase();
+                    const name = (item.dataset.permissionName || '').toLowerCase();
+                    const matchesSearch = !term || name.includes(term) || itemText.includes(term);
+
+                    // Determine item's risk by class
+                    const isHigh = item.classList.contains('risk-high');
+                    const isMedium = item.classList.contains('risk-medium');
+                    const isLow = item.classList.contains('risk-low');
+
+                    let matchesRisk = true;
+                    if (risk === 'high') matchesRisk = isHigh;
+                    else if (risk === 'medium') matchesRisk = isMedium;
+                    else if (risk === 'low') matchesRisk = isLow;
+
+                    // Determine scope match
+                    let matchesScope = true;
+                    if (scope === 'api' && listType !== 'api') matchesScope = false;
+                    if (scope === 'host' && listType !== 'host') matchesScope = false;
+
+                    const show = matchesSearch && matchesRisk && matchesScope;
+                    setElementVisibility(item, show);
+                    if (show) visibleCount++;
+                });
+                updatePlaceholderVisibility(list, visibleCount, term);
+            });
+        }
+
+        // Immediately apply filters once the UI is shown or toggled
+        filterPermissions(dom.permissionSearchInput?.value || '');
+        
     }
+
+    // Layout toggle handler
 
     function handleLayoutToggle(event) {
         const layout = event.currentTarget.dataset.layout;
