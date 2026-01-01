@@ -1,14 +1,5 @@
 /**
  * popup.js - Logic for the Popup (v4.4)
- *
- * Key Enhancements from v4.3:
- * - Replaced all text-based confirmation prompts with standard `confirm()` dialogs for improved UX.
- * - Removed the restriction that prevented assigning keyboard shortcuts to profiles created from the current state.
- * - Fixed an issue where the "Clear Filter" button could appear incorrectly or duplicate.
- * - Added a suite of new keyboard shortcuts for common actions (opening modals, pagination, etc.).
- * - General performance and logic enhancements for a smoother experience.
- * - MODIFICATION: Refactored data storage to use chrome.storage.local instead of localStorage for cross-script consistency.
- * - SECURITY REFACTOR: Eliminated all usage of `innerHTML` to prevent potential XSS vulnerabilities. DOM elements are now created and appended programmatically.
  */
 
 // --- Constants ---
@@ -697,18 +688,29 @@ async function getOrderedGroupNames() {
 }
 async function populateGroupSelect(selectElement, includeAllOption = false, includeNoGroupOption = false) {
     if (!selectElement) return;
+
     const currentVal = selectElement.value;
-    selectElement.innerHTML = '';
+
+    selectElement.replaceChildren();
+
     if (includeAllOption) {
         const option = document.createElement('option');
-        option.value = "all"; option.textContent = "All Groups";
+        option.value = "all";
+        option.textContent = "All Groups";
         selectElement.appendChild(option);
     }
+
     if (includeNoGroupOption) {
         const option = document.createElement('option');
         option.value = "no-group";
         option.textContent = "No Group";
         selectElement.appendChild(option);
+    }
+
+    // Optionally restore previous selection if needed
+    if (currentVal) {
+        const existing = [...selectElement.options].find(o => o.value === currentVal);
+        if (existing) existing.selected = true;
     }
 
     const groups = await getGroups();
@@ -739,10 +741,13 @@ async function updateGroupFilterDropdown() {
     }
 }
 
+
 async function populateBulkAssignDropdownMenu() {
     const menu = elements.bulkAssignDropdownMenu;
     if (!menu) return;
-    menu.innerHTML = ''; // Clear previous items
+
+    // Safely remove all previous items
+    menu.replaceChildren();
 
     const fragment = document.createDocumentFragment();
 
@@ -754,6 +759,7 @@ async function populateBulkAssignDropdownMenu() {
         if (value) button.dataset.value = value;
         button.setAttribute('role', 'menuitem');
 
+        // Icon (if provided)
         if (icon) {
             const img = document.createElement('img');
             img.src = icon;
@@ -761,11 +767,12 @@ async function populateBulkAssignDropdownMenu() {
             button.appendChild(img);
         }
 
+        // Text
         const span = document.createElement('span');
         span.textContent = text;
         button.appendChild(span);
 
-        // Add a chevron for items that open a submenu
+        // Chevron for submenu items
         if (action === 'open-submenu') {
             const chevron = document.createElement('img');
             chevron.src = '../../public/icons/svg/arrow-right.svg';
@@ -776,6 +783,12 @@ async function populateBulkAssignDropdownMenu() {
 
         return button;
     };
+
+    // You can append created items to `fragment`, e.g.:
+    // fragment.appendChild(createMenuItem("Assign Group", "assign", "123"));
+    // fragment.appendChild(createMenuItem("More Options", "open-submenu"));
+
+    menu.appendChild(fragment);
 
     // --- Main Menu View ---
     const mainView = document.createElement('div');
@@ -791,25 +804,107 @@ async function populateBulkAssignDropdownMenu() {
 
     const groupsHeader = document.createElement('div');
     groupsHeader.className = 'submenu-header';
+
     const backBtnGroups = document.createElement('button');
     backBtnGroups.className = 'back-button';
     backBtnGroups.dataset.action = 'go-back';
-    backBtnGroups.innerHTML = `<img src="../../public/icons/svg/arrow-left.svg" alt="Back"> <span>Groups</span>`;
+    const backBtnGroupsImg = document.createElement('img');
+    backBtnGroupsImg.src = '../../public/icons/svg/arrow-left.svg';
+    backBtnGroupsImg.alt = 'Back';
+    backBtnGroups.appendChild(backBtnGroupsImg);
+    const backBtnGroupsSpan = document.createElement('span');
+    backBtnGroupsSpan.textContent = 'Groups';
+    backBtnGroups.appendChild(backBtnGroupsSpan);
     groupsHeader.appendChild(backBtnGroups);
+
+    // Right-side tools container for search
+    const groupsTools = document.createElement('div');
+    groupsTools.className = 'submenu-tools';
+    groupsHeader.appendChild(groupsTools);
+
     groupsView.appendChild(groupsHeader);
 
     const groupsSubmenu = document.createElement('div');
     groupsSubmenu.className = 'submenu';
+
     const groups = await getGroups();
     const orderedGroupNames = await getOrderedGroupNames();
+
     if (orderedGroupNames.length > 0) {
+        //  search UI (right corner)
+        const searchInput = document.createElement('input');
+        searchInput.type = 'search';
+        searchInput.className = 'submenu-search';
+        searchInput.placeholder = 'Search groups...';
+        searchInput.setAttribute('aria-label', 'Search groups');
+
+        groupsTools.appendChild(searchInput);
+
+        // Build group items and add searchable name dataset
         orderedGroupNames.forEach(groupName => {
-            groupsSubmenu.appendChild(createMenuItem(sanitizeText(groups[groupName].name), 'assign-group', groupName));
+            const displayName = sanitizeText(groups[groupName].name);
+            const btn = createMenuItem(displayName, 'assign-group', groupName, '../../public/icons/svg/groups.svg');
+            btn.dataset.name = displayName.toLowerCase();
+            groupsSubmenu.appendChild(btn);
         });
+
+        // Remove from all groups item
+        const removeGroupItem = createMenuItem('Remove from all Groups', 'assign-group', '--remove--');
+        removeGroupItem.classList.add('danger');
+        groupsSubmenu.appendChild(removeGroupItem);
+
+        // Search filtering logic
+        const noResultsPlaceholder = document.createElement('div');
+        noResultsPlaceholder.className = 'context-menu-placeholder';
+        noResultsPlaceholder.setAttribute('role', 'status');
+        noResultsPlaceholder.style.display = 'none';
+        noResultsPlaceholder.textContent = 'No groups match your search.';
+        groupsSubmenu.appendChild(noResultsPlaceholder);
+
+        const filterGroups = () => {
+            const q = searchInput.value.trim().toLowerCase();
+            const items = Array.from(groupsSubmenu.querySelectorAll('.menu-item'));
+            let anyVisible = false;
+            items.forEach(it => {
+                // Keep separators or special items visible as appropriate
+                const name = (it.dataset.name || it.textContent || '').toLowerCase();
+                if (name.includes(q) || q === '') {
+                    it.style.display = '';
+                    anyVisible = true;
+                } else {
+                    it.style.display = 'none';
+                }
+            });
+            // Hide the search tools when there are no group items at all (shouldn't happen here)
+            noResultsPlaceholder.style.display = anyVisible ? 'none' : 'block';
+        };
+
+        searchInput.addEventListener('input', filterGroups);
+    } else {
+        // Placeholder UI when no groups exist
+        const placeholder = document.createElement('div');
+        placeholder.className = 'context-menu-placeholder';
+        placeholder.setAttribute('role', 'status');
+        placeholder.textContent = 'No groups created yet.';
+        groupsSubmenu.appendChild(placeholder);
+
+        const createGroupBtn = document.createElement('button');
+        createGroupBtn.className = 'menu-item create-from-submenu';
+        createGroupBtn.dataset.action = 'create-group';
+        const img = document.createElement('img');
+        img.src = ICON_PATHS.addGroup;
+        img.alt = '';
+        createGroupBtn.appendChild(img);
+        const span = document.createElement('span');
+        span.textContent = 'Create Group...';
+        createGroupBtn.appendChild(span);
+        createGroupBtn.addEventListener('click', () => {
+            toggleBulkAssignMenu(false);
+            openGroupManagementModal();
+        });
+        groupsSubmenu.appendChild(createGroupBtn);
     }
-    const removeGroupItem = createMenuItem('Remove from all Groups', 'assign-group', '--remove--');
-    removeGroupItem.classList.add('danger');
-    groupsSubmenu.appendChild(removeGroupItem);
+
     groupsView.appendChild(groupsSubmenu);
 
 
@@ -820,28 +915,107 @@ async function populateBulkAssignDropdownMenu() {
 
     const profilesHeader = document.createElement('div');
     profilesHeader.className = 'submenu-header';
+
     const backBtnProfiles = document.createElement('button');
     backBtnProfiles.className = 'back-button';
     backBtnProfiles.dataset.action = 'go-back';
-    backBtnProfiles.innerHTML = `<img src="../../public/icons/svg/arrow-left.svg" alt="Back"> <span>Profiles</span>`;
+    const backBtnProfilesImg = document.createElement('img');
+    backBtnProfilesImg.src = '../../public/icons/svg/arrow-left.svg';
+    backBtnProfilesImg.alt = 'Back';
+    backBtnProfiles.appendChild(backBtnProfilesImg);
+    const backBtnProfilesSpan = document.createElement('span');
+    backBtnProfilesSpan.textContent = 'Profiles';
+    backBtnProfiles.appendChild(backBtnProfilesSpan);
     profilesHeader.appendChild(backBtnProfiles);
+
+
+    // Right-side tools container for search
+    const profilesTools = document.createElement('div');
+    profilesTools.className = 'submenu-tools';
+    profilesHeader.appendChild(profilesTools);
+
     profilesView.appendChild(profilesHeader);
 
     const profilesSubmenu = document.createElement('div');
     profilesSubmenu.className = 'submenu';
+
     const profiles = await getProfiles();
     const orderedProfileIds = await getOrderedProfileIds();
+
     if (orderedProfileIds.length > 0) {
+        // Create search UI (right corner)
+        const searchInputP = document.createElement('input');
+        searchInputP.type = 'search';
+        searchInputP.className = 'submenu-search';
+        searchInputP.placeholder = 'Search profiles...';
+        searchInputP.setAttribute('aria-label', 'Search profiles');
+
+        profilesTools.appendChild(searchInputP);
+
         orderedProfileIds.forEach(profileId => {
             const profile = profiles[profileId];
             if (profile) {
-                profilesSubmenu.appendChild(createMenuItem(sanitizeText(profile.name), 'assign-profile', profileId));
+                const displayName = sanitizeText(profile.name);
+                const btn = createMenuItem(displayName, 'assign-profile', profileId, '../../public/icons/svg/profiles.svg');
+                btn.dataset.name = displayName.toLowerCase();
+                profilesSubmenu.appendChild(btn);
             }
         });
+
+        const removeProfileItem = createMenuItem('Remove from all Profiles', 'remove-profile', 'all');
+        removeProfileItem.classList.add('danger');
+        profilesSubmenu.appendChild(removeProfileItem);
+
+        // Search/filter logic
+        const noResultsPlaceholderP = document.createElement('div');
+        noResultsPlaceholderP.className = 'context-menu-placeholder';
+        noResultsPlaceholderP.setAttribute('role', 'status');
+        noResultsPlaceholderP.style.display = 'none';
+        noResultsPlaceholderP.textContent = 'No profiles match your search.';
+        profilesSubmenu.appendChild(noResultsPlaceholderP);
+
+        const filterProfiles = () => {
+            const q = searchInputP.value.trim().toLowerCase();
+            const items = Array.from(profilesSubmenu.querySelectorAll('.menu-item'));
+            let anyVisible = false;
+            items.forEach(it => {
+                const name = (it.dataset.name || it.textContent || '').toLowerCase();
+                if (name.includes(q) || q === '') {
+                    it.style.display = '';
+                    anyVisible = true;
+                } else {
+                    it.style.display = 'none';
+                }
+            });
+            noResultsPlaceholderP.style.display = anyVisible ? 'none' : 'block';
+        };
+
+        searchInputP.addEventListener('input', filterProfiles);
+    } else {
+        // Placeholder UI when no profiles exist
+        const placeholder = document.createElement('div');
+        placeholder.className = 'context-menu-placeholder';
+        placeholder.setAttribute('role', 'status');
+        placeholder.textContent = 'No profiles created yet.';
+        profilesSubmenu.appendChild(placeholder);
+
+        const createProfileBtn = document.createElement('button');
+        createProfileBtn.className = 'menu-item create-from-submenu';
+        createProfileBtn.dataset.action = 'create-profile';
+        const imgP = document.createElement('img');
+        imgP.src = ICON_PATHS.addProfile;
+        imgP.alt = '';
+        createProfileBtn.appendChild(imgP);
+        const spanP = document.createElement('span');
+        spanP.textContent = 'Create Profile...';
+        createProfileBtn.appendChild(spanP);
+        createProfileBtn.addEventListener('click', () => {
+            toggleBulkAssignMenu(false);
+            openProfilesModal();
+        });
+        profilesSubmenu.appendChild(createProfileBtn);
     }
-    const removeProfileItem = createMenuItem('Remove from all Profiles', 'remove-profile', 'all');
-    removeProfileItem.classList.add('danger');
-    profilesSubmenu.appendChild(removeProfileItem);
+
     profilesView.appendChild(profilesSubmenu);
 
     // --- Append all views ---
@@ -2035,6 +2209,7 @@ async function populateAndShowContextMenu(extensionId, event) {
     idSpan.textContent = `ID: ${extension.id.substring(0, 12)}...`;
     idSpan.title = extension.id;
     infoDiv.appendChild(idSpan);
+
     fragment.appendChild(infoDiv);
     fragment.appendChild(document.createElement('hr')).className = 'context-menu-separator';
 
@@ -2089,13 +2264,27 @@ async function populateAndShowContextMenu(extensionId, event) {
     groupSubmenu.className = 'context-menu-submenu';
 
     const orderedGroupNames = await getOrderedGroupNames();
-    orderedGroupNames.forEach(groupName => {
-        const subItem = createMenuItem(sanitizeText(groups[groupName].name), ICON_PATHS.assignGroup, () => assignExtensionToGroup(extensionId, groupName));
-        groupSubmenu.appendChild(subItem);
-    });
-    groupSubmenu.appendChild(document.createElement('hr')).className = 'context-menu-separator';
-    const removeGroupItem = createMenuItem('Remove from all Groups', ICON_PATHS.ungroup, () => assignExtensionToGroup(extensionId, '--remove--'), true);
-    groupSubmenu.appendChild(removeGroupItem);
+    if (orderedGroupNames.length > 0) {
+        orderedGroupNames.forEach(groupName => {
+            const subItem = createMenuItem(sanitizeText(groups[groupName].name), ICON_PATHS.assignGroup, () => assignExtensionToGroup(extensionId, groupName));
+            groupSubmenu.appendChild(subItem);
+        });
+        groupSubmenu.appendChild(document.createElement('hr')).className = 'context-menu-separator';
+        const removeGroupItem = createMenuItem('Remove from all Groups', ICON_PATHS.ungroup, () => assignExtensionToGroup(extensionId, '--remove--'), true);
+        groupSubmenu.appendChild(removeGroupItem);
+    } else {
+        // UX placeholder when no groups exist
+        const placeholder = document.createElement('div');
+        placeholder.className = 'context-menu-placeholder';
+        placeholder.setAttribute('role', 'status');
+        placeholder.textContent = 'No groups created yet.';
+        groupSubmenu.appendChild(placeholder);
+
+        // Offer quick action to create a new group
+        const createGroupItem = createMenuItem('Create Group...', ICON_PATHS.addGroup, () => openGroupManagementModal());
+        groupSubmenu.appendChild(createGroupItem);
+    }
+
     groupMenuItem.appendChild(groupSubmenu);
     fragment.appendChild(groupMenuItem);
 
@@ -2106,13 +2295,25 @@ async function populateAndShowContextMenu(extensionId, event) {
     profileSubmenu.className = 'context-menu-submenu';
 
     const orderedProfileIds = await getOrderedProfileIds();
-    orderedProfileIds.forEach(profileId => {
-        const subItem = createMenuItem(sanitizeText(profiles[profileId].name), ICON_PATHS.addProfile, () => addExtensionToProfile(extensionId, profileId));
-        profileSubmenu.appendChild(subItem);
-    });
-    profileSubmenu.appendChild(document.createElement('hr')).className = 'context-menu-separator';
-    const removeProfileItem = createMenuItem('Remove from all Profiles', ICON_PATHS.deleteProfile, () => removeExtensionFromAllProfiles(extensionId), true);
-    profileSubmenu.appendChild(removeProfileItem);
+    if (orderedProfileIds.length > 0) {
+        orderedProfileIds.forEach(profileId => {
+            const subItem = createMenuItem(sanitizeText(profiles[profileId].name), ICON_PATHS.addProfile, () => addExtensionToProfile(extensionId, profileId));
+            profileSubmenu.appendChild(subItem);
+        });
+        profileSubmenu.appendChild(document.createElement('hr')).className = 'context-menu-separator';
+        const removeProfileItem = createMenuItem('Remove from all Profiles', ICON_PATHS.deleteProfile, () => removeExtensionFromAllProfiles(extensionId), true);
+        profileSubmenu.appendChild(removeProfileItem);
+    } else {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'context-menu-placeholder';
+        placeholder.setAttribute('role', 'status');
+        placeholder.textContent = 'No profiles created yet.';
+        profileSubmenu.appendChild(placeholder);
+
+        const createProfileItem = createMenuItem('Create Profile...', ICON_PATHS.addProfile, () => openProfilesModal());
+        profileSubmenu.appendChild(createProfileItem);
+    }
+
     profileMenuItem.appendChild(profileSubmenu);
     fragment.appendChild(profileMenuItem);
 
@@ -2425,8 +2626,10 @@ async function addProfile(profileName) {
 }
 
 function renameProfileInPrefs(profileId, newName) {
-    // This function is currently just a placeholder in your code,
-    // as profileOrder uses IDs, not names. No change needed here.
+    // Placeholder kept for API consistency; profileOrder uses IDs so no update is required,
+    // but reference parameters to avoid unused-variable/hint warnings.
+    void profileId;
+    void newName;
 }
 
 
@@ -3313,10 +3516,15 @@ async function initializePopup() {
                 case 'F':
                     event.preventDefault();
                     clearAllFilters();
+                    elements.searchInput?.focus();
                     break;
-                case 'H': // Updated: Open help modal
+                case 'H':
                     event.preventDefault();
                     openHelpModal();
+                    break;
+                case 'R':
+                    event.preventDefault();
+                    refreshExtensionDataAndRender(getCurrentPage());
                     break;
             }
         }
