@@ -54,5 +54,56 @@
   },
   "temporaryOnlineMessage": {
     "message": "Вы снова в сети!"
-  }
+  },
+
+
+
+
+  
+    "contributions_title": { "message": "Вклад и Благодарности - modcore" },
+    "sidebar_core_team": { "message": "Основная Команда" },
+    "sidebar_authors": { "message": "Авторы" },
+    "sidebar_contributors": { "message": "Участники" },
+    "sidebar_credits": { "message": "Благодарности Проекта" },
+    "sidebar_tools_services": { "message": "Инструменты и Сервисы" },
+    "sidebar_legal_policies": { "message": "Правовые Документы и Политики" },
+    "sidebar_documents": { "message": "Важные Документы" },
+    "authors_title": { "message": "Авторы" },
+    "authors_description": { "message": "Основная команда, стоящая за разработкой и дизайном modcore Extension Manager." },
+    "canvrs_role": { "message": "Руководитель Проекта и Разработчик" },
+    "canvrs_description": { "message": "Ведущий разработку проекта и архитектурный дизайн, занимающийся всем, от кода до планирования пользовательского интерфейса." },
+    "aliana_role": { "message": "Сооснователь и Разработчик" },
+    "aliana_description": { "message": "Ключевой разработчик и сооснователь, участвующий во всех аспектах проекта, обеспечивающий бесшовный и функциональный опыт." },
+    "contributors_title": { "message": "Участники" },
+    "contributors_description": { "message": "Мы благодарны за все вклады сообщества. Этот раздел скоро выделит их." },
+    "contributors_coming_soon": { "message": "Скоро, заблокировано" },
+    "credits_title": { "message": "Инструменты и Сервисы" },
+    "credits_description": { "message": "modcore Extension Manager создан и поддерживается с помощью этих невероятных инструментов." },
+    "canva_description": { "message": "Используется для создания отличительного логотипа и материалов бренда проекта." },
+    "github_description": { "message": "Основа нашего проекта. Используется для контроля версий, совместной работы, API-запросов и получения данных." },
+    "inter_description": { "message": "Чистый, профессиональный шрифт, который определяет внешний вид и ощущение пользовательского интерфейса расширения." },
+    "mynaui_description": { "message": "Библиотека прекрасно разработанных SVG-иконок, которые улучшают визуальную привлекательность и удобство использования расширения." },
+    "google_services_description": { "message": "Основа функциональности расширения, включая chrome.storage.sync для синхронизации данных, Google Forms для сбора отзывов пользователей и саму надежную платформу Chromium." },
+    "policies_title": { "message": "Важные Документы" },
+    "policies_description": { "message": "Сборник официальных политик, руководств и юридических документов для проекта modcore Extension Manager." },
+    "creator_program_title": { "message": "Руководство Программы для Авторов modcore" },
+    "creator_program_description": { "message": "Информация для авторов на торговой площадке расширения." },
+    "sponsor_title": { "message": "Спонсировать modcore Extension Manager" },
+    "sponsor_description": { "message": "Узнайте, как вы можете финансово поддержать проект." },
+    "privacy_title": { "message": "Политика Конфиденциальности" },
+    "privacy_description": { "message": "Подробности о том, как обрабатываются и защищаются данные пользователя." },
+    "license_title": { "message": "Лицензионное Соглашение" },
+    "license_description": { "message": "Лицензия с открытым исходным кодом, регулирующая использование и распространение этого проекта." },
+    "security_title": { "message": "Политика Безопасности" },
+    "security_description": { "message": "Наша политика по сообщению об уязвимостях в безопасности." },
+    "contributing_title": { "message": "Руководство по Участию" },
+    "contributing_description": { "message": "Руководство для разработчиков, которые хотят внести вклад в кодовую базу." },
+    "code_of_conduct_title": { "message": "Кодекс Поведения" },
+    "code_of_conduct_description": { "message": "Наши стандарты сообщества для создания безопасной и гостеприимной среды." },
+    "readme_title": { "message": "README Проекта" },
+    "readme_description": { "message": "Основной обзор проекта на GitHub." },
+    "localization_title": { "message": "Уведомление о Поддержке Локализации" },
+    "localization_description": { "message": "Информация о добавлении и поддержании языковой поддержки." },
+
+    "get_crx_menu": { "message": "Получить CRX этого расширения" }
 }
