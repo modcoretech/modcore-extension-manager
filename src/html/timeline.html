@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Extension Activity History | modcore EM</title>
-    <meta name="description" content="Review and manage the activity history of your browser extensions.">
+    <title>modcore Timeline | modcore EM</title>
+    <meta name="description" content="Review and manage the activity of your browser extensions.">
     <meta name="color-scheme" content="light dark">
-    <link rel="stylesheet" href="../css/history.css">
+    <link rel="stylesheet" href="../css/timeline.css">
     <link rel="stylesheet" href="../../public/fonts/fonts.css">
 </head>
 <body>
@@ -14,7 +14,7 @@
         <aside class="sidebar">
             <header class="sidebar-header">
                 <img src="../../public/icons/png/modcore-em.png" alt="Modcore Logo" class="header-logo no-mask">
-                <h1 class="sidebar-title">Activity History</h1>
+                <h1 class="sidebar-title">modcore Timeline</h1>
             </header>
             <nav class="sidebar-nav" aria-label="History Sections">
                 <ul>
@@ -39,7 +39,7 @@
                 </ul>
             </nav>
             <footer class="sidebar-footer">
-                 <p>&copy; <span id="current-year">2025</span> modcore</p>
+                 <p>&copy; <span id="current-year">2026</span> modcore</p>
              </footer>
         </aside>
 
@@ -51,7 +51,7 @@
 
             <section id="panel-history" class="content-panel active" aria-labelledby="history-panel-title" tabindex="-1">
                 <header class="panel-header">
-                    <h2 id="history-panel-title">Extension Activity Log</h2>
+                    <h2 id="history-panel-title">Extension Activity</h2>
                     <p id="history-panel-description">Review a chronological log of events for all your extensions, such as installations, updates, and changes in status. Use the controls below to search, filter, and manage your history data.</p>
                 </header>
                 <div class="panel-content">
@@ -115,7 +115,7 @@
 
             <section id="panel-settings" class="content-panel" aria-labelledby="settings-panel-title" hidden tabindex="-1">
                 <header class="panel-header">
-                    <h2 id="settings-panel-title">History Settings</h2>
+                    <h2 id="settings-panel-title">Timeline Settings</h2>
                     <p>Configure how extension activity is tracked and stored.</p>
                 </header>
                 <div class="panel-content">
@@ -123,8 +123,9 @@
                         <h3 class="section-title small-title">Tracking</h3>
                         <div class="setting-item">
                             <div class="setting-label">
-                                <strong>Enable History Tracking</strong>
+                                <strong>Enable modcore Timeline</strong>
                                 <p class="text-secondary">Globally enable or disable the recording of extension activities.</p>
+                                <p class="text-secondary">Data is stored locally. <a href="https://sites.google.com/view/modcore-em-help/manage-extensions/extension-activity-log-page" target="_blank" rel="noopener" style="color: var(--primary-color); text-decoration: underline;">Learn more</a>.</p>
                             </div>
                             <input type="checkbox" id="tracking-enabled-toggle" class="toggle-switch" checked>
                         </div>
@@ -249,8 +250,12 @@
                             <p>You can set a maximum number of records to keep or automatically delete records older than a certain number of days. These options help you manage storage space. Additionally, you can manually prune inactive extension history or specific event types at any time.</p>
                          </details>
                          <details class="faq-item">
+                            <summary>Are these logs sent to a server?</summary>
+                            <p>No, all logs and activity data are stored locally on your computer and are never sent to modcore or any third-party servers. Your privacy is fully respected and protected. For more details, see our <a href="https://sites.google.com/view/modcore-em-help/general-information/privacy-policy" target="_blank" rel="noopener" style="color: var(--primary-color); text-decoration: underline;">Privacy Policy</a>.</p>
+                         </details>
+                         <details class="faq-item">
                             <summary>How can I backup and restore my history?</summary>
-                            <p>Use the 'Export JSON' and 'Import JSON' buttons in the main History panel. This allows you to create a local backup of your activity log, which can be re-imported at a later time or on a different device.</p>
+                            <p>Use the 'Export JSON' and 'Import JSON' buttons in the Settings panel. This allows you to create a local backup of your activity log, which can be re-imported at a later time or on a different device.</p>
                         </details>
                      </div>
                      <div class="content-section">
@@ -267,6 +272,8 @@
                         </ul>
                         <p>Additional features may be available through add-ons in the Marketplace. Visit the <a href="https://sites.google.com/view/modcore-pricing/modcore-extension-manager/add-ons" target="_blank" rel="noopener noreferrer">modcore Marketplace</a> for more information.</p>
                     </div>
+                    <p style="margin-top: 24px; font-size: 13px; color: var(--text-secondary);">
+                        For more detailed information, visit the <a href="https://sites.google.com/view/modcore-em-help/manage-extensions/extension-activity-log-page" target="_blank" rel="noopener" style="color: var(--primary-color); text-decoration: underline;">Extension Activity Log Documentation</a>.
                 </div>
             </section>
         </main>
@@ -300,7 +307,8 @@
 
     <div id="modal-backdrop" class="modal-backdrop" hidden></div>
 
-    <script src="../js/history.js"></script>
-    <script src="../js/profile-cards.js"></script>
+    <script src="../js/core/timeline.js"></script>
+    <script src="../js/features/profile-cards.js"></script>
+    <script src="../js/features/report.js"></script>
 </body>
 </html>
