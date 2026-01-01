@@ -1471,7 +1471,7 @@ function createProfileDropdown(profile, globalStats) {
     badgesBtn.role = 'menuitem';
     badgesBtn.id = 'badgesBtn';
     badgesBtn.textContent = 'Badges';
-    badgesBtn.addEventListener('click', () => createModal('Your Badges', getBadgesContent(profile)));
+    badgesBtn.addEventListener('click', () => createModal(`${profile.username}'s Badges`, getBadgesContent(profile)));
     dropdownContent.appendChild(badgesBtn);
 
     const statsBtn = document.createElement('button');
@@ -1587,12 +1587,12 @@ function showQuickLinksModal() {
     generalGrid.className = 'modcore-quick-links-grid';
     
     const generalLinks = [
-        { name: 'Extension Conflict Scanner', url: 'extension-conflict.html' },
+        { name: 'modcore Inspect', url: 'inspect.html' },
         { name: 'Safety Center', url: 'safety-center.html' },
-        { name: 'Backup & Restore', url: 'backup_restore.html' },
-        { name: 'Extension Activity Log', url: 'history.html' },
-        { name: 'Automation Rules', url: 'rules.html' },
-        { name: 'Cloud Sync', url: 'cloud-sync.html' },
+        { name: 'modcore Snapshot', url: 'snapshot.html' },
+        { name: 'modcore Timeline', url: 'timeline.html' },
+        { name: 'modcore Automations', url: 'automations.html' },
+        { name: 'modcore Cloud', url: 'cloud.html' },
     ];
 
     generalLinks.forEach(link => {
@@ -2015,7 +2015,7 @@ function openNoteForm(extension, allNotes, note = null) {
     formContent.className = 'modcore-note-form-container modcore-note-form';
     
     const introText = document.createElement('p');
-    introText.textContent = note ? 'Edit your note details below.' : 'Add a new note to help you remember important information about this extension.';
+    introText.textContent = note ? 'Edit your note details below.' : 'Add a new note to help you remember anything important about this extension.';
     formContent.appendChild(introText);
     
     const titleGroup = document.createElement('div');
@@ -2027,7 +2027,7 @@ function openNoteForm(extension, allNotes, note = null) {
     titleInput.id = 'note-title-input';
     titleInput.type = 'text';
     titleInput.value = note ? note.title : '';
-    titleInput.placeholder = 'e.g., "Extension login details"';
+    titleInput.placeholder = 'e.g., "Extension details"';
     titleInput.className = 'modcore-note-input modcore-profile-ui';
     titleGroup.appendChild(titleLabel);
     titleGroup.appendChild(titleInput);
@@ -2045,7 +2045,7 @@ function openNoteForm(extension, allNotes, note = null) {
     contentGroup.appendChild(contentLabel);
     contentGroup.appendChild(contentTextarea);
 
-    // Ensure the container carries the editor modal class so dark-mode rules targeting
+    // Ensures the container carries the editor modal class so dark-mode rules target
     // .modcore-note-editor-modal are applied as well.
     formContent.className = (formContent.className ? formContent.className + ' ' : '') + 'modcore-note-editor-modal modcore-profile-ui';
 
