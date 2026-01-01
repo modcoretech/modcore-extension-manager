@@ -1,7 +1,5 @@
-/* history.css - Apple-like UI (modcore EM) - Adapted from details.css */
-
 /* ==========================================================================
-   Core Variables & Theming (Inherited from details.css)
+   Core Variables & Theming
    ========================================================================== */
 :root {
     /* Typography */
@@ -34,9 +32,9 @@
 
     /* Borders & Radius */
     --border-radius-extra-large: 16px;
-    --border-radius-large: 10px;
-    --border-radius-medium: 8px;
-    --border-radius-small: 6px;
+    --border-radius-large: 14px;
+    --border-radius-medium: 12px;
+    --border-radius-small: 10px;
     --border-width: 1px;
     --focus-ring-width: 2px;
 
@@ -55,7 +53,7 @@
     --on-background-color: #1c1c1c;
     --surface-color: #ffffff;
     --on-surface-color: #1c1c1c;
-    --surface-variant-color: #f0f0f0;
+    --surface-variant-color: #fff;
     --on-surface-variant-color: #6a6a6a;
     --outline-color: #e6e6e6;
     --outline-variant-color: #d4d4d4;
@@ -65,7 +63,7 @@
     --focus-ring-color: rgba(0, 122, 255, 0.5);
     --text-secondary: var(--on-surface-variant-color);
     --surface-container-low: #f8f8fa;
-    --surface-container: #f0f0f0;
+    --surface-container: #fff;
     --surface-container-high: #e9e9eb;
 }
 
@@ -74,9 +72,9 @@
     :root {
         --primary-color: #0a84ff;
         --primary-container-color: rgba(10, 132, 255, 0.2);
-        --background-color: #131315;
+        --background-color: #111112;
         --on-background-color: #ffffff;
-        --surface-color: #131315;
+        --surface-color: #111112;
         --on-surface-color: #ffffff;
         --surface-variant-color: #1a1a1a;
         --on-surface-variant-color: #a0a0a0;
@@ -85,8 +83,8 @@
         --error-color: #ff453a;
         --error-container-color: rgba(255, 69, 58, 0.2);
         --focus-ring-color: rgba(10, 132, 255, 0.6);
-        --surface-container-low: #1a1a1a;
-        --surface-container: #131315;
+        --surface-container-low: #111112;
+        --surface-container: #111112;
         --surface-container-high: #2c2c2c;
     }
 }
