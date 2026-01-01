@@ -218,7 +218,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const wrapper = document.createElement('div');
         wrapper.className = 'results-wrapper';
         if (conflicts.length > 0) wrapper.appendChild(createCollapsibleSection( "Conflicting Extensions", conflicts.map(createConflictCard), true, "Groups of active extensions that can cause issues when used together."));
-        if (deprecated.length > 0) wrapper.appendChild(createCollapsibleSection( "Deprecated or Risky Extensions", deprecated.map(createDeprecatedCard), true, "Extensions that are outdated, unsafe, or have been removed from the web store."));
+        if (deprecated.length > 0) wrapper.appendChild(createCollapsibleSection( "Deprecated or Risky Extensions", deprecated.map(createDeprecatedCard), true, "Extensions that are outdated, no longer maintained, or deemed unsafe, as well as those that have been removed from the web store. Using these extensions may cause compatibility issues, security risks, or unexpected behavior."));
         if (hasIgnored) {
             const installedMap = new Map(allInstalled.map(ext => [ext.id, ext]));
             const ignoredItems = Array.from(ignoredSet).map(id => {
