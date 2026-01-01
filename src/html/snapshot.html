@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Backup & Restore - Extension Data</title>
-    <link rel="stylesheet" href="../css/backup_restore.css">
+    <title>modcore Snapshot - modcore EM</title>
+    <link rel="stylesheet" href="../css/snapshot.css">
     <link rel="stylesheet" href="../../public/fonts/fonts.css">
 </head>
 <body>
@@ -12,7 +12,7 @@
         <aside class="sidebar">
             <div class="sidebar-header">
                 <img src="../../public/icons/png/modcore-em.png" alt="Extension Logo" class="header-logo no-mask">
-                <h1 class="sidebar-title">Extension Backup</h1>
+                <h1 class="sidebar-title">modcore Snapshot</h1>
             </div>
             <nav class="sidebar-nav">
                 <ul>
@@ -21,14 +21,14 @@
                 </ul>
             </nav>
             <div class="sidebar-footer">
-                <p>&copy; 2025 modcore</p>
+                <p>&copy; 2026 modcore</p>
             </div>
         </aside>
 
         <main class="content-area">
             <div id="backup-restore-panel" class="content-panel" role="tabpanel" aria-labelledby="backup-restore-tab" tabindex="0">
                 <div class="panel-header">
-                    <h2>Backup & Restore Extension Data</h2>
+                    <h2>modcore Snapshot</h2>
                     <p>Manage the extension's data by creating encrypted backups or restoring from a previous backup file.</p>
                 </div>
                 <div class="panel-content">
@@ -37,7 +37,7 @@
                         <div class="details-grid">
                             <div class="detail-item detail-item-full-width">
                                 <label for="backupFileName" class="detail-label">File Name</label>
-                                <input type="text" id="backupFileName" class="text-input" placeholder="e.g., extension_backup_2025-08-09">
+                                <input type="text" id="backupFileName" class="text-input" placeholder="e.g., extension_backup_2026-08-09">
                             </div>
                             <div class="detail-item detail-item-full-width">
                                 <p class="detail-label">Select Data to Include</p>
@@ -242,7 +242,8 @@
         </div>
     </div>
 
-    <script src="../js/backup_restore.js"></script>
-    <script src="../js/profile-cards.js"></script>
+    <script src="../js/core/snapshot.js"></script>
+    <script src="../js/features/profile-cards.js"></script>
+    <script src="../js/features/report.js"></script>
 </body>
 </html>
