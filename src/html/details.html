@@ -38,7 +38,7 @@
                 </ul>
             </nav>
             <footer class="sidebar-footer">
-                 <p>&copy; <span id="current-year"></span> modcore</p>
+                 <p>&copy; <span id="current-year"></span> modcore • <a href="https://sites.google.com/view/modcore-em-help/manage-extensions/details-page-features" target="_blank" rel="noopener noreferrer">Details Page</a></p>
              </footer>
         </aside>
 
@@ -208,6 +208,7 @@
                            <input type="search" id="permission-search-input" placeholder="Search permissions..." aria-controls="api-permissions-list host-permissions-list">
                         </div>
                         <div class="permissions-layout-toggle" role="group" aria-label="Permissions view layout">
+                             <button id="filter-btn" class="btn icon" aria-pressed="false"><span class="icon icon-filter" aria-hidden="true"></span></button>
                              <button id="layout-list-btn" class="btn-icon active" data-layout="list" title="View as List" aria-pressed="true"><span class="icon icon-list" aria-hidden="true"></span></button>
                              <button id="layout-grid-btn" class="btn-icon" data-layout="grid" title="View as Grid" aria-pressed="false"><span class="icon icon-grid" aria-hidden="true"></span></button>
                         </div>
@@ -281,8 +282,9 @@
 
     <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
 
-    <script src="../js/details.js"></script>
-    <script src="../js/offline.js"></script>
-    <script src="../js/profile-cards.js"></script>
+    <script src="../js/core/details.js"></script>
+    <script src="../js/features/profile-cards.js"></script>
+    <script src="../js/features/report.js"></script>
+    <script src="../js/features/donate.js"></script>
 </body>
 </html>
