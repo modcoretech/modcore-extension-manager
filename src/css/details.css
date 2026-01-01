@@ -1,16 +1,16 @@
-/* details.css - Apple-like UI (modcore EM) - Consistent Design */
+/* details.css - (modcore EM) - Consistent Design */
 
 /* ==========================================================================
-   Enhanced Styles, Variables & Automatic Theming (Details Page - Apple-like UI)
+   Enhanced Styles, Variables & Automatic Theming (Details Page)
    ========================================================================== */
 
-/* Define Common Variables (Apple-like UI) */
+/* Define Common Variables */
 :root {
-    /* Typography - Using "modcore-inter-font-custom" and Apple's system font fallback */
+    /* Typography - Using "modcore-inter-font-custom" */
     --font-family-sans-serif: 'modcore-inter-font-custom', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     --font-family-monospace: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
 
-    /* Apple-like Typography Scale (Adjusted for Details UI) */
+    /* Typography Scale (Adjusted for Details UI) */
     --display-large: 48px; /* Larger headings */
     --display-medium: 38px;
     --display-small: 30px;
@@ -47,9 +47,9 @@
 
     /* Borders & Radius - Soft, subtle radius (no shadows!) */
     --border-radius-extra-large: 16px; /* Larger radius for panels/cards */
-    --border-radius-large: 10px; /* Radius for buttons/items */
-    --border-radius-medium: 8px; /* Radius for smaller elements */
-    --border-radius-small: 6px; /* Radius for input/code */
+    --border-radius-large: 14px; /* Radius for buttons/items */
+    --border-radius-medium: 10px; /* Radius for smaller elements */
+    --border-radius-small: 8px; /* Radius for input/code */
     --border-width: 1px;
     --focus-ring-width: 2px; /* Thinner focus ring */
 
@@ -70,17 +70,17 @@
     --elevation-level-4: none;
     --elevation-level-5: none;
 
-    /* Risk Colors (Using Apple's system-like colors for consistency) */
-    --risk-low-color: #34a853; /* Apple Green */
-    --risk-medium-color: #fbbc04; /* Apple Yellow */
-    --risk-high-color: #ff3b30; /* Apple Red */
-    --risk-varies-color: #8e8e93; /* iOS grey */
+    /* Risk Colors */
+    --risk-low-color: #34a853; 
+    --risk-medium-color: #fbbc04;
+    --risk-high-color: #ff3b30;
+    --risk-varies-color: #8e8e93;
 }
 
-/* Light Theme Variables (Apple UI Palette) */
+/* Light Theme Variables */
 :root {
-    /* Core Palette (Apple UI) */
-    --primary-color: #007aff; /* Apple Blue */
+    /* Core Palette */
+    --primary-color: #007aff; /* Blue */
     --primary-hover-color: #0072e6;
     --on-primary-color: #ffffff; /* White */
     --primary-container-color: rgba(0, 122, 255, 0.1); /* Light blue tint for primary backgrounds */
@@ -89,7 +89,7 @@
     --secondary-color: #fff; /* Light grey for secondary buttons */
     --secondary-hover-color: #d8d8db;
     --on-secondary-color: #1c1c1c; /* Dark text on secondary */
-    --secondary-container-color: #f0f0f0; /* Subtle grey for backgrounds */
+    --secondary-container-color: #fff; /* Subtle grey for backgrounds */
     --on-secondary-container-color: #1c1c1c; /* Dark text on secondary container */
 
     --tertiary-color: #6a6a6a; /* Dark grey for tertiary text/icons */
@@ -97,7 +97,7 @@
     --tertiary-container-color: #f8f8fa;
     --on-tertiary-container-color: #1c1c1c;
 
-    --error-color: #ff3b30; /* Apple Red */
+    --error-color: #ff3b30; /* Red */
     --error-hover-color: #e63229;
     --on-error-color: #ffffff;
     --error-container-color: rgba(255, 59, 48, 0.1); /* Light red tint */
@@ -106,15 +106,15 @@
     --neutral-color: #a0a0a0; /* Medium grey */
     --neutral-variant-color: #c0c0c0; /* Light grey */
 
-    /* Backgrounds & Text (Light) - Apple UI */
+    /* Backgrounds & Text (Light) UI */
     --background-color: #fff; /* Very light grey */
     --on-background-color: #1c1c1c; /* Almost black */
     --surface-color: #ffffff; /* Pure white for elements on bg */
     --on-surface-color: #1c1c1c; /* Dark text on surface */
-    --surface-variant-color: #f0f0f0; /* Subtle grey for variants */
+    --surface-variant-color: #fff; /* Subtle grey for variants */
     --on-surface-variant-color: #6a6a6a; /* Darker grey for secondary text */
 
-    --outline-color: #e6e6e6; /* Subtle grey border */
+    --outline-color: #C3C6D4; /* Subtle grey border */
     --outline-variant-color: #d4d4d4; /* Slightly darker border for focus/active */
     --shadow-color: transparent; /* No shadows */
     --scrim-color: rgba(0, 0, 0, 0.4); /* Darker backdrop for modals */
@@ -171,10 +171,10 @@
     --risk-varies-color-rgb: 142, 142, 147;
 
 
-    /* Apple-like Surface Container Colors */
+    /* Surface Container Colors */
     --surface-container-lowest: #ffffff;
     --surface-container-low: #f8f8fa; /* Similar to light mode bg-disabled */
-    --surface-container: #f0f0f0; /* Similar to surface-hover */
+    --surface-container: #F6F7FB; /* Similar to surface-hover */
     --surface-container-high: #e9e9eb; /* Similar to secondary button */
     --surface-container-highest: #e0e0e0;
 }
@@ -210,9 +210,9 @@
         --neutral-variant-color: #6a6a6a;
 
         /* Backgrounds & Text (Dark) - Apple UI */
-        --background-color: #131315; /* Deep dark grey/black */
+        --background-color: #111112; /* Deep dark grey/black */
         --on-background-color: #ffffff; /* Pure white */
-        --surface-color: #131315; /* Slightly lighter dark grey for elements */
+        --surface-color: #111112; /* Slightly lighter dark grey for elements */
         --on-surface-color: #ffffff;
         --surface-variant-color: #1a1a1a; /* Darker grey for variants */
         --on-surface-variant-color: #a0a0a0; /* Lighter grey for secondary text */
@@ -275,9 +275,9 @@
 
 
          /* Apple-like Surface Container Colors (Dark Placeholder) */
-        --surface-container-lowest: #0a0a0a;
+        --surface-container-lowest: #111112;
         --surface-container-low: #1a1a1a;
-        --surface-container: #131315;
+        --surface-container: #111112;
         --surface-container-high: #2c2c2c;
         --surface-container-highest: #333333;
     }
@@ -367,6 +367,7 @@ strong { font-weight: var(--font-weight-semibold); }
 .icon-grid { -webkit-mask-image: url(../../public/icons/svg/grid.svg); mask-image: url(../../public/icons/svg/grid.svg); }
 .icon-code { -webkit-mask-image: url(../../public/icons/svg/code.svg); mask-image: url(../../public/icons/svg/code.svg); }
 .icon-support { -webkit-mask-image: url(../../public/icons/svg/support.svg); mask-image: url(../../public/icons/svg/support.svg); }
+.icon-filter { -webkit-mask-image: url(../../public/icons/svg/filter.svg); mask-image: url(../../public/icons/svg/filter.svg); }
 
 
 /* Icon Sizes & Colors */
@@ -707,7 +708,6 @@ button.btn-icon.active { background-color: var(--primary-container-color); color
 .tooltip-content {
   position: absolute;
   bottom: calc(100% + var(--spacing-small));
-  left: 50%;
   transform: translateX(-50%);
   background-color: var(--surface-variant-color);
   color: var(--on-surface-color);
@@ -787,10 +787,149 @@ button.btn-icon.active { background-color: var(--primary-container-color); color
 .permissions-list.list-view { display: flex; flex-direction: column; gap: var(--spacing-small); }
 .permissions-list.grid-view { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--spacing-medium); }
 
+
+/* ==========================================================================
+   Filter Dropdown Styles
+   ========================================================================== */
+.filter-dropdown-wrapper {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.filter-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: -120px;
+  min-width: 220px;
+  max-width: 320px;
+  background: #fff;
+  color: #222;
+  border: 1px solid rgba(0,0,0,0.12);
+  border-radius: 16px;
+  padding: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+  z-index: 1200;
+  font-size: 12px;
+  display: none;
+  transform-origin: top left;
+}
+
+.filter-dropdown.open {
+  display: block;
+}
+
+.filter-dropdown .group {
+  margin: 6px 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #eee;
+}
+
+.filter-dropdown h4 {
+  margin: 0 0 6px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #111;
+}
+
+.filter-dropdown .option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 6px 8px;
+  border-radius: 16px;
+
+  cursor: pointer;
+  user-select: none;
+}
+
+.filter-dropdown .option:hover {
+  background: rgba(0,0,0,0.04);
+}
+
+.filter-dropdown .option .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  box-sizing: border-box;
+}
+
+.filter-dropdown .option[data-risk="high"] .dot { background: #d9534f; }
+.filter-dropdown .option[data-risk="medium"] .dot { background: #f0ad4e; }
+.filter-dropdown .option[data-risk="low"] .dot { background: #5bc0de; }
+
+.filter-dropdown .option.active {
+  background: rgba(33, 150, 243, 0.08);
+  outline: 1px solid rgba(33, 150, 243, 0.18);
+}
+
+.filter-dropdown .footer {
+  margin-top: 6px;
+  text-align: right;
+  font-size: 12px;
+  color: #666;
+}
+
+.filter-dropdown .clear-btn {
+  font-family: var(--font-family-sans-serif);
+  background: transparent;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 8px;
+}
+.filter-dropdown .clear-btn:hover {
+  background: rgba(0,0,0,0.05);
+}
+
+
+/* =========================================================
+   DARK MODE FOR FILTER DROPDOWN
+   ========================================================= */
+ @media (prefers-color-scheme: dark) {
+
+  .filter-dropdown {
+    background: #1e1e1e;
+    color: #e5e5e5;
+    border-color: rgba(255,255,255,0.12);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+  }
+
+  .filter-dropdown h4 {
+    color: #f5f5f5;
+  }
+
+  .filter-dropdown .group {
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .filter-dropdown .option:hover {
+    background: rgba(255,255,255,0.07);
+  }
+
+  .filter-dropdown .option.active {
+    background: rgba(33,150,243,0.25);
+    outline-color: rgba(33,150,243,0.40);
+  }
+
+  .filter-dropdown .footer,
+  .filter-dropdown .clear-btn {
+    color: #bbb;
+  }
+
+  .filter-dropdown .clear-btn:hover {
+    background: rgba(255,255,255,0.08);
+  }
+}
+
+
 .permission-item {
     background-color: var(--surface-container);
-    border: 1px solid var(--outline-color);
     border-radius: var(--border-radius-extra-large);
+    border: 1px solid var(--outline-color);
     padding: var(--spacing-large);
     transition: all .2s;
     animation: slide-in-up .3s ease-out;
