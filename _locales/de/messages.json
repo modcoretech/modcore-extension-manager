@@ -54,5 +54,58 @@
   },
   "temporaryOnlineMessage": {
     "message": "Sie sind wieder online!"
-  }
+  },
+
+
+  
+
+
+  
+    "contributions_title": { "message": "Mitwirkende & Danksagungen - modcore" },
+    "sidebar_core_team": { "message": "Kernteam" },
+    "sidebar_authors": { "message": "Autoren" },
+    "sidebar_contributors": { "message": "Mitwirkende" },
+    "sidebar_credits": { "message": "Projekt-Danksagungen" },
+    "sidebar_tools_services": { "message": "Tools & Dienste" },
+    "sidebar_legal_policies": { "message": "Rechtliches & Richtlinien" },
+    "sidebar_documents": { "message": "Wichtige Dokumente" },
+    "authors_title": { "message": "Autoren" },
+    "authors_description": { "message": "Das Kernteam hinter der Entwicklung und dem Design des modcore Extension Manager." },
+    "canvrs_role": { "message": "Projektleiter & Entwickler" },
+    "canvrs_description": { "message": "Führt die Projektentwicklung und das Architekturdesign an und kümmert sich um alles von Code bis zur UI-Planung." },
+    "aliana_role": { "message": "Mitbegründerin & Entwicklerin" },
+    "aliana_description": { "message": "Eine wichtige Entwicklerin und Mitbegründerin, die in alle Aspekte des Projekts involviert ist, um eine nahtlose und funktionale Erfahrung zu gewährleisten." },
+    "contributors_title": { "message": "Mitwirkende" },
+    "contributors_description": { "message": "Wir sind dankbar für alle Beiträge der Community. Dieser Bereich wird sie bald hervorheben." },
+    "contributors_coming_soon": { "message": "Bald verfügbar, gesperrt" },
+    "credits_title": { "message": "Tools & Dienste" },
+    "credits_description": { "message": "Der modcore Extension Manager wurde mit der Hilfe dieser unglaublichen Tools erstellt und wird damit gepflegt." },
+    "canva_description": { "message": "Wurde zur Erstellung des unverwechselbaren Logos und der Markenmaterialien des Projekts verwendet." },
+    "github_description": { "message": "Die Grundlage unseres Projekts. Genutzt für Versionskontrolle, Zusammenarbeit, API-Anfragen und Datenabruf." },
+    "inter_description": { "message": "Die saubere, professionelle Schrift, die das Aussehen und Gefühl der Benutzeroberfläche der Erweiterung prägt." },
+    "mynaui_description": { "message": "Eine Bibliothek mit wunderschön gestalteten SVG-Icons, die die visuelle Attraktivität und Benutzerfreundlichkeit der Erweiterung verbessern." },
+    "google_services_description": { "message": "Das Rückgrat der Funktionalität der Erweiterung, einschließlich chrome.storage.sync für die Datensynchronisation, Google Forms zum Sammeln von Nutzerfeedback und der robusten Chromium-Plattform selbst." },
+    "policies_title": { "message": "Wichtige Dokumente" },
+    "policies_description": { "message": "Eine Sammlung offizieller Richtlinien und rechtlicher Dokumente für das Projekt modcore Extension Manager." },
+    "creator_program_title": { "message": "Richtlinien des modcore Creator Programms" },
+    "creator_program_description": { "message": "Informationen für Entwickler im Marktplatz der Erweiterung." },
+    "sponsor_title": { "message": "modcore Extension Manager sponsern" },
+    "sponsor_description": { "message": "Erfahren Sie, wie Sie das Projekt finanziell unterstützen können." },
+    "privacy_title": { "message": "Datenschutzrichtlinie" },
+    "privacy_description": { "message": "Details darüber, wie Nutzerdaten behandelt und geschützt werden." },
+    "license_title": { "message": "Lizenzvereinbarung" },
+    "license_description": { "message": "Die Open-Source-Lizenz, die die Nutzung und Verteilung dieses Projekts regelt." },
+    "security_title": { "message": "Sicherheitsrichtlinie" },
+    "security_description": { "message": "Unsere Richtlinie für die Meldung von Sicherheitslücken." },
+    "contributing_title": { "message": "Beitragsrichtlinien" },
+    "contributing_description": { "message": "Ein Leitfaden für Entwickler, die zum Code beitragen möchten." },
+    "code_of_conduct_title": { "message": "Verhaltenskodex" },
+    "code_of_conduct_description": { "message": "Unsere Community-Standards für eine sichere und einladende Umgebung." },
+    "readme_title": { "message": "Projekt-README" },
+    "readme_description": { "message": "Die Hauptübersicht des Projekts auf GitHub." },
+    "localization_title": { "message": "Hinweis zur Lokalisierungsunterstützung" },
+    "localization_description": { "message": "Informationen zum Hinzufügen und Pflegen von Sprachunterstützung." },
+
+
+    "get_crx_menu": { "message": "CRX dieser Erweiterung herunterladen" }
 }
