@@ -1,4 +1,4 @@
-/* styles.css - (modcore EM) - Professional & Subtle Buttons - Animations & Reduced Motion */
+/* popup.css - Apple-like UI (modcore EM) - Professional & Subtle Buttons - Animations & Reduced Motion */
 
 /* ==========================================================================
    Root Variables & Color Schemes
@@ -28,7 +28,7 @@
     --transition-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
 
 
-    /* --- Light Mode Colors --- */
+    /* --- Light Mode Colors (Inspired by Apple's UI) --- */
     --bg-light: #f5f5f7;
     --bg-gradient-start-light: #fcfcfd;
     --bg-gradient-end-light: #f0f0f2;
@@ -64,9 +64,7 @@
     --action-feedback-bg-light: rgba(0, 122, 255, 0.08);
     --action-feedback-border-light: rgba(0, 122, 255, 0.2);
     --action-feedback-text-light: #007aff;
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
-    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
+    
 }
 
 @media (prefers-color-scheme: dark) {
@@ -490,6 +488,118 @@ select:disabled, input[type="text"]:disabled {
 .submenu-header .back-button:hover { background-color: var(--surface-hover); }
 .submenu-header .back-button img { width: 16px; height: 16px; filter: var(--svg-icon-filter); }
 .submenu { max-height: 150px; overflow-y: auto; padding-right: var(--spacing-xs); }
+
+/* Submenu search & tools (Groups / Profiles) */
+.submenu-tools {
+  display: flex;
+  gap: var(--spacing-xs);
+  align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
+  /* keep tools visually aligned with header */
+  padding-left: var(--spacing-sm);
+}
+
+/* Search input inside submenu header */
+.submenu-search {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  font-family: var(--font-sans);
+  font-size: 0.9em;
+  padding: 6px 10px;
+  min-width: 140px;
+  max-width: 320px;
+  width: 22vw;
+  background-color: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius-md));
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-fast);
+  outline: none;
+}
+
+/* Placeholder color & accessibility */
+.submenu-search::placeholder { color: var(--text-placeholder); opacity: 1; }
+.submenu-search:focus-visible {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--focus-ring), inset 0 1px 2px rgba(0,0,0,0.04);
+}
+
+/* Hover state for search input */
+.submenu-search:hover:not(:focus-visible) {
+  border-color: var(--border-strong);
+  background-color: color-mix(in srgb, var(--surface) 95%, var(--surface-hover) 5%);
+}
+
+/* Disabled */
+.submenu-search:disabled {
+  background-color: var(--disabled-bg);
+  color: var(--disabled-text);
+  border-color: var(--disabled-border);
+  cursor: not-allowed;
+  opacity: 0.9;
+}
+
+/* Compact layout for narrow popup widths */
+@media (max-width: 520px) {
+  .submenu-tools { gap: var(--spacing-xs); }
+  .submenu-search { min-width: 110px; width: 36vw; }
+}
+
+/* Search result visuals inside submenu */
+.submenu .menu-item {
+  transition: background-color var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
+}
+
+/* Smooth hide/show for filtered items */
+.submenu .menu-item[style*="display: none"] {
+  opacity: 0;
+  height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin: 0;
+  border: none;
+  overflow: hidden;
+  transition: opacity var(--transition-fast), height var(--transition-fast);
+}
+
+/* Placeholder shown when no results or no items */
+.context-menu-placeholder {
+  padding: var(--spacing-sm) var(--spacing-md);
+  color: var(--text-secondary);
+  font-size: 0.9em;
+  text-align: center;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  display: block;
+}
+
+/* Ensure placeholder visually distinct in submenu area */
+.submenu .context-menu-placeholder {
+  margin-top: var(--spacing-xs);
+  border-top: 1px dashed var(--border);
+  padding-top: var(--spacing-sm);
+}
+
+/* Keyboard focus for menu items and create buttons */
+.submenu .menu-item:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+  background-color: color-mix(in srgb, var(--primary) 6%, var(--surface));
+}
+
+/* Respect reduced motion setting */
+@media (prefers-reduced-motion: reduce) {
+  .submenu-search,
+  .submenu-search-btn,
+  .submenu .menu-item,
+  .submenu .menu-item[style*="display: none"] {
+    transition: none !important;
+  }
+}
+
 .menu-item {
     font-family: var(--font-sans);  /* Use the same font as the rest of the UI */
     display: flex; align-items: center; gap: var(--spacing-sm); padding: var(--spacing-sm);
@@ -1102,3 +1212,4 @@ select:disabled, input[type="text"]:disabled {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
