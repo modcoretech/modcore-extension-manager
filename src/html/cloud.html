@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cloud Sync</title>
-    <link rel="stylesheet" href="../css/cloud-sync.css">
+    <title>modcore Cloud</title>
+    <link rel="stylesheet" href="../css/cloud.css">
     <link rel="stylesheet" href="../../public/fonts/fonts.css">
 </head>
 <body>
@@ -13,7 +13,7 @@
         <aside class="sidebar">
             <div class="sidebar-header">
                 <img src="../../public/icons/svg/cloud.svg" alt="Extension Logo" class="header-logo no-mask">
-                <h1 class="sidebar-title">Cloud Sync</h1>
+                <h1 class="sidebar-title">modcore Cloud</h1>
             </div>
             <nav class="sidebar-nav">
                 <ul>
@@ -25,7 +25,7 @@
                 </ul>
             </nav>
             <div class="sidebar-footer">
-                <p>Sync v2.0</p>
+                <p>© 2026 modcore • <a href="https://sites.google.com/view/modcore-em-help/general-information/additional-features/cloud-sync" target="_blank" rel="noopener">modcore Cloud</a></p>
             </div>
         </aside>
 
@@ -37,7 +37,7 @@
               </div>
                 <div class="panel-content">
                     <div class="warning-box">
-                     <h3>⚠️ Cloud Sync is a preview feature and still in development.</h3>
+                     <h3>⚠️ modcore Cloud is a preview feature and still in development.</h3>
                      <p>You may encounter bugs or data issues. Avoid using it for critical backups. <a href="https://github.com/modcoretech/modcore-extension-manager/issues" class="report-issue-link">Report issues here</a>.</p>
                     </div>
                     <div class="content-section">
@@ -91,7 +91,7 @@
                 <div class="panel-content">
                     <div class="content-section">
                         <h3 class="section-title small-title">Selective Sync</h3>
-                        <p>Choose which data categories to sync. Unchecking an item will prevent it from being sent to or restored from the cloud. Not all data is stored in Cloud Sync.</p>
+                        <p>Choose which data categories to sync. Unchecking an item will prevent it from being sent to or restored from the cloud. Not all data is stored in modcore Cloud.</p>
                         <div id="selectiveSyncOptions" class="option-grid">
                             </div>
                     </div>
@@ -182,12 +182,17 @@
                             <button id="syncNowBtn" class="btn primary"><span class="icon icon-toggle-on"></span>Sync to Cloud</button>
                             <button id="restoreBtn" class="btn secondary"><span class="icon icon-grid"></span>Restore from Cloud</button>
                         </div>
+                        <p class="small-text-muted">
+                            <strong>Sync to Cloud:</strong> Uploads your selected data to the cloud.<br>
+                            <strong>Restore from Cloud:</strong> Downloads data from the cloud and replaces your local data.
                     </div>
                     <div class="content-section">
                         <h3 class="section-title small-title">Danger Zone</h3>
                         <div class="button-group">
                             <button id="clearSyncBtn" class="btn danger tertiary"><span class="icon icon-trash"></span>Clear All Cloud Data</button>
                         </div>
+                        <p class="small-text-muted">
+                            <strong>Clear All Cloud Data:</strong> Permanently deletes all your synced data from the cloud. This action cannot be undone.
                     </div>
                 </div>
             </div>
@@ -221,6 +226,9 @@
                         <p class="placeholder-text">Loading history...</p>
                     </div>
                 </div>
+                <p class="small-text-muted">
+                    Note: Restoring a previous version will overwrite your current local data with the selected historical version. Manage your history retention settings in the Options panel to control how many versions are kept. We care about your privacy and data security. All synced data is stored securely using Chrome's built-in sync storage, which is tied to your Google account. We do not store or access your data outside of Chrome Sync.
+                </p>
             </div>
 
             <div id="log-panel" class="content-panel">
@@ -252,6 +260,8 @@
                         <p class="placeholder-text">Loading log...</p>
                     </div>
                 </div>
+                <p class="small-text-muted">
+                    Note: The sync log provides a comprehensive record of all synchronization activities, including timestamps and details of each action. Manage your log retention settings in the Options panel to control how many log entries are kept. We care about your privacy and data security. All synced data is stored securely using Chrome's built-in sync storage, which is tied to your Google account. We do not store or access your data outside of Chrome Sync.
             </div>
         </main>
     </div>
@@ -283,12 +293,12 @@
     <div id="chromeSyncTooltip" class="tooltip">
         <p><strong>Chrome Sync Status:</strong></p>
         <ul>
-            <li><strong>Active:</strong> Chrome's built-in sync is enabled and actively synchronizing data for your profile. This is required for extension cloud sync.</li>
+            <li><strong>Active:</strong> Chrome's built-in sync is enabled and actively synchronizing data for your profile.</li>
             <li><strong>Inactive / Warning:</strong> Chrome sync might be paused, disabled, or encountering issues. Ensure you are signed into Chrome and sync is enabled for "Extension data" in Chrome's sync settings.</li>
             <li><strong>Checking...:</strong> The extension is currently querying Chrome for the sync status.</li>
         </ul>
         <p class="small-text-muted">
-            This status reflects Chrome's overall sync state for your profile, which is required for this extension's cloud sync to function.
+            This status reflects Chrome's overall sync state for your profile, which is required for modcore's cloud to function.
         </p>
     </div>
 
@@ -304,7 +314,9 @@
         </p>
     </div>
 
-    <script src="../js/cloud-sync.js"></script>
+    <script src="../js/core/cloud.js"></script>
+    <script src="../js/features/profile-cards.js"></script>
+    <script src="../js/features/report.js"></script>
 
 </body>
 </html>
