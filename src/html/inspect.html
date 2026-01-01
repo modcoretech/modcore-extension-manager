@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>modcore Inspect</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="../../public/fonts/fonts.css">
+    <link rel="stylesheet" href="../css/inspect.css">
+</head>
+<body>
+
+    <header class="header">
+        <h1>Safety Center - modcore Inspect</h1>
+        <div id="header-meta" class="header-meta"></div>
+        <div class="actions">
+            <button id="refreshCacheButton" class="btn tertiary" aria-label="Refresh data and rescan">Refresh Data</button>
+        </div>
+    </header>
+
+    <main id="results" class="content-area" role="main" aria-live="polite">
+        <div id="initial-scan-screen" class="placeholder" style="display: none;">
+             <span class="icon icon-shield" aria-hidden="true"></span>
+            <div class="placeholder-title">Check Your Extensions for Conflicts</div>
+            <p class="placeholder-text">Scan your installed extensions to identify potential conflicts, find deprecated items, and get recommendations for a smoother, safer Browse experience.</p>
+            <p class="placeholder-text">
+                An internet connection is required to use this feature. This allows modcore to check for the latest compatibility data and provide accurate conflict detection.<br>
+                <a href="https://sites.google.com/view/modcore-em-help/general-information/privacy-policy/internet-connection-required" target="_blank" rel="noopener" style="display:inline-block;margin-top:8px;">Learn more</a>
+            </p>
+            <button id="startScanButton" class="btn primary">Start Scan</button>
+            <label for="autoScanCheckbox" class="checkbox-container">
+                <input type="checkbox" id="autoScanCheckbox" />
+                <span>Automatically scan when opening this page</span>
+                <span class="tooltip-trigger" role="tooltip" aria-describedby="auto-scan-tooltip">
+                    <span class="icon icon-help" aria-hidden="true"></span>
+                    <span id="auto-scan-tooltip" class="tooltip-content">If checked, a scan will automatically run the next time you open this page, but only if the previous scan's data has expired (after 24 hours).</span>
+                </span>
+            </label>
+        </div>
+    </main>
+
+    <div id="loading-spinner" class="loading-spinner" role="status" aria-label="Loading content..."></div>
+
+    <footer id="footer" class="footer" role="contentinfo"></footer>
+
+    <div id="confirmationModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalMessage">
+        <div class="modal-content">
+            <h3 id="modalTitle">Confirm Action</h3>
+            <p id="modalMessage">Are you sure you want to proceed?</p>
+            <div class="modal-actions">
+                <button id="cancelButton" class="btn tertiary">Cancel</button>
+                <button id="confirmButton" class="btn primary">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/core/inspect.js"></script>
+    <script src="../js/features/report.js"></script>
+</body>
+</html>
