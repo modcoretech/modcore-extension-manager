@@ -959,7 +959,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         urlConditionFields.style.display = 'none';
         
         // Clear all target selectors and day checkboxes
-        targetSelectorContainer.innerHTML = '';
+        while (targetSelectorContainer.firstChild) {
+            targetSelectorContainer.removeChild(targetSelectorContainer.firstChild);
+        }
         document.querySelectorAll('.day-selector input').forEach(cb => cb.checked = false);
 
         if (ruleToEdit) {
