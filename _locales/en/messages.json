@@ -55,5 +55,57 @@
   },
   "temporaryOnlineMessage": {
     "message": "You're back online!"
-  }
+  },
+
+
+  
+
+    "contributions_title": { "message": "Contributions & Credits - modcore" },
+    "sidebar_core_team": { "message": "Core Team" },
+    "sidebar_authors": { "message": "Authors" },
+    "sidebar_contributors": { "message": "Contributors" },
+    "sidebar_credits": { "message": "Project Credits" },
+    "sidebar_tools_services": { "message": "Tools & Services" },
+    "sidebar_legal_policies": { "message": "Legal & Policies" },
+    "sidebar_documents": { "message": "Important Documents" },
+    "authors_title": { "message": "Authors" },
+    "authors_description": { "message": "The core team behind the development and design of modcore Extension Manager." },
+    "canvrs_role": { "message": "Project Lead & Developer" },
+    "canvrs_description": { "message": "Leading the project's development and architectural design, handling everything from code to user interface planning." },
+    "aliana_role": { "message": "Co-Founder & Developer" },
+    "aliana_description": { "message": "A key developer and co-founder involved in all aspects of the project, ensuring a seamless and functional experience." },
+    "contributors_title": { "message": "Contributors" },
+    "contributors_description": { "message": "We are grateful for all community contributions. This section will highlight them soon." },
+    "contributors_coming_soon": { "message": "Coming soon, locked" },
+    "credits_title": { "message": "Tools & Services" },
+    "credits_description": { "message": "modcore Extension Manager is built and maintained with the help of these incredible tools." },
+    "canva_description": { "message": "Used to craft the project's distinctive logo and branding materials." },
+    "github_description": { "message": "The foundation of our project. Utilized for version control, collaboration, API requests, and data fetching." },
+    "inter_description": { "message": "The clean, professional typeface that defines the look and feel of the extension's user interface." },
+    "mynaui_description": { "message": "A library of beautifully designed SVG icons that enhance the extension's visual appeal and usability." },
+    "google_services_description": { "message": "The backbone of the extension's functionality, including chrome.storage.sync for data synchronization, Google Forms for gathering user feedback, and the robust Chromium platform itself." },
+    "policies_title": { "message": "Important Documents" },
+    "policies_description": { "message": "A collection of official policies, guidelines, and legal documents for the modcore Extension Manager project." },
+    "creator_program_title": { "message": "modcore Creator Program Guidelines" },
+    "creator_program_description": { "message": "Information for creators on the extension's marketplace." },
+    "sponsor_title": { "message": "Sponsor modcore Extension Manager" },
+    "sponsor_description": { "message": "Learn how you can support the project financially." },
+    "privacy_title": { "message": "Privacy Policy" },
+    "privacy_description": { "message": "Details on how user data is handled and protected." },
+    "license_title": { "message": "License Agreement" },
+    "license_description": { "message": "The open-source license governing the use and distribution of this project." },
+    "security_title": { "message": "Security Policy" },
+    "security_description": { "message": "Our policy for reporting security vulnerabilities." },
+    "contributing_title": { "message": "Contributing Guidelines" },
+    "contributing_description": { "message": "A guide for developers who want to contribute to the codebase." },
+    "code_of_conduct_title": { "message": "Code of Conduct" },
+    "code_of_conduct_description": { "message": "Our community standards for a safe and welcoming environment." },
+    "readme_title": { "message": "Project README" },
+    "readme_description": { "message": "The main project overview on GitHub." },
+    "localization_title": { "message": "Localization Support Notice" },
+    "localization_description": { "message": "Information on adding and maintaining language support." },
+
+
+    "get_crx_menu": { "message": "Get CRX of this extension", "description": "Context menu item to download the CRX file of an extension" }
+    
 }
