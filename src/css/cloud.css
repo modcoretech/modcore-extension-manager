@@ -1,7 +1,5 @@
-/* cloud-sync.css - Redesigned with Apple-like UI from history.css */
-
 /* ==========================================================================
-   Core Variables & Theming (Adopted from history.css)
+   Core Variables & Theming
    ========================================================================== */
 :root {
     /* Typography */
@@ -33,9 +31,9 @@
 
     /* Borders & Radius */
     --border-radius-extra-large: 16px;
-    --border-radius-large: 10px;
-    --border-radius-medium: 8px;
-    --border-radius-small: 6px;
+    --border-radius-large: 14px;
+    --border-radius-medium: 10px;
+    --border-radius-small: 8px;
     --border-width: 1px;
     --focus-ring-width: 2px;
 
@@ -53,7 +51,7 @@
     --on-background-color: #1c1c1c;
     --surface-color: #ffffff;
     --on-surface-color: #1c1c1c;
-    --surface-variant-color: #f0f0f0;
+    --surface-variant-color: #fff;
     --on-surface-variant-color: #6a6a6a;
     --outline-color: #e6e6e6;
     --outline-variant-color: #d4d4d4;
@@ -79,9 +77,9 @@
     :root {
         --primary-color: #0a84ff;
         --primary-container-color: rgba(10, 132, 255, 0.2);
-        --background-color: #131315;
+        --background-color: #111112;
         --on-background-color: #ffffff;
-        --surface-color: #131315;
+        --surface-color: #111112;
         --on-surface-color: #ffffff;
         --surface-variant-color: #1a1a1a;
         --on-surface-variant-color: #a0a0a0;
@@ -160,7 +158,7 @@ body {
 .panel-header { padding-bottom: var(--spacing-large); margin-bottom: var(--spacing-large); border-bottom: var(--border-width) solid var(--outline-color); }
 .panel-header h2 { font-size: var(--headline-large); font-weight: var(--font-weight-semibold); margin-bottom: var(--spacing-small); }
 .panel-header p { color: var(--text-secondary); font-size: var(--title-medium); max-width: 80ch; }
-.content-section { background-color: var(--surface-color); border: 1px solid var(--outline-color); border-radius: var(--border-radius-extra-large); padding: var(--spacing-large) var(--spacing-extra-large); }
+.content-section { background-color: var(--surface-color); border: 1px solid var(--outline-color); border-radius: var(--border-radius-extra-large); padding: var(--spacing-large) var(--spacing-extra-large); margin-bottom: 15px; }
 .section-title.small-title { font-size: var(--label-large); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: var(--spacing-large); }
 
 /* ==========================================================================
@@ -214,11 +212,11 @@ body {
 input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary-color); margin-right: var(--spacing-medium); }
 
 /* ==========================================================================
-   Cloud Sync Specific Styles
+   modcore Cloud Specific Styles
    ========================================================================== */
 
 /* Status Panel */
-.warning-box { background-color: var(--warning-container-color); color: var(--on-surface-color); padding: var(--spacing-large); border-radius: var(--border-radius-large); border: 1px solid var(--warning-color); }
+.warning-box { background-color: var(--warning-container-color); color: var(--on-surface-color); padding: var(--spacing-large); border-radius: var(--border-radius-large); border: 1px solid var(--warning-color); margin-bottom: 15px; }
 .warning-box h3 { margin: 0 0 var(--spacing-small) 0; color: var(--warning-color); font-weight: var(--font-weight-semibold); }
 .warning-box p a { color: var(--primary-color); font-weight: var(--font-weight-medium); text-decoration: none; }
 .warning-box p a:hover { text-decoration: underline; }
@@ -328,3 +326,12 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary-
 .tooltip p { margin: 0 0 var(--spacing-small) 0; }
 .tooltip ul { margin: 0 0 var(--spacing-small) var(--spacing-large); padding: 0; list-style: disc; }
 .tooltip li { margin-bottom: var(--spacing-extra-small); }
+
+/* ==========================================================================
+   Responsive Adjustments
+   ========================================================================== */
+@media (max-width: 768px) {
+    .sidebar { position: relative; width: 100%; height: auto; border-right: none; border-bottom: var(--border-width) solid var(--outline-color); }
+    .content-area { margin-left: 0; padding: var(--spacing-large); }
+    .content-panel { padding-top: var(--spacing-large); }
+}
