@@ -756,6 +756,8 @@
         }
     };
 
+    
+
     // --- Entry Point ---
     document.addEventListener('DOMContentLoaded', initializeApp);
     document.addEventListener('keydown', handleKeyboardShortcuts);
