@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>modcore Safety Center | Extension Security Dashboard</title>
+    <meta name="description" content="Comprehensive security and privacy analysis for your browser extensions. Monitor permissions, assess risks, and protect your data.">
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="../css/safety-center.css">
+    <link rel="stylesheet" href="../../public/fonts/fonts.css">
+</head>
+<body>
+    <div class="page-wrapper">
+        <main class="main-content">
+
+            <!-- Dashboard View -->
+            <div id="all-extensions-view">
+                <header class="page-header">
+                    <div class="page-header-content">
+                        <h1 class="page-title">modcore Safety Center</h1>
+                        <p class="page-subtitle">Security and Privacy Dashboard</p>
+                    </div>
+                </header>
+
+                <!-- Overview Statistics -->
+                <section class="dashboard-section overview-section">
+                    <div class="section-header">
+                        <h2 class="section-title">Security Overview</h2>
+                        <p class="section-description">Monitor the overall security posture of your installed extensions.</p>
+                    </div>
+                    <div class="overview-stats">
+                        <div class="stat-card">
+                            <div class="stat-card-value" id="total-extensions-count">--</div>
+                            <div class="stat-card-label">Total Extensions</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-value" id="enabled-extensions-count">--</div>
+                            <div class="stat-card-label">Active Extensions</div>
+                        </div>
+                        <div class="stat-card stat-card-warning">
+                            <div class="stat-card-value" id="high-risk-count">--</div>
+                            <div class="stat-card-label">High Risk</div>
+                        </div>
+                        <div class="stat-card stat-card-warning">
+                            <div class="stat-card-value" id="concerning-count">--</div>
+                            <div class="stat-card-label">Concerning</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-value" id="moderate-risk-count">--</div>
+                            <div class="stat-card-label">Moderate Risk</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Permission Analysis -->
+                <section class="dashboard-section">
+                    <div class="section-header">
+                        <h2 class="section-title">Permission Analysis</h2>
+                        <p class="section-description">Most frequently requested permissions across your extensions. Click to view which extensions use each permission.</p>
+                    </div>
+                    <div class="stat-list-container">
+                        <ul id="permission-count-list" class="stat-list"></ul>
+                    </div>
+                </section>
+
+                <!-- Risk Distribution -->
+                <section class="dashboard-section">
+                    <div class="section-header">
+                        <h2 class="section-title">Risk Distribution</h2>
+                        <p class="section-description">Extensions grouped by security risk level. Click any category to view extensions within that classification.</p>
+                    </div>
+                    <div class="stat-list-container">
+                        <ul id="risk-rating-list" class="stat-list"></ul>
+                    </div>
+                </section>
+                
+                <!-- Extension List -->
+                <section class="dashboard-section">
+                    <div class="section-header">
+                        <h2 class="section-title">All Extensions</h2>
+                        <p class="section-description">Search by name, permission, or risk level. Click any extension for detailed analysis.</p>
+                    </div>
+                    <div class="search-wrapper">
+                        <input 
+                            type="search" 
+                            id="permission-search-input" 
+                            class="search-input"
+                            placeholder="Search extensions..."
+                            aria-label="Search extensions">
+                    </div>
+                    <ul id="all-extensions-list" class="extension-grid"></ul>
+                </section>
+            </div>
+
+            <!-- Single Extension View -->
+            <div id="single-extension-view" style="display: none;">
+                <header class="page-header">
+                    <button id="back-to-dashboard-btn" class="back-button" aria-label="Back to dashboard">
+                        <span class="back-button-icon">←</span>
+                        <span class="back-button-text">Dashboard</span>
+                    </button>
+                    <div class="extension-header">
+                        <img id="extension-icon" src="../../public/icons/svg/terminal.svg" alt="" class="extension-header-icon">
+                        <div class="extension-header-content">
+                            <h1 id="extension-name" class="extension-header-name">Extension Analysis</h1>
+                            <p class="extension-header-subtitle">Comprehensive Security Assessment</p>
+                        </div>
+                    </div>
+                </header>
+
+                <!-- Score Cards -->
+                <section class="dashboard-section">
+                    <div class="section-header">
+                        <h2 class="section-title">Security Assessment</h2>
+                        <p class="section-description">Comprehensive analysis based on requested permissions and their potential impact on your security and privacy.</p>
+                    </div>
+                    
+                    <div class="score-grid">
+                        <!-- Overall Score -->
+                        <div class="score-card score-card-primary">
+                            <div class="score-card-header">
+                                <h3 class="score-card-title">Overall Score</h3>
+                            </div>
+                            <div class="score-card-body">
+                                <div id="overall-score-value" class="score-display">--</div>
+                                <div id="overall-score-category" class="score-label">Analyzing...</div>
+                            </div>
+                            <div class="score-card-footer">
+                                <p id="score-explanation" class="score-description">Assessment in progress...</p>
+                            </div>
+                        </div>
+
+                        <!-- Security Score -->
+                        <div class="score-card score-card-secondary">
+                            <div class="score-card-header">
+                                <h3 class="score-card-title">Security</h3>
+                            </div>
+                            <div class="score-card-body">
+                                <div class="score-visual">
+                                    <div id="security-score-graph" class="score-circle">
+                                        <div id="security-score-value" class="score-circle-value">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="score-card-footer">
+                                <p class="score-description-small">Protection against threats and vulnerabilities</p>
+                            </div>
+                        </div>
+
+                        <!-- Privacy Score -->
+                        <div class="score-card score-card-secondary">
+                            <div class="score-card-header">
+                                <h3 class="score-card-title">Privacy</h3>
+                            </div>
+                            <div class="score-card-body">
+                                <div class="score-visual">
+                                    <div id="privacy-score-graph" class="score-circle">
+                                        <div id="privacy-score-value" class="score-circle-value">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="score-card-footer">
+                                <p class="score-description-small">Data collection and tracking risk</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Permissions Report -->
+                <section class="dashboard-section">
+                    <div class="section-header">
+                        <h2 class="section-title">Permission Details</h2>
+                        <p class="section-description">Detailed breakdown of all requested permissions, categorized by risk level and potential impact.</p>
+                    </div>
+                    <div class="permissions-container">
+                        <div id="all-permissions-list" class="permissions-list"></div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Filtered View -->
+            <div id="filtered-extensions-view" style="display: none;">
+                <header class="page-header">
+                    <button id="back-from-filtered-btn" class="back-button" aria-label="Back to dashboard">
+                        <span class="back-button-icon">←</span>
+                        <span class="back-button-text">Dashboard</span>
+                    </button>
+                    <div class="page-header-content">
+                        <h1 id="filtered-view-header" class="page-title">Filtered Extensions</h1>
+                        <p id="filtered-view-subtitle" class="page-subtitle">Matching your filter criteria</p>
+                    </div>
+                </header>
+                <section class="dashboard-section">
+                    <ul id="filtered-extensions-list" class="extension-grid"></ul>
+                </section>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+    <script src="../js/core/safety-center.js"></script>
+    <script src="../js/features/profile-cards.js"></script>
+    <script src="../js/features/report.js"></script>
+</body>
+</html>
