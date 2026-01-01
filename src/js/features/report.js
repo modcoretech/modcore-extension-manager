@@ -543,7 +543,7 @@ function createReportDialog() {
     techInfoDesc.textContent = 'We collect accurate details (browser, OS, screen, extension version) to quickly reproduce and debug the issue. This information is submitted publicly with your report.';
     
     const privacyNote = createElement('div', 'modcore-privacy-note');
-    privacyNote.textContent = `⚠️ **PRIVACY NOTE**: Your submission will be redirected to the public ${GITHUB_REPO_NAME} GitHub page. Ensure your summary and description do not contain sensitive personal information.`;
+    privacyNote.textContent = `PRIVACY NOTE: Your submission will be redirected to the public ${GITHUB_REPO_NAME} GitHub page. Ensure your summary and description do not contain sensitive personal information.`;
 
 
     techInfoDiv.appendChild(techInfoCheckbox);
@@ -751,7 +751,7 @@ async function handleFormSubmission(form) {
 }
 
 /**
- * Global keyboard listener to trigger the modal ('R' key) and manage 'Escape'.
+ * Global keyboard listener to trigger the modal ('E' key) and manage 'Escape'.
  * @param {KeyboardEvent} event The keyboard event.
  */
 function handleKeydown(event) {
@@ -766,8 +766,8 @@ function handleKeydown(event) {
         activeElement.tagName === 'SELECT'
     );
 
-    // Trigger on 'R' key, no modifiers, and not currently typing
-    if (event.key === 'r' && !hasModifier && !isTyping) {
+    // Trigger on 'E' key, no modifiers, and not currently typing
+    if (event.key === 'e' && !hasModifier && !isTyping) {
         event.preventDefault();
         displayModal();
         return;
