@@ -1,16 +1,14 @@
-/* backup_restore.css - Apple-like UI (modcore EM) - Consistent Design */
-
 /* ==========================================================================
-   Enhanced Styles, Variables & Automatic Theming (Details Page - Apple-like UI)
+   Enhanced Styles, Variables & Automatic Theming
    ========================================================================== */
 
-/* Define Common Variables (Apple-like UI) */
+/* Define Common Variables*/
 :root {
-    /* Typography - Using "modcore-inter-font-custom" and Apple's system font fallback */
+    /* Typography - Using "modcore-inter-font-custom" system font fallback */
     --font-family-sans-serif: 'modcore-inter-font-custom', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     --font-family-monospace: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
 
-    /* Apple-like Typography Scale (Adjusted for Details UI) */
+    /* Typography Scale */
     --display-large: 48px; /* Larger headings */
     --display-medium: 38px;
     --display-small: 30px;
@@ -47,9 +45,9 @@
 
     /* Borders & Radius - Soft, subtle radius (no shadows!) */
     --border-radius-extra-large: 16px; /* Larger radius for panels/cards */
-    --border-radius-large: 10px; /* Radius for buttons/items */
-    --border-radius-medium: 8px; /* Radius for smaller elements */
-    --border-radius-small: 6px; /* Radius for input/code */
+    --border-radius-large: 14px; /* Radius for buttons/items */
+    --border-radius-medium: 12px; /* Radius for smaller elements */
+    --border-radius-small: 10px; /* Radius for input/code */
     --border-width: 1px;
     --focus-ring-width: 2px; /* Thinner focus ring */
 
@@ -89,7 +87,7 @@
     --secondary-color: #fff; /* Light grey for secondary buttons */
     --secondary-hover-color: #d8d8db;
     --on-secondary-color: #1c1c1c; /* Dark text on secondary */
-    --secondary-container-color: #f0f0f0; /* Subtle grey for backgrounds */
+    --secondary-container-color: #fff;
     --on-secondary-container-color: #1c1c1c; /* Dark text on secondary container */
 
     --tertiary-color: #6a6a6a; /* Dark grey for tertiary text/icons */
@@ -111,7 +109,7 @@
     --on-background-color: #1c1c1c; /* Almost black */
     --surface-color: #ffffff; /* Pure white for elements on bg */
     --on-surface-color: #1c1c1c; /* Dark text on surface */
-    --surface-variant-color: #f0f0f0; /* Subtle grey for variants */
+    --surface-variant-color: #fff; /* Subtle grey for variants */
     --on-surface-variant-color: #6a6a6a; /* Darker grey for secondary text */
 
     --outline-color: #e6e6e6; /* Subtle grey border */
@@ -174,7 +172,7 @@
     /* Apple-like Surface Container Colors */
     --surface-container-lowest: #ffffff;
     --surface-container-low: #f8f8fa; /* Similar to light mode bg-disabled */
-    --surface-container: #f0f0f0; /* Similar to surface-hover */
+    --surface-container: #fff; /* Similar to surface-hover */
     --surface-container-high: #e9e9eb; /* Similar to secondary button */
     --surface-container-highest: #e0e0e0;
 }
@@ -210,9 +208,9 @@
         --neutral-variant-color: #6a6a6a;
 
         /* Backgrounds & Text (Dark) - Apple UI */
-        --background-color: #131315; /* Deep dark grey/black */
+        --background-color: #111112; /* Deep dark grey/black */
         --on-background-color: #ffffff; /* Pure white */
-        --surface-color: #131315; /* Slightly lighter dark grey for elements */
+        --surface-color: #111112; /* Slightly lighter dark grey for elements */
         --on-surface-color: #ffffff;
         --surface-variant-color: #1a1a1a; /* Darker grey for variants */
         --on-surface-variant-color: #a0a0a0; /* Lighter grey for secondary text */
@@ -275,9 +273,9 @@
 
 
          /* Apple-like Surface Container Colors (Dark Placeholder) */
-        --surface-container-lowest: #0a0a0a;
+        --surface-container-lowest: #111112;
         --surface-container-low: #1a1a1a;
-        --surface-container: #131315;
+        --surface-container: #111112;
         --surface-container-high: #2c2c2c;
         --surface-container-highest: #333333;
     }
@@ -699,8 +697,14 @@ button.btn-icon.active { background-color: var(--primary-container-color); color
 /* Custom File Upload Button Styling */
 .file-upload-container {
     display: flex;
+    flex-direction: column; /* Adjusted to stack file-upload-header and other elements */
+    gap: var(--spacing-medium);
+}
+.file-upload-header {
+    display: flex;
     align-items: center;
     gap: var(--spacing-medium);
+    width: 100%;
 }
 
 .file-input {
@@ -858,6 +862,47 @@ button.btn-icon.active { background-color: var(--primary-container-color); color
 .detail-value.status-enabled { color: var(--risk-low-color); font-weight: var(--font-weight-medium); }
 .detail-value.status-disabled { color: var(--text-muted); }
 
+/* --- NEW FEATURE STYLES: Metadata Display --- */
+.metadata-display {
+    background-color: var(--surface-container-low);
+    padding: var(--spacing-large);
+    border-radius: var(--border-radius-medium);
+    border: 1px solid var(--outline-color);
+    margin-top: var(--spacing-medium);
+}
+.metadata-display h4 {
+    font-size: var(--title-medium);
+    font-weight: var(--font-weight-semibold);
+    color: var(--primary-color);
+    margin-bottom: var(--spacing-medium);
+    border-bottom: 1px solid var(--outline-color);
+    padding-bottom: var(--spacing-small);
+}
+.metadata-display p {
+    font-size: var(--body-medium);
+    color: var(--on-surface-variant-color);
+    margin-bottom: var(--spacing-small);
+}
+.metadata-display strong {
+    color: var(--on-surface-color);
+}
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    margin-right: var(--spacing-small);
+    border-radius: var(--border-radius-large);
+    font-size: var(--label-large);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--line-height-dense);
+    color: var(--primary-color);
+    background-color: var(--primary-container-color);
+}
+.badge.secondary {
+    color: var(--text-secondary);
+    background-color: var(--surface-container-high);
+}
+/* ------------------------------------------- */
+
 .code-block {
     position: relative;
     background-color: var(--surface-container-low);
@@ -1003,7 +1048,9 @@ button.btn-icon.active { background-color: var(--primary-container-color); color
     .content-area { margin-left: 0; }
     .details-grid { grid-template-columns: 1fr; }
     .details-actions-grid { flex-direction: column; align-items: stretch; }
-    .file-upload-container { flex-direction: column; align-items: flex-start; }
+    /* Adjusted file upload container for small screens */
+    .file-upload-header { flex-direction: column; align-items: flex-start; }
+    .file-upload-header .btn { width: 100%; }
 }
 
 /* ==========================================================================
