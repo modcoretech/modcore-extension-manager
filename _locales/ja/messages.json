@@ -102,5 +102,7 @@
   "readme_title": { "message": "プロジェクト README" },
   "readme_description": { "message": "GitHub 上のプロジェクト概要。" },
   "localization_title": { "message": "ローカライズサポートに関する注意" },
-  "localization_description": { "message": "言語サポートを追加・維持するための情報。" }
+  "localization_description": { "message": "言語サポートを追加・維持するための情報。" },
+
+  "get_crx_menu": { "message": "この拡張機能の CRX を取得する" }
 }
