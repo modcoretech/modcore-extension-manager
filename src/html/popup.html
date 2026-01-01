@@ -6,7 +6,7 @@
     <title>modcore EM</title>
     <meta name="description" content="Manage your browser extensions with ease: enable, disable, group, and switch profiles.">
     <meta name="color-scheme" content="light dark">
-    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/popup.css">
     <link rel="stylesheet" href="../../public/fonts/fonts.css">
 </head>
 <body>
@@ -15,16 +15,16 @@
         <div class="popup-header">
             <h1>modcore Extension Manager</h1>
             <div class="header-icons">
-                <button id="profiles-modal-trigger" class="header-icon-btn" aria-label="Manage Profiles/Workspaces" title="Organize extensions into profiles for quick switching.">
+                <button id="profiles-modal-trigger" class="header-icon-btn" aria-label="Manage Profiles" title="Organize extensions into profiles for quick switching.">
                     <img src="../../public/icons/svg/profiles.svg" alt="" aria-hidden="true">
                 </button>
                 <button id="group-management-modal-trigger" class="header-icon-btn" aria-label="Manage Extension Groups" title="Create and manage groups to categorize your extensions.">
                     <img src="../../public/icons/svg/groups.svg" alt="" aria-hidden="true">
                 </button>
-               <a href="cloud-sync.html" target="_blank" class="header-icon-link" aria-label="Cloud Sync" title="Manage cloud sync settings.">
+               <a href="cloud.html" target="_blank" class="header-icon-link" aria-label="modcore Cloud" title="Sync profiles, groups, settings and more across your devices.">
                     <img src="../../public/icons/svg/cloud.svg" alt="" aria-hidden="true">
                 </a>
-                <a href="rules.html" target="_blank" class="header-icon-link" aria-label="Manage Rules" title="Manage automation rules for your extensions.">
+                <a href="automations.html" target="_blank" class="header-icon-link" aria-label="Manage Automations" title="Set up automations to control extension behavior.">
                     <img src="../../public/icons/svg/rules.svg" alt="" aria-hidden="true">
                 </a>
                 <button id="help-modal-trigger" class="header-icon-btn" aria-label="Help and Information" title="Get help, report issues, or provide feedback.">
@@ -164,7 +164,7 @@
                 </div>
                  <p class="subtle-hint modal-hint">
                     Assign a global keyboard shortcut to quickly switch to this group. Use Ctrl+Shift+ or Alt+Shift+.
-                   <a href="rules.html" target="_blank" rel="noopener noreferrer">Set up an automation rule for this group...</a>
+                   <a href="automations.html" target="_blank" rel="noopener noreferrer">Set up an automation for this group...</a>
                 </p>
                  <span id="modal-group-config-error-message" class="feedback-message error-message modal-feedback" style="display: none;" aria-live="assertive"></span>
             </div>
@@ -176,7 +176,7 @@
             </div>
             <p class="subtle-hint modal-hint">
                     Sync this group to the cloud now, so you can access it from any of your devices.
-                   <a href="cloud-sync.html" target="_blank" rel="noopener noreferrer">Sync this group to the cloud...</a>
+                   <a href="cloud.html" target="_blank" rel="noopener noreferrer">Sync this group to the cloud...</a>
                 </p>
             <div class="group-config-actions-bar modal-input-group">
                 <button id="save-group-config-btn" class="button-small button-primary" title="Save the current configuration for this group.">
@@ -236,7 +236,7 @@
                     </div>
                     <p class="subtle-hint modal-hint">
                         Assign a global keyboard shortcut to quickly switch to this profile. Use Ctrl+Shift+ or Alt+Shift+.
-                        <a href="rules.html" target="_blank" rel="noopener noreferrer">Set up an automation rule for this profile...</a>
+                        <a href="automations.html" target="_blank" rel="noopener noreferrer">Set up an automation for this profile...</a>
                     </p>
                     <span id="profile-config-shortcut-message" class="feedback-message error-message modal-feedback" style="display: none;"></span>
                 </div>
@@ -248,7 +248,7 @@
                 </div>
                 <p class="subtle-hint modal-hint">
                     Sync this profile to the cloud now, so you can access it from any of your devices.
-                   <a href="cloud-sync.html" target="_blank" rel="noopener noreferrer">Sync this profile to the cloud...</a>
+                   <a href="cloud.html" target="_blank" rel="noopener noreferrer">Sync this profile to the cloud...</a>
                 </p>
                 <div id="profile-config-actions-bar" class="profile-config-actions-bar modal-input-group">
                     <button id="save-profile-config-btn" class="button-small button-primary" title="Save the current selection of enabled extensions for this profile.">
@@ -319,7 +319,7 @@
 </div>
 
 
-    <script src="../js/popup.js"></script>
-    <script src="../js/report.js"></script>
+    <script src="../js/core/popup.js"></script>
+    <script src="../js/features/report.js"></script>
 </body>
 </html>
