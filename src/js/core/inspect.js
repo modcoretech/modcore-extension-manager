@@ -1,13 +1,23 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- Constants & State ---
     const API_URL = 'https://raw.githubusercontent.com/modcoretech/api/main/modcoreEM/extensions.json';
-    const CACHE_TTL_MS = 24 * 3600 * 1000; // 24 hours
+    const DEFAULT_CACHE_TTL_HOURS = 24;
     const IGNORED_EXTENSIONS_KEY = 'ignored_extensions';
     const AUTO_SCAN_KEY = 'auto_scan_enabled';
     const LAST_SCAN_KEY = 'last_scan_timestamp';
+    const SCAN_HISTORY_KEY = 'scan_history';
+    const SETTINGS_KEY = 'inspect_settings';
     const GENERIC_EXTENSION_ICON = '../../public/icons/svg/info.svg';
+    
     let conflictConfig = null;
     let activeTooltip = null;
+    let currentScanResults = null;
+    let currentSettings = {
+        autoScan: false,
+        showResolved: false,
+        cacheDuration: 24,
+        ...loadSettings()
+    };
 
     // --- DOM Elements ---
     const resultsDiv = document.getElementById('results');
@@ -21,14 +31,149 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial Screen
     const initialScanScreen = document.getElementById('initial-scan-screen');
     const startScanButton = document.getElementById('startScanButton');
-    const autoScanCheckbox = document.getElementById('autoScanCheckbox');
 
-    // Modal
+    // Modals
     const confirmationModal = document.getElementById('confirmationModal');
     const modalTitle = document.getElementById('modalTitle');
     const modalMessage = document.getElementById('modalMessage');
     const confirmButton = document.getElementById('confirmButton');
     const cancelButton = document.getElementById('cancelButton');
+
+    // Scan History Popover
+    const scanHistoryPopover = document.getElementById('scanHistoryPopover');
+    const scanHistoryList = document.getElementById('scanHistoryList');
+    const closeHistoryPopover = document.getElementById('closeHistoryPopover');
+
+    // Settings Modal
+    const settingsModal = document.getElementById('settingsModal');
+    const settingsButton = document.getElementById('settingsButton');
+    const closeSettingsModal = document.getElementById('closeSettingsModal');
+    const autoScanSetting = document.getElementById('autoScanSetting');
+    const showResolvedSetting = document.getElementById('showResolvedSetting');
+    const cacheDurationSetting = document.getElementById('cacheDurationSetting');
+    const clearDataButton = document.getElementById('clearDataButton');
+
+    // Fix All Modal
+    const fixAllModal = document.getElementById('fixAllModal');
+    const fixAllTitle = document.getElementById('fixAllTitle');
+    const fixAllMessage = document.getElementById('fixAllMessage');
+    const fixAllSummary = document.getElementById('fixAllSummary');
+    const confirmFixAllButton = document.getElementById('confirmFixAllButton');
+    const cancelFixAllButton = document.getElementById('cancelFixAllButton');
+
+    // --- Settings Management ---
+    function loadSettings() {
+        try {
+            const stored = localStorage.getItem(SETTINGS_KEY);
+            return stored ? JSON.parse(stored) : {};
+        } catch {
+            return {};
+        }
+    }
+
+    async function saveSettings(settings) {
+        currentSettings = { ...currentSettings, ...settings };
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(currentSettings));
+        
+        // Also save auto-scan to chrome storage for compatibility
+        await chrome.storage.local.set({ [AUTO_SCAN_KEY]: currentSettings.autoScan });
+    }
+
+    function initSettingsUI() {
+        autoScanSetting.checked = currentSettings.autoScan;
+        showResolvedSetting.checked = currentSettings.showResolved;
+        cacheDurationSetting.value = currentSettings.cacheDuration.toString();
+    }
+
+    // --- Enhanced Storage Management ---
+    const StorageManager = {
+        async getCacheTTL() {
+            return (currentSettings.cacheDuration || DEFAULT_CACHE_TTL_HOURS) * 3600 * 1000;
+        },
+
+        async storeScanResults(results, hasIssues) {
+            const timestamp = Date.now();
+            const storageData = {
+                [LAST_SCAN_KEY]: timestamp
+            };
+
+            if (!hasIssues) {
+                // Store minimal data when no conflicts found
+                storageData.lastScanResult = {
+                    status: 'clean',
+                    timestamp: timestamp,
+                    conflictCount: 0,
+                    deprecatedCount: 0
+                };
+            } else {
+                // Store only problematic extension data
+                const minimalConflicts = results.conflicts.map(c => ({
+                    category_id: c.category_id,
+                    name: c.name,
+                    conflict_level: c.conflict_level,
+                    extension_ids: c.extensions.map(e => e.id)
+                }));
+                
+                const minimalDeprecated = results.deprecated.map(d => ({
+                    id: d.extension.id,
+                    name: d.extension.name,
+                    security_risk_level: d.security_risk_level
+                }));
+
+                storageData.lastScanResult = {
+                    status: 'issues_found',
+                    timestamp: timestamp,
+                    conflicts: minimalConflicts,
+                    deprecated: minimalDeprecated,
+                    conflictCount: results.conflicts.length,
+                    deprecatedCount: results.deprecated.length
+                };
+            }
+
+            await chrome.storage.local.set(storageData);
+            await this.addToHistory(storageData.lastScanResult);
+        },
+
+        async addToHistory(scanResult) {
+            const history = await this.getScanHistory();
+            const entry = {
+                timestamp: scanResult.timestamp,
+                status: scanResult.status,
+                conflictCount: scanResult.conflictCount || 0,
+                deprecatedCount: scanResult.deprecatedCount || 0,
+                id: Date.now().toString(36)
+            };
+
+            // Keep only last 5 scans
+            const updatedHistory = [entry, ...history].slice(0, 5);
+            await chrome.storage.local.set({ [SCAN_HISTORY_KEY]: updatedHistory });
+        },
+
+        async getScanHistory() {
+            const data = await chrome.storage.local.get(SCAN_HISTORY_KEY);
+            return data[SCAN_HISTORY_KEY] || [];
+        },
+
+        async clearAllData() {
+            await chrome.storage.local.remove([
+                'conflictConfig',
+                'cache_timestamp',
+                LAST_SCAN_KEY,
+                SCAN_HISTORY_KEY,
+                IGNORED_EXTENSIONS_KEY,
+                'lastScanResult'
+            ]);
+            localStorage.removeItem(SETTINGS_KEY);
+        },
+
+        async getMinimalCache() {
+            const data = await chrome.storage.local.get(['lastScanResult', 'cache_timestamp']);
+            return {
+                result: data.lastScanResult,
+                timestamp: data.cache_timestamp
+            };
+        }
+    };
 
     // --- UI Update Functions ---
     const showSpinner = () => {
@@ -47,7 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const buttons = document.querySelectorAll('button');
         buttons.forEach(btn => btn.disabled = disabled);
     };
-    
+
     // --- Custom Confirmation Modal Logic ---
     const showConfirmationModal = (title, message) => {
         modalTitle.textContent = title;
@@ -99,8 +244,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const cachedData = await chrome.storage.local.get(['conflictConfig', 'cache_timestamp']);
         const cachedConfig = cachedData.conflictConfig;
         const cachedTime = cachedData.cache_timestamp;
+        const cacheTTL = await StorageManager.getCacheTTL();
 
-        if (!forceRefresh && cachedConfig && (Date.now() - cachedTime < CACHE_TTL_MS)) {
+        if (!forceRefresh && cachedConfig && (Date.now() - cachedTime < cacheTTL)) {
             console.log('Using valid cached API data.');
             conflictConfig = cachedConfig;
             return conflictConfig;
@@ -127,11 +273,13 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     const loadIgnoredExtensions = async () => new Set((await chrome.storage.local.get(IGNORED_EXTENSIONS_KEY))[IGNORED_EXTENSIONS_KEY] || []);
+    
     const saveIgnoredExtension = async (id) => {
         const ignored = await loadIgnoredExtensions();
         ignored.add(id);
         await chrome.storage.local.set({ [IGNORED_EXTENSIONS_KEY]: Array.from(ignored) });
     };
+    
     const removeIgnoredExtension = async (id) => {
         const ignored = await loadIgnoredExtensions();
         ignored.delete(id);
@@ -161,8 +309,13 @@ document.addEventListener('DOMContentLoaded', () => {
         setButtonsDisabled(true);
         initialScanScreen.style.display = 'none';
         
+        // Clear previous results
         while (resultsDiv.firstChild) {
-            resultsDiv.removeChild(resultsDiv.firstChild);
+            if (resultsDiv.firstChild !== initialScanScreen && resultsDiv.firstChild !== loadingSpinner) {
+                resultsDiv.removeChild(resultsDiv.firstChild);
+            } else {
+                break;
+            }
         }
 
         try {
@@ -171,11 +324,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 chrome.management.getAll(),
                 loadIgnoredExtensions()
             ]);
-            
-            await chrome.storage.local.set({ [LAST_SCAN_KEY]: Date.now() });
 
             const conflicts = findConflicts(installedExtensions, config.conflict_categories, ignoredExtensions);
             const deprecated = findDeprecated(installedExtensions, config.deprecated_extensions, ignoredExtensions);
+
+            currentScanResults = { conflicts, deprecated, allInstalled: installedExtensions, ignored: ignoredExtensions };
+            
+            const hasIssues = conflicts.length > 0 || deprecated.length > 0;
+            await StorageManager.storeScanResults(currentScanResults, hasIssues);
 
             renderResults(conflicts, deprecated, installedExtensions, ignoredExtensions);
             displayDataVersionInfo(config);
@@ -202,11 +358,138 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
+    // --- Fix All Functionality ---
+    const showFixAllModal = async () => {
+        if (!currentScanResults) return;
+        
+        const { conflicts, deprecated } = currentScanResults;
+        const totalIssues = conflicts.length + deprecated.length;
+        
+        if (totalIssues === 0) return;
+
+        // Build summary
+        fixAllSummary.innerHTML = '';
+        
+        if (conflicts.length > 0) {
+            const conflictItem = document.createElement('div');
+            conflictItem.className = 'fix-all-summary-item';
+            conflictItem.innerHTML = `
+                <span class="icon icon-warning"></span>
+                <span>Disable ${conflicts.length} conflicting extension group${conflicts.length > 1 ? 's' : ''} (keeping 1 per group)</span>
+            `;
+            fixAllSummary.appendChild(conflictItem);
+        }
+        
+        if (deprecated.length > 0) {
+            const deprecatedItem = document.createElement('div');
+            deprecatedItem.className = 'fix-all-summary-item';
+            deprecatedItem.innerHTML = `
+                <span class="icon icon-error"></span>
+                <span>Disable ${deprecated.length} deprecated extension${deprecated.length > 1 ? 's' : ''}</span>
+            `;
+            fixAllSummary.appendChild(deprecatedItem);
+        }
+
+        fixAllModal.classList.add('visible');
+    };
+
+    const executeFixAll = async () => {
+        fixAllModal.classList.remove('visible');
+        showSpinner();
+        setButtonsDisabled(true);
+
+        try {
+            const { conflicts, deprecated } = currentScanResults;
+            const promises = [];
+
+            // For each conflict group, disable all but the first extension
+            conflicts.forEach(conflict => {
+                const extensionsToDisable = conflict.extensions.slice(1);
+                extensionsToDisable.forEach(ext => {
+                    promises.push(chrome.management.setEnabled(ext.id, false));
+                });
+            });
+
+            // Disable all deprecated extensions
+            deprecated.forEach(dep => {
+                promises.push(chrome.management.setEnabled(dep.extension.id, false));
+            });
+
+            await Promise.all(promises);
+            
+            // Re-run scan to reflect changes
+            await runScan(false);
+            
+        } catch (error) {
+            console.error("Fix All failed:", error);
+            renderErrorPlaceholder("Fix All Failed", "Some extensions could not be disabled. Please try again manually.");
+        } finally {
+            hideSpinner();
+            setButtonsDisabled(false);
+        }
+    };
+
+    // --- Scan History Popover ---
+    const toggleHistoryPopover = () => {
+        const isVisible = scanHistoryPopover.classList.contains('visible');
+        if (isVisible) {
+            scanHistoryPopover.classList.remove('visible');
+        } else {
+            renderScanHistory();
+            scanHistoryPopover.classList.add('visible');
+        }
+    };
+
+    const renderScanHistory = async () => {
+        const history = await StorageManager.getScanHistory();
+        scanHistoryList.innerHTML = '';
+
+        if (history.length === 0) {
+            scanHistoryList.innerHTML = '<div class="empty-state">No scan history available</div>';
+            return;
+        }
+
+        history.forEach(entry => {
+            const item = document.createElement('div');
+            item.className = 'scan-history-item';
+            
+            const hasIssues = entry.conflictCount > 0 || entry.deprecatedCount > 0;
+            const iconClass = hasIssues ? 'warning' : 'success';
+            const iconType = hasIssues ? 'icon-warning' : 'icon-check';
+            
+            let statusText = 'No issues found';
+            if (entry.conflictCount > 0 && entry.deprecatedCount > 0) {
+                statusText = `${entry.conflictCount} conflict${entry.conflictCount > 1 ? 's' : ''}, ${entry.deprecatedCount} deprecated`;
+            } else if (entry.conflictCount > 0) {
+                statusText = `${entry.conflictCount} conflict${entry.conflictCount > 1 ? 's' : ''}`;
+            } else if (entry.deprecatedCount > 0) {
+                statusText = `${entry.deprecatedCount} deprecated`;
+            }
+
+            item.innerHTML = `
+                <div class="scan-history-icon ${iconClass}">
+                    <span class="icon ${iconType}"></span>
+                </div>
+                <div class="scan-history-info">
+                    <div class="scan-history-time">${new Date(entry.timestamp).toLocaleString()}</div>
+                    <div class="scan-history-status">${statusText}</div>
+                </div>
+            `;
+            
+            scanHistoryList.appendChild(item);
+        });
+    };
+
     // --- Rendering Functions ---
     const renderResults = (conflicts, deprecated, allInstalled, ignoredSet) => {
-        while (resultsDiv.firstChild) {
-            resultsDiv.removeChild(resultsDiv.firstChild);
-        }
+        // Clear previous results (except initial screen and spinner)
+        const children = Array.from(resultsDiv.children);
+        children.forEach(child => {
+            if (child !== initialScanScreen && child !== loadingSpinner) {
+                resultsDiv.removeChild(child);
+            }
+        });
+
         const hasIssues = conflicts.length > 0 || deprecated.length > 0;
         const hasIgnored = ignoredSet.size > 0;
 
@@ -217,16 +500,60 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const wrapper = document.createElement('div');
         wrapper.className = 'results-wrapper';
-        if (conflicts.length > 0) wrapper.appendChild(createCollapsibleSection( "Conflicting Extensions", conflicts.map(createConflictCard), true, "Groups of active extensions that can cause issues when used together."));
-        if (deprecated.length > 0) wrapper.appendChild(createCollapsibleSection( "Deprecated or Risky Extensions", deprecated.map(createDeprecatedCard), true, "Extensions that are outdated, no longer maintained, or deemed unsafe, as well as those that have been removed from the web store. Using these extensions may cause compatibility issues, security risks, or unexpected behavior."));
+        
+        if (conflicts.length > 0) {
+            wrapper.appendChild(createCollapsibleSection(
+                "Conflicting Extensions", 
+                conflicts.map(createConflictCard), 
+                true, 
+                "Groups of active extensions that can cause issues when used together."
+            ));
+        }
+        
+        if (deprecated.length > 0) {
+            wrapper.appendChild(createCollapsibleSection(
+                "Deprecated or Risky Extensions", 
+                deprecated.map(createDeprecatedCard), 
+                true, 
+                "Extensions that are outdated, no longer maintained, or deemed unsafe, as well as those that have been removed from the web store."
+            ));
+        }
+        
         if (hasIgnored) {
             const installedMap = new Map(allInstalled.map(ext => [ext.id, ext]));
             const ignoredItems = Array.from(ignoredSet).map(id => {
                 const extInfo = installedMap.get(id) || { id, name: `Unknown Extension (${id})`, icons: [], version: 'N/A' };
                 return createExtensionItem(extInfo, 'ignored');
             });
-            wrapper.appendChild(createCollapsibleSection( "Ignored Extensions", [createResultsGroup(ignoredItems)], false, "Extensions you have chosen to exclude from scans."));
+            wrapper.appendChild(createCollapsibleSection(
+                "Ignored Extensions", 
+                [createResultsGroup(ignoredItems)], 
+                false, 
+                "Extensions you have chosen to exclude from scanning. Ignored extensions will not be flagged as conflicts or deprecated, even if they meet the criteria."
+            ));
         }
+
+        // Add Fix All button if there are issues
+        if (hasIssues) {
+            const fixAllContainer = document.createElement('div');
+            fixAllContainer.className = 'fix-all-container';
+            fixAllContainer.innerHTML = `
+                <button id="fixAllButton" class="btn fix-all-btn">
+                    <span class="icon icon-check"></span>
+                    Fix All Issues
+                </button>
+            `;
+            wrapper.appendChild(fixAllContainer);
+            
+            // Add event listener after appending to DOM
+            setTimeout(() => {
+                const fixAllBtn = document.getElementById('fixAllButton');
+                if (fixAllBtn) {
+                    fixAllBtn.addEventListener('click', showFixAllModal);
+                }
+            }, 0);
+        }
+
         resultsDiv.appendChild(wrapper);
     };
 
@@ -484,7 +811,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const renderErrorPlaceholder = (title, text) => {
         while (resultsDiv.firstChild) {
-            resultsDiv.removeChild(resultsDiv.firstChild);
+            if (resultsDiv.firstChild !== initialScanScreen && resultsDiv.firstChild !== loadingSpinner) {
+                resultsDiv.removeChild(resultsDiv.firstChild);
+            } else {
+                break;
+            }
         }
         resultsDiv.appendChild(createPlaceholder('icon-error', title, text));
     };
@@ -512,11 +843,18 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     const displayLastScanTime = async () => {
-        const data = await chrome.storage.local.get(LAST_SCAN_KEY);
-        if (data[LAST_SCAN_KEY]) {
-            headerMetaDiv.textContent = `Last scanned: ${new Date(data[LAST_SCAN_KEY]).toLocaleString()}`;
+        const history = await StorageManager.getScanHistory();
+        const metaText = headerMetaDiv.querySelector('.meta-text') || headerMetaDiv;
+        
+        if (history.length > 0) {
+            const lastScan = history[0];
+            metaText.textContent = `Last scanned: ${new Date(lastScan.timestamp).toLocaleString()}`;
+            headerMetaDiv.classList.add('clickable');
+            headerMetaDiv.title = "Click to view scan history";
         } else {
-            headerMetaDiv.textContent = 'No previous scan found.';
+            metaText.textContent = 'No previous scans found';
+            headerMetaDiv.classList.remove('clickable');
+            headerMetaDiv.title = "";
         }
     };
 
@@ -564,10 +902,21 @@ document.addEventListener('DOMContentLoaded', () => {
         setButtonsDisabled(true);
         try {
             switch(action) {
-                case 'toggle': await chrome.management.setEnabled(id, enabled !== 'true'); await runScan(); break;
-                case 'ignore': await saveIgnoredExtension(id); await runScan(); break;
-                case 'unignore': await removeIgnoredExtension(id); await runScan(); break;
-                case 'details': chrome.tabs.create({ url: `chrome://extensions/?id=${id}` }); break;
+                case 'toggle': 
+                    await chrome.management.setEnabled(id, enabled !== 'true'); 
+                    await runScan(); 
+                    break;
+                case 'ignore': 
+                    await saveIgnoredExtension(id); 
+                    await runScan(); 
+                    break;
+                case 'unignore': 
+                    await removeIgnoredExtension(id); 
+                    await runScan(); 
+                    break;
+                case 'details': 
+                    chrome.tabs.create({ url: `chrome://extensions/?id=${id}` }); 
+                    break;
             }
         } catch (error) {
             console.error(`Failed to perform action '${action}':`, error);
@@ -603,6 +952,15 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('scroll', onScrollOrResize, true);
     window.addEventListener('resize', onScrollOrResize);
 
+    // --- Click Outside Handler for Popover ---
+    document.addEventListener('click', (e) => {
+        if (scanHistoryPopover.classList.contains('visible')) {
+            if (!scanHistoryPopover.contains(e.target) && !headerMetaDiv.contains(e.target)) {
+                scanHistoryPopover.classList.remove('visible');
+            }
+        }
+    });
+
     // --- Initialization ---
     const loadResultsFromCache = async () => {
         showSpinner();
@@ -621,6 +979,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const conflicts = findConflicts(installedExtensions, config.conflict_categories, ignoredExtensions);
             const deprecated = findDeprecated(installedExtensions, config.deprecated_extensions, ignoredExtensions);
 
+            currentScanResults = { conflicts, deprecated, allInstalled: installedExtensions, ignored: ignoredExtensions };
+            
             renderResults(conflicts, deprecated, installedExtensions, ignoredExtensions);
             displayDataVersionInfo(config);
             displayLastScanTime();
@@ -635,16 +995,68 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const initializePage = async () => {
-        const autoScanPref = await chrome.storage.local.get(AUTO_SCAN_KEY);
-        if (autoScanPref[AUTO_SCAN_KEY]) autoScanCheckbox.checked = true;
+        // Initialize settings
+        initSettingsUI();
         
-        autoScanCheckbox.addEventListener('change', (e) => chrome.storage.local.set({ [AUTO_SCAN_KEY]: e.target.checked }));
+        // Settings button
+        settingsButton.addEventListener('click', () => {
+            settingsModal.classList.add('visible');
+        });
+        
+        closeSettingsModal.addEventListener('click', () => {
+            settingsModal.classList.remove('visible');
+        });
+        
+        // Settings change handlers
+        autoScanSetting.addEventListener('change', (e) => {
+            saveSettings({ autoScan: e.target.checked });
+        });
+        
+        showResolvedSetting.addEventListener('change', (e) => {
+            saveSettings({ showResolved: e.target.checked });
+        });
+        
+        cacheDurationSetting.addEventListener('change', (e) => {
+            saveSettings({ cacheDuration: parseInt(e.target.value) });
+        });
+        
+        clearDataButton.addEventListener('click', async () => {
+            const confirmed = await showConfirmationModal(
+                "Clear All Data?", 
+                "This will remove all scan history, cached data, and settings. This action cannot be undone."
+            );
+            if (confirmed) {
+                await StorageManager.clearAllData();
+                location.reload();
+            }
+        });
+        
+        // Scan history popover
+        headerMetaDiv.addEventListener('click', () => {
+            if (headerMetaDiv.classList.contains('clickable')) {
+                toggleHistoryPopover();
+            }
+        });
+        
+        closeHistoryPopover.addEventListener('click', () => {
+            scanHistoryPopover.classList.remove('visible');
+        });
+        
+        // Fix All modal
+        confirmFixAllButton.addEventListener('click', executeFixAll);
+        cancelFixAllButton.addEventListener('click', () => {
+            fixAllModal.classList.remove('visible');
+        });
+        
+        // Main buttons
         startScanButton.addEventListener('click', () => runScan(false));
         refreshCacheButton.addEventListener('click', () => runScan(true));
         resultsDiv.addEventListener('click', handleActionClick);
         
+        // Check cache and auto-scan settings
         const cacheData = await chrome.storage.local.get(['cache_timestamp', 'conflictConfig']);
-        const isCacheValid = cacheData.cache_timestamp && (Date.now() - cacheData.cache_timestamp < CACHE_TTL_MS) && cacheData.conflictConfig;
+        const cacheTTL = await StorageManager.getCacheTTL();
+        const isCacheValid = cacheData.cache_timestamp && (Date.now() - cacheData.cache_timestamp < cacheTTL) && cacheData.conflictConfig;
 
         if (isCacheValid) {
             console.log('Valid cache found. Loading results directly.');
@@ -652,7 +1064,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await loadResultsFromCache();
         } else {
             console.log('Cache is expired or missing.');
-            if (autoScanCheckbox.checked) {
+            if (currentSettings.autoScan) {
                 console.log('Auto-scan is enabled. Running a new scan on load.');
                 runScan(false);
             } else {
