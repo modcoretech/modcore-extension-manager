@@ -6,6 +6,7 @@
     <title>Automation Rules - modcore EM</title>
     <link rel="stylesheet" href="../../public/fonts/fonts.css">
     <link rel="stylesheet" href="../css/automations.css">
+<base target="_blank">
 </head>
 <body>
 
@@ -29,7 +30,7 @@
                 <div class="panel-header">
                     <div class="panel-header-text">
                         <h2>Your Automation Rules</h2>
-                        <p>Manage rules to automatically enable or disable extensions, profiles, or groups.</p>
+                        <p>Manage rules to automatically enable or disable extensions or apply profiles.</p>
                     </div>
                     <div class="header-actions">
                         <button id="import-rules-btn" class="btn secondary"><span class="icon icon-upload"></span> Import</button>
@@ -59,7 +60,6 @@
                        <option value="all">All Targets</option>
                        <option value="extension">Extensions</option>
                        <option value="profile">Profiles</option>
-                       <option value="group">Groups</option>
                    </select>
                    <label for="select-all-rules" class="select-all-label">
                        <input type="checkbox" id="select-all-rules" class="rule-select-checkbox"> Select All
@@ -121,7 +121,6 @@
                         <select id="rule-target-type-select" required aria-required="true">
                             <option value="extension">Extensions</option>
                             <option value="profile">Profiles</option>
-                            <option value="group">Groups</option>
                         </select>
                     </div>
 
@@ -175,6 +174,7 @@
                             <label for="rule-url-input" class="form-label">URL or Domain contains <span aria-hidden="true">*</span></label>
                             <input type="text" id="rule-url-input" placeholder="e.g., 'youtube.com' or 'developer.chrome.com'" required aria-required="true">
                             <p id="rule-url-error" class="error-message" aria-live="polite"></p>
+                            <p class="form-help-text">Don't forget to add https:// at the beginning.</p>
                         </div>
                     </div>
                     
@@ -196,7 +196,7 @@
                     <span class="icon icon-help"></span>
                     <div>
                         <h4>How Rules Work</h4>
-                        <p>Automation rules allow you to define specific triggers that will automatically enable or disable one or more of your extensions, or switch profiles/groups.</p>
+                        <p>Automation rules allow you to define specific triggers that will automatically enable or disable one or more of your extensions, or switch profiles.</p>
                         <p>Rules can be time-based (e.g., disable social media extensions at certain hours on specific days, repeating weekly) or URL-based (e.g., enable development tools when you visit a programming website).</p>
                     </div>
                 </div>
@@ -220,6 +220,13 @@
                     </div>
                 </div>
                 <div class="support-message">
+                    <span class="icon icon-shield"></span>
+                    <div>
+                        <h4>Security & Privacy</h4>
+                        <p>Automation Rules are processed locally within your browser environment. No data related to your automations, extensions, or profiles is transmitted to external servers or third parties. Your privacy and security are our top priorities.</p>
+                    </div>
+                </div>
+                <div class="support-message">
                     <span class="icon icon-search"></span>
                     <div>
                         <h4>Keyboard Shortcuts</h4>
@@ -231,15 +238,6 @@
                         </ul>
                     </div>
                 </div>
-                <div class="support-message"> 
-                 <span class="icon icon-store"></span>
-                 <div>
-                     <h4>Marketplace</h4>
-                     <p>Discover hand-picked themes, helpful add-ons, and feature upgrades to customize and extend your experience with modcore.</p>
-                     <button class="btn primary" id="marketplace-btn" aria-label="Open Marketplace">
-                      <span class="icon icon-store"></span> Visit Marketplace
-                     </button>
-                    </div>
                 </div>
             </div>
 
@@ -261,5 +259,6 @@
     
     <input type="file" id="import-file-input" accept=".json" style="display: none;">
     <script src="../js/core/automations.js"></script>
+    <script src="../js/features/report.js"></script>
 </body>
 </html>
