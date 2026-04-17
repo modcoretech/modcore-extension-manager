@@ -1,6 +1,6 @@
 # modcore Extension Manager
 
-**modcore Extension Manager** is a **privacy-focused**, **open-source** tool for managing browser extensions. Developed by [modcore](https://github.com/modcoretech), it gives users full control over installed extensions, profiles, and groups - all locally, without collecting or sending personal data.
+**modcore Extension Manager** is a **privacy-focused**, **open-source** tool for managing browser extensions. Developed by [modcore](https://github.com/modcoretech), it gives users full control over installed extensions - all locally, without collecting or sending personal data.
 
 ---
 
@@ -11,9 +11,7 @@ modcore Extension Manager is lightweight yet powerful. It allows you to:
 - View installed extensions and detailed metadata  
 - Inspect permissions and identify potential risks  
 - Enable, disable, uninstall, or organize extensions  
-- Maintain multiple profiles and extension groups  
-
-All operations happen locally. There’s no telemetry or cloud dependency.  
+- Maintain multiple profiles
 
 **Ideal for:**
 
@@ -27,7 +25,7 @@ All operations happen locally. There’s no telemetry or cloud dependency.
 
 ### Extension Management
 - Enable, disable, or uninstall extensions quickly  
-- Organize extensions into profiles or groups  
+- Organize extensions into profiles  
 - Search and filter by name, type, or status  
 
 ### Insights
@@ -44,8 +42,8 @@ All operations happen locally. There’s no telemetry or cloud dependency.
 - Fully functional offline (except GitHub metadata fetch)  
 - Local cached data contains no personal information  
 
-### Backup & Restore
-- Export/import extension settings, profiles, and groups as JSON 
+### modcore Snapshot
+- Export/import extension settings, profiles, and more as JSON 
 
 ---
 
@@ -65,11 +63,9 @@ The **modcore EM** icon will appear in your toolbar.
 
 1. Click the **modcore EM** icon in your toolbar  
 2. Browse and manage installed extensions  
-3. Create profiles or groups for organization  
+3. Create profiles for organization  
 4. Use the backup feature to save your settings
 5. And so much more!
-
-No sign-in or cloud account is required - everything stays local.
 
 ---
 
