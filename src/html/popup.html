@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>modcore EM</title>
+    <title>modcore EM Popup</title>
     <meta name="description" content="Manage your browser extensions with ease: enable, disable, group, and switch profiles.">
     <meta name="color-scheme" content="light dark">
     <link rel="stylesheet" href="../css/popup.css">
@@ -18,16 +18,13 @@
                 <button id="profiles-modal-trigger" class="header-icon-btn" aria-label="Manage Profiles" title="Organize extensions into profiles for quick switching.">
                     <img src="../../public/icons/svg/profiles.svg" alt="" aria-hidden="true">
                 </button>
-                <button id="group-management-modal-trigger" class="header-icon-btn" aria-label="Manage Extension Groups" title="Create and manage groups to categorize your extensions.">
-                    <img src="../../public/icons/svg/groups.svg" alt="" aria-hidden="true">
-                </button>
-               <a href="cloud.html" target="_blank" class="header-icon-link" aria-label="modcore Cloud" title="Sync profiles, groups, settings and more across your devices.">
+               <a href="cloud.html" target="_blank" class="header-icon-link" aria-label="modcore Cloud" title="Sync profiles, , settings and more across your devices.">
                     <img src="../../public/icons/svg/cloud.svg" alt="" aria-hidden="true">
                 </a>
                 <a href="automations.html" target="_blank" class="header-icon-link" aria-label="Manage Automations" title="Set up automations to control extension behavior.">
                     <img src="../../public/icons/svg/rules.svg" alt="" aria-hidden="true">
                 </a>
-                <button id="help-modal-trigger" class="header-icon-btn" aria-label="Help and Information" title="Get help, report issues, or provide feedback.">
+                <button id="help-modal-trigger" class="header-icon-btn" aria-label="Help and Quick Links" title="Get help, access resources, and learn more about modcore Extension Manager.">
                     <img src="../../public/icons/svg/dots-circle1.svg" alt="" aria-hidden="true">
                 </button>
             </div>
@@ -40,16 +37,13 @@
                 <option value="all">All Types</option>
                 <option value="extension">Extensions</option>
                 <option value="theme">Themes</option>
-                <option value="app">Apps</option>
             </select>
             <select id="status-filter" aria-label="Filter by Status" title="Filter extensions by their current enabled or disabled state.">
                 <option value="all">All Statuses</option>
                 <option value="enabled">Enabled</option>
                 <option value="disabled">Disabled</option>
             </select>
-            <select id="group-filter" aria-label="Filter by Group" title="Filter extensions by the custom group they belong to.">
-                <option value="all">All Groups</option>
-            </select>
+            
         </div>
 
         <div id="bulk-actions-container" class="bulk-actions-container" style="display: none;">
@@ -66,9 +60,6 @@
     </button>
     <button id="bulk-disable-button" class="button-small button-danger" title="Disable all selected extensions.">
         <img src="../../public/icons/svg/power.svg" alt="" aria-hidden="true"> Disable
-    </button>
-    <button id="bulk-uninstall-button" class="button-small button-danger" title="Uninstall all selected extensions. This action is permanent.">
-        <img src="../../public/icons/svg/trash.svg" alt="" aria-hidden="true"> Uninstall
     </button>
 </div>
 
@@ -104,90 +95,6 @@
             </button>
         </div>
 
-    </div>
-
-    <div id="group-management-modal" class="modal-overlay" style="display: none;" aria-hidden="true">
-        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="group-modal-title">
-            <button class="modal-close-button" aria-label="Close Group Management" title="Close Group Management Modal">&times;</button>
-            <h2 id="group-modal-title">Manage Groups</h2>
-
-            <div class="modal-section">
-                <h3>Create New Group</h3>
-                <div class="modal-input-group">
-                    <input type="text" id="modal-new-group-name" placeholder="Enter group name" aria-label="Name for your new extension group">
-                    <button id="modal-add-group-button" class="button-small button-primary" title="Add New Group" aria-label="Add new group">
-                        <img src="../../public/icons/svg/plus.svg" alt="" aria-hidden="true"> Add
-                    </button>
-                </div>
-                <p class="subtle-hint modal-hint">Organize extensions into custom categories (e.g., "Productivity", "Social").</p>
-            </div>
-
-            <div id="modal-group-list-section" class="modal-section">
-                <h3>Existing Groups</h3>
-                <ul id="modal-group-management-list" aria-live="polite">
-                    </ul>
-                <div class="group-actions-bottom-bar">
-                    <button id="ungroup-all-button" class="button-small button-danger" title="Remove all extensions from their assigned groups. Groups themselves will not be deleted." aria-label="Ungroup all extensions">
-                        <img src="../../public/icons/svg/ungroup.svg" alt="" aria-hidden="true"> Ungroup All
-                    </button>
-                </div>
-            </div>
-
-            <span id="modal-success-message" class="feedback-message success-message modal-feedback" style="display: none;" aria-live="polite"></span>
-            <span id="modal-error-message" class="feedback-message error-message modal-feedback" style="display: none;" aria-live="assertive"></span>
-        </div>
-    </div>
-
-    <div id="group-configuration-modal" class="modal-overlay" style="display: none;" aria-hidden="true">
-        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="group-config-title">
-            <button class="modal-close-button" aria-label="Close Group Configuration" title="Close Group Configuration Modal">&times;</button>
-            <h3 id="group-config-title">Configure Group</h3>
-            <p class="subtle-hint modal-hint">Configure the group's name, members, and shortcut settings. <a href="https://sites.google.com/view/modcore-em-help/manage-extensions/popup-page?authuser=0#h.ff1il6xkc2dx" target="_blank" rel="noopener noreferrer">Learn more</a>.</p>
-
-            <div class="modal-section">
-                <h4>Group Settings</h4>
-                <div class="modal-input-group">
-                    <label for="group-config-name-input" class="label-inline">Name:</label>
-                    <input type="text" id="group-config-name-input" placeholder="Enter group name" aria-label="Group Name" maxlength="50">
-                </div>
-                <div class="modal-input-group">
-                    <label for="group-config-shortcut-input" class="label-inline">Shortcut:</label>
-                    <input type="text" id="group-config-shortcut-input" placeholder="e.g., Ctrl+Shift+G" aria-label="Keyboard shortcut to apply this group" maxlength="20">
-                </div>
-                <div class="modal-input-group">
-                    <label for="group-config-action-select" class="label-inline">Shortcut Action:</label>
-                    <select id="group-config-action-select" aria-label="Action to perform when shortcut is used">
-                        <option value="toggle">Toggle (Enable/Disable)</option>
-                        <option value="enable">Always Enable</option>
-                        <option value="disable">Always Disable</option>
-                    </select>
-                </div>
-                 <p class="subtle-hint modal-hint">
-                    Assign a global keyboard shortcut to quickly switch to this group. Use Ctrl+Shift+ or Alt+Shift+.
-                   <a href="automations.html" target="_blank" rel="noopener noreferrer">Set up an automation for this group...</a>
-                </p>
-                 <span id="modal-group-config-error-message" class="feedback-message error-message modal-feedback" style="display: none;" aria-live="assertive"></span>
-            </div>
-
-            <div class="modal-section">
-                <h4>Group Members</h4>
-                <div id="group-config-extension-list" class="profile-config-extensions">
-                    </div>
-            </div>
-            <p class="subtle-hint modal-hint">
-                    Sync this group to the cloud now, so you can access it from any of your devices.
-                   <a href="cloud.html" target="_blank" rel="noopener noreferrer">Sync this group to the cloud...</a>
-                </p>
-            <div class="group-config-actions-bar modal-input-group">
-                <button id="save-group-config-btn" class="button-small button-primary" title="Save the current configuration for this group.">
-                    <img src="../../public/icons/svg/save.svg" alt="" aria-hidden="true"> Save Configuration
-                </button>
-                <button id="back-to-groups-btn" class="button-small" title="Go back to the main list of groups.">
-                    <img src="../../public/icons/svg/arrow-left.svg" alt="" aria-hidden="true"> Back to Groups
-                </button>
-            </div>
-            <span id="modal-group-config-success-message" class="feedback-message success-message modal-feedback" style="display: none;" aria-live="polite"></span>
-        </div>
     </div>
 
     <div id="profiles-modal" class="modal-overlay" style="display: none;" aria-hidden="true">
@@ -270,56 +177,70 @@
     <div id="help-modal" class="modal-overlay" style="display: none;" aria-hidden="true">
     <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="help-modal-title">
         <button class="modal-close-button" aria-label="Close Help and Information" title="Close Help Modal">&times;</button>
-        <h2 id="help-modal-title">Help & Information</h2>
+        <h2 id="help-modal-title">Help & Quick Links</h2>
 
         <div class="modal-section">
             <p class="modal-hint">Thank you for using modcore Extension Manager! Here are some resources to help you.</p>
             <ul class="help-links-list">
                 <li>
-                    <a href="https://github.com/modcoretech/modcore-extension-manager/discussions" target="_blank" rel="noopener noreferrer">
-                        <img src="../../public/icons/svg/chat.svg" alt="" aria-hidden="true">
-                        <span>Discuss & Ask Questions</span>
+                    <a href="automations.html" target="_blank" rel="noopener noreferrer">
+                        <img src="../../public/icons/svg/rules.svg" alt="" aria-hidden="true">
+                        <span>modcore Automations</span>
                     </a>
                 </li>
                 <li>
-                    <a href="https://github.com/modcoretech/modcore-extension-manager/issues" target="_blank" rel="noopener noreferrer">
-                        <img src="../../public/icons/svg/error.svg" alt="" aria-hidden="true">
-                        <span>Report an Issue</span>
+                    <a href="cloud.html" target="_blank" rel="noopener noreferrer">
+                        <img src="../../public/icons/svg/cloud.svg" alt="" aria-hidden="true">
+                        <span>modcore Cloud</span>
                     </a>
                 </li>
                 <li>
-                    <a href="https://sites.google.com/view/modcore-em-help/help" target="_blank" rel="noopener noreferrer">
-                        <img src="../../public/icons/svg/help.svg" alt="" aria-hidden="true">
-                        <span>View Documentation</span>
+                    <a href="inspect.html" target="_blank" rel="noopener noreferrer">
+                        <img src="../../public/icons/svg/shield.svg" alt="" aria-hidden="true">
+                        <span>modcore Inspect</span>
                     </a>
                 </li>
                 <li>
-                    <a href="https://forms.gle/BwnxtmQQcE3Y4fNb8" target="_blank" rel="noopener noreferrer">
-                        <img src="../../public/icons/svg/feedback.svg" alt="" aria-hidden="true">
-                        <span>Give Feedback</span>
+                    <a href="../html/safety-center.html" target="_blank" rel="noopener noreferrer">
+                        <img src="../../public/icons/svg/shield.svg" alt="" aria-hidden="true">
+                        <span>Safety Center</span>
                     </a>
                 </li>
                 <li>
-                    <a href="https://sites.google.com/view/modcore-em-help/general-information/support-the-project" target="_blank" rel="noopener noreferrer">
-                        <img src="../../public/icons/svg/support.svg" alt="" aria-hidden="true">
-                        <span>Donate & Support</span>
+                    <a href="notes.html" target="_blank" rel="noopener noreferrer">
+                        <img src="../../public/icons/svg/edit.svg" alt="" aria-hidden="true">
+                        <span>Extension Notes</span>
                     </a>
                 </li>
                 <li>
-                    <a href="https://sites.google.com/view/modcore-pricing/modcore-extension-manager" target="_blank" rel="noopener noreferrer">
-                        <img src="../../public/icons/svg/store.svg" alt="" aria-hidden="true">
-                        <span>Marketplace</span>
+                    <a href="timeline.html" target="_blank" rel="noopener noreferrer">
+                        <img src="../../public/icons/svg/calendar.svg" alt="" aria-hidden="true">
+                        <span>modcore Timeline</span>
                     </a>
                 </li>
+                <li>
+                    <a href="snapshot.html" target="_blank" rel="noopener noreferrer">
+                        <img src="../../public/icons/svg/groups.svg" alt="" aria-hidden="true">
+                        <span>modcore Snapshot</span>
+                    </a>
+                </li>
+                    <li>
+                        <a href="https://sites.google.com/view/modcore-em-help/help" target="_blank" rel="noopener noreferrer">
+                            <img src="../../public/icons/svg/support.svg" alt="" aria-hidden="true">
+                            <span>View Documentation</span>
+                        </a>
+                    </li>
             </ul>
         </div>
 
         <p class="subtle-hint modal-hint text-center" id="footer-info"></p>
+        <p class="subtle-hint modal-hint text-center">Need more help? <a href="https://sites.google.com/view/modcore-em-help" target="_blank" rel="noopener noreferrer">Visit our help center</a>.</p>
     </div>
 </div>
 
 
-    <script src="../js/core/popup.js"></script>
-    <script src="../js/features/report.js"></script>
+<script type="module" src="../js/core/popup.js"></script>
+<script src="../js/features/report.js"></script>
+
 </body>
 </html>
