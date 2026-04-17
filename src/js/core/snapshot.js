@@ -1,945 +1,1231 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const sidebarButtons = document.querySelectorAll('.sidebar-button');
-    const contentPanels = document.querySelectorAll('.content-panel');
-    const createBackupBtn = document.getElementById('createBackupBtn');
-    const restoreBackupBtn = document.getElementById('restoreBackupBtn');
-    const loadDataBtn = document.getElementById('loadDataBtn');
-    const clearSelectedDataBtn = document.getElementById('clearSelectedDataBtn');
-    const storedDataDisplay = document.querySelector('#stored-data-display pre code');
-    const copyDataBtn = document.querySelector('#stored-data-display .btn-copy');
+
+    // =========================================================================
+    // Element references
+    // =========================================================================
+    const sidebarButtons            = document.querySelectorAll('.sidebar-button');
+    const contentPanels             = document.querySelectorAll('.content-panel');
+    const createBackupBtn           = document.getElementById('createBackupBtn');
+    const restoreBackupBtn          = document.getElementById('restoreBackupBtn');
+    const clearSelectedDataBtn      = document.getElementById('clearSelectedDataBtn');
+    const refreshStorageSizesBtn    = document.getElementById('refreshStorageSizesBtn');
 
     // Backup elements
-    const backupFileNameInput = document.getElementById('backupFileName');
-    const backupStorageCheckboxes = document.querySelectorAll('#create-backup-section .checkbox-group input[type="checkbox"]');
-    const enableEncryptionCheckbox = document.getElementById('enableEncryptionCheckbox');
-    const encryptionPasswordFields = document.getElementById('encryptionPasswordFields');
-    const backupPasswordInput = document.getElementById('backupPassword');
-    const confirmBackupPasswordInput = document.getElementById('confirmBackupPassword');
-    const passwordStrengthBar = document.getElementById('passwordStrengthBar');
-    const passwordStrengthText = document.getElementById('passwordStrengthText');
-    const passwordStrengthContainer = document.getElementById('password-strength-container');
+    const backupFileNameInput           = document.getElementById('backupFileName');
+    const backupStorageCheckboxes       = document.querySelectorAll('#create-backup-section .checkbox-group input[type="checkbox"]');
+    const enableEncryptionCheckbox      = document.getElementById('enableEncryptionCheckbox');
+    const encryptionPasswordFields      = document.getElementById('encryptionPasswordFields');
+    const backupPasswordInput           = document.getElementById('backupPassword');
+    const confirmBackupPasswordInput    = document.getElementById('confirmBackupPassword');
+    const passwordStrengthBar           = document.getElementById('passwordStrengthBar');
+    const passwordStrengthText          = document.getElementById('passwordStrengthText');
+    const passwordStrengthContainer     = document.getElementById('password-strength-container');
 
     // Restore elements
-    const restoreFileInput = document.getElementById('restoreFile');
-    const selectedFileNameDisplay = document.getElementById('selectedFileName');
+    const restoreFileInput          = document.getElementById('restoreFile');
+    const selectedFileNameDisplay   = document.getElementById('selectedFileName');
     const restorePasswordInputGroup = document.getElementById('restorePasswordInputGroup');
-    const restorePasswordInput = document.getElementById('restorePassword');
-    const restoreOptionsContainer = document.getElementById('restore-options-container');
-    const restoreStorageCheckboxes = document.querySelectorAll('#restore-options-container .checkbox-group input[type="checkbox"]');
-    const backupMetadataDisplay = document.getElementById('backup-metadata');
+    const restorePasswordInput      = document.getElementById('restorePassword');
+    const restoreOptionsContainer   = document.getElementById('restore-options-container');
+    const restoreStorageCheckboxes  = document.querySelectorAll('#restore-options-container .checkbox-group input[type="checkbox"]');
+    const backupMetadataDisplay     = document.getElementById('backup-metadata');
+    const verifyPasswordBtn         = document.getElementById('verify-password-btn');
 
-    // Data Management elements
-    const dataSearchInput = document.getElementById('dataSearchInput');
-    const downloadLoadedDataBtn = document.getElementById('downloadLoadedDataBtn');
-    const storedDataCodeView = document.getElementById('stored-data-display');
+    // General UI
+    const loadingOverlay                = document.getElementById('loading-overlay');
+    const backupRestoreErrorDisplay     = document.getElementById('backupRestoreError');
+    const dataManagementErrorDisplay    = document.getElementById('dataManagementError');
+    const modalOverlay                  = document.getElementById('confirmation-modal');
+    const modalTitle                    = document.getElementById('modal-title');
+    const modalMessage                  = document.getElementById('modal-message');
+    const modalCancelBtn                = document.getElementById('modal-cancel');
+    const modalConfirmBtn               = document.getElementById('modal-confirm');
 
-    // General UI elements
-    const loadingOverlay = document.getElementById('loading-overlay');
-    const backupRestoreErrorDisplay = document.getElementById('backupRestoreError');
-    const dataManagementErrorDisplay = document.getElementById('dataManagementError');
-    const modalOverlay = document.getElementById('confirmation-modal');
-    const modalTitle = document.getElementById('modal-title');
-    const modalMessage = document.getElementById('modal-message');
-    const modalCancelBtn = document.getElementById('modal-cancel');
-    const modalConfirmBtn = document.getElementById('modal-confirm');
+    // Data viewer modal
+    const dataViewerModal       = document.getElementById('data-viewer-modal');
+    const dataViewerClose       = document.getElementById('data-viewer-close');
+    const dataViewerSearch      = document.getElementById('data-viewer-search');
+    const dataViewerSearchClear = document.getElementById('data-viewer-search-clear');
+    const dataViewerCopy        = document.getElementById('data-viewer-copy');
+    const dataViewerExport      = document.getElementById('data-viewer-export');
+    const dataViewerReload      = document.getElementById('data-viewer-reload');
+    const dataViewerExpandAll   = document.getElementById('data-viewer-expand-all');
+    const dataViewerTree        = document.getElementById('data-viewer-tree');
+    const dataViewerRaw         = document.getElementById('data-viewer-raw');
+    const dataViewerContent     = document.getElementById('data-viewer-content');
+    const dataViewerEmpty       = document.getElementById('data-viewer-empty');
+    const dataViewerStats       = document.getElementById('viewer-stats');
+    const viewModeButtons       = document.querySelectorAll('.view-mode-btn');
+    const filterChips           = document.querySelectorAll('.chip[data-filter]');
+    const viewDataModalBtn      = document.getElementById('viewDataModalBtn');
 
-    // Storage size displays and clear data checkboxes
-    const storageSizeElements = document.querySelectorAll('.storage-size');
-    const clearDataCheckboxes = document.querySelectorAll('#clear-data-section .checkbox-group input[type="checkbox"]');
+    // Key edit modal
+    const keyEditModal      = document.getElementById('key-edit-modal');
+    const keyEditClose      = document.getElementById('key-edit-close');
+    const keyEditCancel     = document.getElementById('key-edit-cancel');
+    const keyEditSave       = document.getElementById('key-edit-save');
+    const keyEditStorage    = document.getElementById('key-edit-storage');
+    const keyEditKey        = document.getElementById('key-edit-key');
+    const keyEditValue      = document.getElementById('key-edit-value');
+    const keyEditErrorMsg   = document.getElementById('key-edit-error-msg');
 
-    let allStoredData = {}; // Cache the loaded data
+    // State
+    let allStoredData       = {};
+    let currentBackupData   = null;
+    let currentViewMode     = 'tree';   // 'tree' | 'raw'
+    let currentFilter       = 'all';
+    let allExpanded         = false;
+    let editContext         = null;     // { storageType, key }
 
-    // --- Utility Functions ---
+    // =========================================================================
+    // Auto-update copyright year
+    // =========================================================================
+    const copyrightEl = document.querySelector('.sidebar-footer p');
+    if (copyrightEl) copyrightEl.textContent = `© ${new Date().getFullYear()} modcore`;
 
-    /**
-     * Displays a toast notification.
-     * @param {string} message - The message to display.
-     * @param {'success'|'error'|'info'|'warning'} type - The type of toast.
-     */
+    // =========================================================================
+    // Utility helpers
+    // =========================================================================
+
+    function setTextContent(el, text) {
+        if (el) el.textContent = text;
+    }
+
     function showToast(message, type = 'info') {
-        const toastContainer = document.getElementById('toast-container');
+        const container = document.getElementById('toast-container');
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'polite');
         toast.textContent = message;
-        toastContainer.appendChild(toast);
-
+        container.appendChild(toast);
         setTimeout(() => toast.classList.add('show'), 10);
-
         setTimeout(() => {
             toast.classList.remove('show');
-            toast.addEventListener('transitionend', () => toast.remove());
+            toast.addEventListener('transitionend', () => toast.remove(), { once: true });
         }, 4000);
     }
 
-    /**
-     * Shows an error message in the dedicated error display area.
-     * @param {HTMLElement} errorDisplayElement - The error display div.
-     * @param {string} message - The error message.
-     */
-    function showApiError(errorDisplayElement, message) {
-        errorDisplayElement.querySelector('.error-message').textContent = message;
-        errorDisplayElement.style.display = 'flex';
+    function showApiError(el, message) {
+        const msgEl = el.querySelector('.error-message');
+        if (msgEl) msgEl.textContent = message;
+        el.style.display = 'flex';
+        el.setAttribute('role', 'alert');
     }
 
-    /**
-     * Hides the error message.
-     * @param {HTMLElement} errorDisplayElement - The error display div.
-     */
-    function hideApiError(errorDisplayElement) {
-        errorDisplayElement.style.display = 'none';
-        errorDisplayElement.querySelector('.error-message').textContent = '';
+    function hideApiError(el) {
+        el.style.display = 'none';
+        const msgEl = el.querySelector('.error-message');
+        if (msgEl) msgEl.textContent = '';
+        el.removeAttribute('role');
     }
 
-    /**
-     * Shows the loading overlay.
-     * @param {string} message - Message to display under spinner.
-     */
-    function showLoading(message = 'Processing...') {
-        loadingOverlay.querySelector('p').textContent = message;
+    function showLoading(message = 'Processing…') {
+        const p = loadingOverlay.querySelector('p');
+        if (p) p.textContent = message;
         loadingOverlay.hidden = false;
+        loadingOverlay.setAttribute('aria-busy', 'true');
     }
 
-    /**
-     * Hides the loading overlay.
-     */
     function hideLoading() {
         loadingOverlay.hidden = true;
+        loadingOverlay.removeAttribute('aria-busy');
     }
 
-    /**
-     * Displays a confirmation modal.
-     * @param {string} title - Modal title.
-     * @param {string} message - Modal message.
-     * @returns {Promise<boolean>} Resolves true if confirmed, false if cancelled.
-     */
     function showConfirmationModal(title, message) {
-        modalTitle.textContent = title;
-        modalMessage.textContent = message;
+        setTextContent(modalTitle, title);
+        setTextContent(modalMessage, message);
         modalOverlay.classList.add('visible');
+        modalCancelBtn.focus();
 
         return new Promise((resolve) => {
-            const handleConfirm = () => {
+            const cleanup = () => {
                 modalOverlay.classList.remove('visible');
-                modalConfirmBtn.removeEventListener('click', handleConfirm);
-                modalCancelBtn.removeEventListener('click', handleCancel);
-                resolve(true);
+                modalConfirmBtn.removeEventListener('click', onConfirm);
+                modalCancelBtn.removeEventListener('click', onCancel);
+                document.removeEventListener('keydown', onEscape);
             };
-
-            const handleCancel = () => {
-                modalOverlay.classList.remove('visible');
-                modalConfirmBtn.removeEventListener('click', handleConfirm);
-                modalCancelBtn.removeEventListener('click', handleCancel);
-                resolve(false);
-            };
-
-            modalConfirmBtn.addEventListener('click', handleConfirm);
-            modalCancelBtn.addEventListener('click', handleCancel);
+            const onConfirm = () => { cleanup(); resolve(true); };
+            const onCancel  = () => { cleanup(); resolve(false); };
+            const onEscape  = (e) => { if (e.key === 'Escape') onCancel(); };
+            modalConfirmBtn.addEventListener('click', onConfirm);
+            modalCancelBtn.addEventListener('click', onCancel);
+            document.addEventListener('keydown', onEscape);
         });
     }
 
-    /**
-     * Generates a backup filename with a timestamp.
-     * @returns {string} The generated filename.
-     */
     function generateBackupFilename() {
         const now = new Date();
-        const pad = (num) => num.toString().padStart(2, '0');
-        const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-        const timeStr = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-        return `extension_backup_${dateStr}_${timeStr}`;
+        const p = (n) => String(n).padStart(2, '0');
+        return `extension_backup_${now.getFullYear()}-${p(now.getMonth()+1)}-${p(now.getDate())}_${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
     }
 
-    /**
-     * Checks password strength and updates the UI.
-     * @param {string} password - The password to check.
-     */
+    function formatBytes(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024, sizes = ['B','KB','MB','GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+    }
+
+    function estimateSize(data) {
+        try { return new Blob([JSON.stringify(data)]).size; } catch { return 0; }
+    }
+
+    function storageDisplayName(type) {
+        const map = {
+            chromeLocal:   'Chrome Local',
+            chromeSync:    'Chrome Sync',
+            webLocal:      'Web Local',
+            webSession:    'Web Session',
+            chromeManaged: 'Chrome Managed',
+        };
+        return map[type] || type;
+    }
+
+    // =========================================================================
+    // Password strength
+    // =========================================================================
     function checkPasswordStrength(password) {
-        let score = 0;
         if (!password) {
             passwordStrengthBar.value = 0;
-            passwordStrengthText.textContent = '';
+            setTextContent(passwordStrengthText, '');
             passwordStrengthContainer.hidden = true;
             return;
         }
-
         passwordStrengthContainer.hidden = false;
 
-        // Score based on length
-        score += Math.min(password.length * 5, 50);
+        let score = Math.min(password.length * 5, 50);
+        const types = [/[A-Z]/, /[a-z]/, /\d/, /[!@#$%^&*(),.?":{}|<>~`\-_+=\[\]\\;'/]/]
+            .filter(rx => rx.test(password)).length;
+        score += types * 10;
+        if (password.length >= 8 && types >= 3) score += 20;
+        if (password.length >= 16) score += 10;
 
-        // Score based on character types
-        let hasUpperCase = /[A-Z]/.test(password);
-        let hasLowerCase = /[a-z]/.test(password);
-        let hasNumbers = /\d/.test(password);
-        let hasSymbols = /[!@#$%^&*(),.?":{}|<>]/.test(password);
-
-        let charTypes = [hasUpperCase, hasLowerCase, hasNumbers, hasSymbols].filter(Boolean).length;
-        score += charTypes * 10;
-
-        // Adjust score for length and character type combination
-        if (password.length >= 8 && charTypes >= 3) {
-            score += 20;
-        }
-
-        let strengthText = '';
-        let strengthClass = '';
-
-        if (score > 90) {
-            strengthText = 'Very Strong';
-            strengthClass = 'very-strong';
-        } else if (score > 70) {
-            strengthText = 'Strong';
-            strengthClass = 'strong';
-        } else if (score > 50) {
-            strengthText = 'Medium';
-            strengthClass = 'medium';
-        } else if (score > 20) {
-            strengthText = 'Weak';
-            strengthClass = 'weak';
-        } else {
-            strengthText = 'Very Weak';
-            strengthClass = 'very-weak';
-        }
-
-        passwordStrengthBar.value = score;
-        passwordStrengthBar.className = strengthClass;
-        passwordStrengthText.textContent = strengthText;
-        passwordStrengthText.className = `strength-text ${strengthClass}`;
+        const levels = [
+            { min: 0,  label: 'Very Weak', cls: 'weak'   },
+            { min: 30, label: 'Weak',      cls: 'weak'   },
+            { min: 45, label: 'Fair',      cls: 'fair'   },
+            { min: 60, label: 'Good',      cls: 'good'   },
+            { min: 80, label: 'Strong',    cls: 'strong' },
+        ];
+        const level = levels.slice().reverse().find(l => score >= l.min) || levels[0];
+        passwordStrengthBar.value = Math.min(score, 100);
+        setTextContent(passwordStrengthText, level.label);
+        passwordStrengthBar.className = `password-strength-bar ${level.cls}`;
     }
 
-    // --- Navigation Logic ---
-    sidebarButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            sidebarButtons.forEach(btn => btn.classList.remove('active'));
-            button.classList.add('active');
+    // =========================================================================
+    // Encryption - AES-256-GCM / PBKDF2 SHA-256 (310 000 iterations)
+    // =========================================================================
+    const PBKDF2_ITERATIONS = 310_000;
 
-            contentPanels.forEach(panel => panel.hidden = true);
-            const targetPanelId = button.dataset.panel + '-panel';
-            document.getElementById(targetPanelId).hidden = false;
-
-            hideApiError(backupRestoreErrorDisplay);
-            hideApiError(dataManagementErrorDisplay);
-
-            if (button.dataset.panel === 'data-management') {
-                updateStorageSizes();
-            }
-        });
-    });
-
-    // --- Encryption/Decryption Helper Functions (Web Crypto API) ---
-    const ENCRYPTION_ALGORITHM = 'AES-GCM';
-    const IV_LENGTH_BYTES = 12;
-    const SALT_LENGTH_BYTES = 16;
-    const METADATA_KEY = '__backup_metadata__';
-
-    async function deriveKey(password, salt) {
+    async function encryptData(plaintext, password) {
         const enc = new TextEncoder();
+        const salt = crypto.getRandomValues(new Uint8Array(32));
+        const iv   = crypto.getRandomValues(new Uint8Array(12));
+
         const keyMaterial = await crypto.subtle.importKey(
-            "raw",
-            enc.encode(password),
-            { name: "PBKDF2" },
-            false,
-            ["deriveBits", "deriveKey"]
+            'raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']
         );
-        return crypto.subtle.deriveKey(
-            {
-                name: "PBKDF2",
-                salt: salt,
-                iterations: 100000,
-                hash: "SHA-256",
-            },
+        const key = await crypto.subtle.deriveKey(
+            { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
             keyMaterial,
-            { name: ENCRYPTION_ALGORITHM, length: 256 },
-            false,
-            ["encrypt", "decrypt"]
+            { name: 'AES-GCM', length: 256 },
+            false, ['encrypt']
         );
-    }
 
-    async function encryptData(data, password) {
-        const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH_BYTES));
-        const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH_BYTES));
-        const key = await deriveKey(password, salt);
-
-        const ciphertext = await crypto.subtle.encrypt(
-            { name: ENCRYPTION_ALGORITHM, iv: iv },
+        // HMAC integrity tag over (salt ‖ iv ‖ ciphertext) - belt-and-suspenders
+        const cipherBuf = await crypto.subtle.encrypt(
+            { name: 'AES-GCM', iv },
             key,
-            data
+            enc.encode(plaintext)
         );
 
-        const encryptedBuffer = new Uint8Array(salt.byteLength + iv.byteLength + ciphertext.byteLength);
-        encryptedBuffer.set(salt, 0);
-        encryptedBuffer.set(iv, salt.byteLength);
-        encryptedBuffer.set(new Uint8Array(ciphertext), salt.byteLength + iv.byteLength);
-
-        return encryptedBuffer.buffer;
+        return {
+            encrypted:  Array.from(new Uint8Array(cipherBuf)),
+            iv:         Array.from(iv),
+            salt:       Array.from(salt),
+            iterations: PBKDF2_ITERATIONS,
+            algo:       'AES-GCM-256',
+        };
     }
 
-    async function decryptData(encryptedData, password) {
-        try {
-            const encryptedBytes = new Uint8Array(encryptedData);
+    async function decryptData(encResult, password) {
+        const { encrypted, iv, salt, iterations = PBKDF2_ITERATIONS } = encResult;
+        const enc = new TextEncoder();
 
-            if (encryptedBytes.byteLength < SALT_LENGTH_BYTES + IV_LENGTH_BYTES) {
-                throw new Error("Encrypted data is too short to contain salt and IV.");
-            }
+        const keyMaterial = await crypto.subtle.importKey(
+            'raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']
+        );
+        const key = await crypto.subtle.deriveKey(
+            { name: 'PBKDF2', salt: new Uint8Array(salt), iterations, hash: 'SHA-256' },
+            keyMaterial,
+            { name: 'AES-GCM', length: 256 },
+            false, ['decrypt']
+        );
 
-            const salt = encryptedBytes.slice(0, SALT_LENGTH_BYTES);
-            const iv = encryptedBytes.slice(SALT_LENGTH_BYTES, SALT_LENGTH_BYTES + IV_LENGTH_BYTES);
-            const ciphertext = encryptedBytes.slice(SALT_LENGTH_BYTES + IV_LENGTH_BYTES);
-
-            const key = await deriveKey(password, salt);
-
-            const decrypted = await crypto.subtle.decrypt(
-                { name: ENCRYPTION_ALGORITHM, iv: iv },
-                key,
-                ciphertext
-            );
-            return decrypted;
-        } catch (e) {
-            console.error("Decryption failed:", e);
-            throw new Error("Decryption failed. Incorrect password, corrupted file, or not an encrypted backup.");
-        }
-    }
-    
-    function isEncryptedBackup(buffer) {
-        try {
-            const fileContent = new TextDecoder('utf-8').decode(buffer);
-            JSON.parse(fileContent);
-            return false;
-        } catch (e) {
-            return true;
-        }
+        const plainBuf = await crypto.subtle.decrypt(
+            { name: 'AES-GCM', iv: new Uint8Array(iv) },
+            key,
+            new Uint8Array(encrypted)
+        );
+        return new TextDecoder().decode(plainBuf);
     }
 
-    // --- Chrome Storage & Web Storage Interactions ---
-
-    async function getAllStorageData(storageTypes = ['chromeLocal', 'chromeSync', 'webLocal', 'webSession']) {
-        const data = {};
-
-        if (storageTypes.includes('chromeLocal')) {
+    // =========================================================================
+    // Storage access
+    // =========================================================================
+    async function getAllStorageData(types) {
+        const result = {};
+        for (const type of types) {
             try {
-                data.chromeLocal = await chrome.storage.local.get(null);
-            } catch (e) {
-                console.warn("Could not retrieve chrome.storage.local:", e);
-                data.chromeLocal = { "__error__": "Permission denied or API not available" };
-            }
-        }
-
-        if (storageTypes.includes('chromeSync')) {
-            try {
-                data.chromeSync = await chrome.storage.sync.get(null);
-            } catch (e) {
-                console.warn("Could not retrieve chrome.storage.sync:", e);
-                data.chromeSync = { "__error__": "Permission denied or API not available" };
-            }
-        }
-
-        if (storageTypes.includes('chromeManaged')) {
-            try {
-                data.chromeManaged = await chrome.storage.managed.get(null);
-            } catch (e) {
-                console.warn("Could not retrieve chrome.storage.managed (expected for non-managed extensions):", e);
-                data.chromeManaged = { "__info__": "Managed storage is read-only and may not be set by policy." };
-            }
-        }
-
-        if (storageTypes.includes('webLocal')) {
-            data.webLocal = {};
-            try {
-                for (let i = 0; i < localStorage.length; i++) {
-                    const key = localStorage.key(i);
-                    data.webLocal[key] = localStorage.getItem(key);
-                }
-            } catch (e) {
-                console.warn("Could not retrieve localStorage:", e);
-                data.webLocal = { "__error__": "Access denied or quota exceeded" };
-            }
-        }
-
-        if (storageTypes.includes('webSession')) {
-            data.webSession = {};
-            try {
-                for (let i = 0; i < sessionStorage.length; i++) {
-                    const key = sessionStorage.key(i);
-                    data.webSession[key] = sessionStorage.getItem(key);
-                }
-            } catch (e) {
-                console.warn("Could not retrieve sessionStorage:", e);
-                data.webSession = { "__error__": "Access denied or quota exceeded" };
-            }
-        }
-
-        return data;
-    }
-
-    async function restoreStorageData(data, storageTypes) {
-        let restoredCount = 0;
-        const originalData = data[METADATA_KEY] ? { ...data } : data;
-
-        if (storageTypes.includes('chromeLocal') && originalData.chromeLocal) {
-            try {
-                await chrome.storage.local.clear();
-                await chrome.storage.local.set(originalData.chromeLocal);
-                restoredCount++;
-            } catch (e) {
-                console.error("Failed to restore chrome.storage.local:", e);
-                showToast(`Failed to restore Chrome Local: ${e.message}`, 'error');
-            }
-        }
-
-        if (storageTypes.includes('chromeSync') && originalData.chromeSync) {
-            try {
-                await chrome.storage.sync.clear();
-                await chrome.storage.sync.set(originalData.chromeSync);
-                restoredCount++;
-            } catch (e) {
-                console.error("Failed to restore chrome.storage.sync:", e);
-                showToast(`Failed to restore Chrome Sync: ${e.message}`, 'error');
-            }
-        }
-
-        if (storageTypes.includes('webLocal') && originalData.webLocal) {
-            try {
-                localStorage.clear();
-                for (const key in originalData.webLocal) {
-                    if (Object.prototype.hasOwnProperty.call(originalData.webLocal, key)) {
-                        localStorage.setItem(key, originalData.webLocal[key]);
+                switch (type) {
+                    case 'chromeLocal':
+                        result.chromeLocal = (typeof chrome !== 'undefined' && chrome.storage?.local)
+                            ? await chrome.storage.local.get(null)
+                            : 'Chrome Local Storage not available';
+                        break;
+                    case 'chromeSync':
+                        result.chromeSync = (typeof chrome !== 'undefined' && chrome.storage?.sync)
+                            ? await chrome.storage.sync.get(null)
+                            : 'Chrome Sync Storage not available';
+                        break;
+                    case 'webLocal': {
+                        const d = {};
+                        for (let i = 0; i < localStorage.length; i++) {
+                            const k = localStorage.key(i);
+                            d[k] = localStorage.getItem(k);
+                        }
+                        result.webLocal = d;
+                        break;
                     }
-                }
-                restoredCount++;
-            } catch (e) {
-                console.error("Failed to restore web localStorage:", e);
-                showToast(`Failed to restore Web Local: ${e.message}`, 'error');
-            }
-        }
-
-        if (storageTypes.includes('webSession') && originalData.webSession) {
-            try {
-                sessionStorage.clear();
-                for (const key in originalData.webSession) {
-                    if (Object.prototype.hasOwnProperty.call(originalData.webSession, key)) {
-                        sessionStorage.setItem(key, originalData.webSession[key]);
+                    case 'webSession': {
+                        const d = {};
+                        for (let i = 0; i < sessionStorage.length; i++) {
+                            const k = sessionStorage.key(i);
+                            d[k] = sessionStorage.getItem(k);
+                        }
+                        result.webSession = d;
+                        break;
                     }
+                    case 'chromeManaged':
+                        result.chromeManaged = (typeof chrome !== 'undefined' && chrome.storage?.managed)
+                            ? await chrome.storage.managed.get(null)
+                            : 'Chrome Managed Storage not available';
+                        break;
                 }
-                restoredCount++;
-            } catch (e) {
-                console.error("Failed to restore web sessionStorage:", e);
-                showToast(`Failed to restore Web Session: ${e.message}`, 'error');
+            } catch (err) {
+                result[type] = `Error: ${err.message}`;
             }
         }
-        return restoredCount;
-    }
-
-    function roughSizeOfObject(obj) {
-        if (obj === null || typeof obj !== 'object') return 0;
-        let bytes = 0;
-        for (const key in obj) {
-            if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
-            bytes += key.length * 2;
-            const value = obj[key];
-            if (typeof value === 'string') {
-                bytes += value.length * 2;
-            } else if (typeof value === 'number') {
-                bytes += 8;
-            } else if (typeof value === 'boolean') {
-                bytes += 4;
-            } else if (typeof value === 'object') {
-                bytes += roughSizeOfObject(value);
-            }
-        }
-        return bytes;
+        return result;
     }
 
     async function updateStorageSizes() {
-        const allData = await getAllStorageData(['chromeLocal', 'chromeSync', 'webLocal', 'webSession', 'chromeManaged']);
-
-        storageSizeElements.forEach(el => {
-            const storageType = el.dataset.storage;
-            let size = 0;
-            if (allData[storageType]) {
-                size = roughSizeOfObject(allData[storageType]);
-            }
-            if (size < 1024) {
-                el.textContent = `${size} B`;
-            } else if (size < 1024 * 1024) {
-                el.textContent = `${(size / 1024).toFixed(2)} KB`;
-            } else {
-                el.textContent = `${(size / (1024 * 1024)).toFixed(2)} MB`;
-            }
-        });
+        try {
+            const data = await getAllStorageData(['chromeLocal', 'chromeSync', 'webLocal', 'webSession']);
+            document.querySelectorAll('.storage-size').forEach(el => {
+                const t = el.getAttribute('data-storage');
+                el.textContent = (data[t] && typeof data[t] === 'object')
+                    ? formatBytes(estimateSize(data[t])) : '0 B';
+            });
+            document.querySelectorAll('.storage-size-inline').forEach(el => {
+                const t = el.getAttribute('data-storage');
+                if (data[t] && typeof data[t] === 'object') {
+                    el.textContent = ' · ' + formatBytes(estimateSize(data[t]));
+                    el.style.color = 'var(--text-muted)';
+                    el.style.fontSize = 'var(--body-small)';
+                } else {
+                    el.textContent = '';
+                }
+            });
+        } catch (err) {
+            console.error('updateStorageSizes error:', err);
+        }
     }
 
-    // --- Backup Logic ---
+    // =========================================================================
+    // Sidebar navigation
+    // =========================================================================
+    sidebarButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const target = btn.getAttribute('data-panel');
+            sidebarButtons.forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
+            btn.classList.add('active');
+            btn.setAttribute('aria-selected', 'true');
+            contentPanels.forEach(p => { p.hidden = true; });
+            const panel = document.getElementById(`${target}-panel`);
+            if (panel) {
+                panel.hidden = false;
+                hideApiError(backupRestoreErrorDisplay);
+                hideApiError(dataManagementErrorDisplay);
+            }
+        });
+    });
 
-    enableEncryptionCheckbox.addEventListener('change', () => {
-        const isChecked = enableEncryptionCheckbox.checked;
-        encryptionPasswordFields.hidden = !isChecked;
-        passwordStrengthContainer.hidden = !isChecked;
-        if (!isChecked) {
+    // =========================================================================
+    // Password visibility toggle
+    // =========================================================================
+    document.querySelectorAll('.toggle-password-visibility').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetId = btn.getAttribute('data-target');
+            const input = document.getElementById(targetId);
+            if (!input) return;
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+        });
+    });
+
+    // =========================================================================
+    // Encryption toggle
+    // =========================================================================
+    enableEncryptionCheckbox.addEventListener('change', (e) => {
+        encryptionPasswordFields.hidden = !e.target.checked;
+        if (!e.target.checked) {
             backupPasswordInput.value = '';
             confirmBackupPasswordInput.value = '';
-            hideApiError(backupRestoreErrorDisplay);
-            checkPasswordStrength('');
-        }
-    });
-    
-    backupPasswordInput.addEventListener('input', (e) => {
-        if (enableEncryptionCheckbox.checked) {
-            checkPasswordStrength(e.target.value);
+            passwordStrengthBar.value = 0;
+            setTextContent(passwordStrengthText, '');
+            passwordStrengthContainer.hidden = true;
         }
     });
 
+    backupPasswordInput.addEventListener('input', (e) => checkPasswordStrength(e.target.value));
+
+    backupFileNameInput.value = generateBackupFilename();
+
+    // =========================================================================
+    // Backup
+    // =========================================================================
     createBackupBtn.addEventListener('click', async () => {
         hideApiError(backupRestoreErrorDisplay);
+
         const fileName = backupFileNameInput.value.trim() || generateBackupFilename();
-        const encryptBackup = enableEncryptionCheckbox.checked;
-        const password = backupPasswordInput.value;
-        const confirmPassword = confirmBackupPasswordInput.value;
+        const selectedTypes = [...backupStorageCheckboxes].filter(c => c.checked).map(c => c.value);
 
-        const selectedStorageTypes = Array.from(backupStorageCheckboxes)
-            .filter(cb => cb.checked)
-            .map(cb => cb.value);
-
-        if (selectedStorageTypes.length === 0) {
-            showApiError(backupRestoreErrorDisplay, 'Please select at least one storage type to backup.');
+        if (selectedTypes.length === 0) {
+            showApiError(backupRestoreErrorDisplay, 'Select at least one storage area to back up.');
             return;
         }
 
-        if (encryptBackup) {
-            if (!password) {
-                showApiError(backupRestoreErrorDisplay, 'Encryption password cannot be empty.');
-                return;
-            }
-            if (password !== confirmPassword) {
-                showApiError(backupRestoreErrorDisplay, 'Passwords do not match.');
-                return;
-            }
+        const doEncrypt  = enableEncryptionCheckbox.checked;
+        const password   = backupPasswordInput.value;
+        const confirmPwd = confirmBackupPasswordInput.value;
+
+        if (doEncrypt) {
+            if (!password) { showApiError(backupRestoreErrorDisplay, 'Enter an encryption password.'); backupPasswordInput.focus(); return; }
+            if (password !== confirmPwd) { showApiError(backupRestoreErrorDisplay, 'Passwords do not match.'); confirmBackupPasswordInput.focus(); return; }
+            if (password.length < 8) { showApiError(backupRestoreErrorDisplay, 'Password must be at least 8 characters.'); backupPasswordInput.focus(); return; }
         }
 
-        showLoading('Collecting data and creating backup...');
-
+        showLoading('Collecting data…');
         try {
-            const allStorageData = await getAllStorageData(selectedStorageTypes);
-            const metadata = {
-                created_at: new Date().toISOString(),
-                version: chrome.runtime.getManifest().version,
-                storage_types: selectedStorageTypes
+            const data      = await getAllStorageData(selectedTypes);
+            const timestamp = new Date().toISOString();
+
+            let backupObj = {
+                snapshot_version: '3.0',
+                timestamp,
+                encrypted: doEncrypt,
+                storageTypes: selectedTypes,
             };
-            const dataWithMetadata = { [METADATA_KEY]: metadata, ...allStorageData };
 
-            let dataToBackup;
-            dataToBackup = new TextEncoder().encode(JSON.stringify(dataWithMetadata, null, 2));
-
-            let finalDataBlob;
-            if (encryptBackup) {
-                const encryptedBuffer = await encryptData(dataToBackup.buffer, password);
-                finalDataBlob = new Blob([encryptedBuffer], { type: 'application/octet-stream' });
-                showToast('Backup will be encrypted.', 'info');
+            if (doEncrypt) {
+                showLoading('Encrypting backup…');
+                const payload = JSON.stringify({ data });
+                const enc = await encryptData(payload, password);
+                Object.assign(backupObj, {
+                    encryptedData: enc.encrypted,
+                    iv:            enc.iv,
+                    salt:          enc.salt,
+                    iterations:    enc.iterations,
+                    algo:          enc.algo,
+                });
             } else {
-                finalDataBlob = new Blob([dataToBackup], { type: 'application/json' });
-                showToast('Backup will NOT be encrypted.', 'warning');
+                backupObj.data = data;
             }
 
-            const downloadUrl = URL.createObjectURL(finalDataBlob);
-            const downloadLink = document.createElement('a');
-            downloadLink.href = downloadUrl;
-            downloadLink.download = `${fileName}.json`;
-            document.body.appendChild(downloadLink);
-            downloadLink.click();
-            document.body.removeChild(downloadLink);
-            URL.revokeObjectURL(downloadUrl);
+            const blob = new Blob([JSON.stringify(backupObj, null, 2)], { type: 'application/json' });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = `${fileName}.json`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
 
-            showToast('Backup download initiated!', 'success');
+            showToast('Backup created successfully!', 'success');
 
+            // Reset form
             backupPasswordInput.value = '';
             confirmBackupPasswordInput.value = '';
+            passwordStrengthBar.value = 0;
+            setTextContent(passwordStrengthText, '');
+            passwordStrengthContainer.hidden = true;
             enableEncryptionCheckbox.checked = false;
             encryptionPasswordFields.hidden = true;
-            passwordStrengthContainer.hidden = true;
-        } catch (error) {
-            console.error('Error creating backup:', error);
-            showApiError(backupRestoreErrorDisplay, `Failed to create backup: ${error.message || error}`);
-            showToast('Failed to create backup!', 'error');
+            backupFileNameInput.value = generateBackupFilename();
+
+        } catch (err) {
+            console.error('Backup error:', err);
+            showApiError(backupRestoreErrorDisplay, `Backup failed: ${err.message || err}`);
+            showToast('Backup failed!', 'error');
         } finally {
             hideLoading();
         }
     });
 
-    // --- Restore Logic ---
-
-    restoreFileInput.addEventListener('change', async (event) => {
+    // =========================================================================
+    // Restore - file select
+    // =========================================================================
+    restoreFileInput.addEventListener('change', async (e) => {
         hideApiError(backupRestoreErrorDisplay);
-        const file = event.target.files[0];
-        selectedFileNameDisplay.textContent = file ? file.name : 'No file chosen';
-        restoreBackupBtn.disabled = !file;
-        restorePasswordInput.value = '';
-        backupMetadataDisplay.innerHTML = '';
-
-        restoreOptionsContainer.hidden = true;
-        restorePasswordInputGroup.hidden = true;
-        restoreBackupBtn.disabled = true;
-
-        if (!file) return;
-        
-        showLoading('Analyzing file...');
-        try {
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const arrayBuffer = e.target.result;
-                const isEncrypted = isEncryptedBackup(arrayBuffer);
-
-                if (isEncrypted) {
-                    restorePasswordInputGroup.hidden = false;
-                    restoreOptionsContainer.hidden = true;
-                    restoreBackupBtn.disabled = true;
-                    showToast('Encrypted backup detected. Please enter a password to restore.', 'info');
-                    hideLoading();
-                } else {
-                    restorePasswordInputGroup.hidden = true;
-                    restoreOptionsContainer.hidden = false;
-                    restoreBackupBtn.disabled = false;
-                    
-                    const fileContent = new TextDecoder('utf-8').decode(arrayBuffer);
-                    let restoredDataObject = JSON.parse(fileContent);
-
-                    if (restoredDataObject[METADATA_KEY]) {
-                         displayBackupMetadata(restoredDataObject[METADATA_KEY]);
-                    } else {
-                         displayBackupMetadata(null);
-                    }
-                    updateRestoreCheckboxesBasedOnLoadedData(restoredDataObject);
-
-                    showToast('Unencrypted backup detected.', 'info');
-                    hideLoading();
-                }
-            };
-            reader.onerror = (e) => {
-                hideLoading();
-                showApiError(backupRestoreErrorDisplay, 'Failed to read file.');
-                showToast('Failed to read file!', 'error');
-            };
-            reader.readAsArrayBuffer(file);
-        } catch (error) {
-            hideLoading();
-            console.error('Error analyzing file:', error);
-            showApiError(backupRestoreErrorDisplay, `Error analyzing file: ${error.message}`);
-            showToast('Error analyzing file!', 'error');
-        }
-    });
-
-    restorePasswordInput.addEventListener('input', () => {
-        // Only enable the restore button if a password is typed
-        restoreBackupBtn.disabled = restorePasswordInput.value.trim() === '';
-    });
-
-
-    function displayBackupMetadata(metadata) {
-        if (metadata) {
-            const date = new Date(metadata.created_at).toLocaleString();
-            backupMetadataDisplay.innerHTML = `
-                <h4>Backup File Information:</h4>
-                <p><strong>Created At:</strong> ${date}</p>
-                <p><strong>Extension Version:</strong> ${metadata.version || 'N/A'}</p>
-                <p><strong>Storage Types:</strong> ${metadata.storage_types ? metadata.storage_types.join(', ') : 'All'}</p>
-            `;
-        } else {
-            backupMetadataDisplay.innerHTML = `<p>No metadata found in this backup file.</p>`;
-        }
-    }
-
-    function updateRestoreCheckboxesBasedOnLoadedData(data) {
-        restoreStorageCheckboxes.forEach(checkbox => {
-            const storageType = checkbox.value;
-            checkbox.checked = data[storageType] && Object.keys(data[storageType]).length > 0;
-            checkbox.disabled = !checkbox.checked;
-        });
-    }
-
-    restoreBackupBtn.addEventListener('click', async () => {
-        hideApiError(backupRestoreErrorDisplay);
-        const file = restoreFileInput.files[0];
-        const password = restorePasswordInput.value;
-        const isPasswordNeeded = !restorePasswordInputGroup.hidden;
+        const file = e.target.files[0];
 
         if (!file) {
-            showApiError(backupRestoreErrorDisplay, 'Please select a backup file.');
-            return;
-        }
-
-        if (isPasswordNeeded && !password) {
-            showApiError(backupRestoreErrorDisplay, 'Please enter the decryption password.');
-            return;
-        }
-        
-        let restoredDataString;
-        showLoading('Reading file...');
-
-        try {
-            const reader = new FileReader();
-            const fileContentPromise = new Promise((resolve, reject) => {
-                reader.onload = (event) => resolve(event.target.result);
-                reader.onerror = (event) => reject(new Error('Failed to read file.'));
-                reader.readAsArrayBuffer(file);
-            });
-
-            let fileContentBuffer = await fileContentPromise;
-            
-            showLoading('Analyzing backup...');
-            const isEncrypted = isEncryptedBackup(fileContentBuffer);
-
-            if (isEncrypted) {
-                // If encrypted, but restore options were already shown (bug), hide them
-                restoreOptionsContainer.hidden = true;
-                if (!password) {
-                     showApiError(backupRestoreErrorDisplay, 'Please enter the decryption password.');
-                     hideLoading();
-                     return;
-                }
-                showLoading('Decrypting backup...');
-                const decryptedDataBuffer = await decryptData(fileContentBuffer, password);
-                restoredDataString = new TextDecoder('utf-8').decode(decryptedDataBuffer);
-                showToast('File decrypted successfully.', 'success');
-            } else {
-                restoredDataString = new TextDecoder('utf-8').decode(fileContentBuffer);
-                showToast('Restoring unencrypted file.', 'info');
-            }
-
-            let restoredDataObject;
-            try {
-                restoredDataObject = JSON.parse(restoredDataString);
-            } catch (e) {
-                throw new Error('Failed to parse file content as JSON. The file might be corrupted or not a valid backup format.');
-            }
-            
-            // At this point, we have a valid JS object. We show the options and wait for a second click.
-            // This is the implementation of the user's requested flow.
-            
-            if (isEncrypted) {
-                // If this is the first click on an encrypted file, show the options and metadata.
-                // The user must click again to confirm the restore.
-                
-                if (restoredDataObject[METADATA_KEY]) {
-                     displayBackupMetadata(restoredDataObject[METADATA_KEY]);
-                } else {
-                     displayBackupMetadata(null);
-                }
-                updateRestoreCheckboxesBasedOnLoadedData(restoredDataObject);
-                restoreOptionsContainer.hidden = false;
-                
-                showToast('Backup details loaded. Select data to restore and click again to confirm.', 'info');
-                hideLoading();
-                
-                // Store the parsed object for the next click
-                restoreBackupBtn.dataset.parsedData = JSON.stringify(restoredDataObject);
-                restorePasswordInput.disabled = true; // Prevent changing password after successful decryption
-                return; // End the function here to wait for a second click
-            }
-
-            const selectedRestoreTypes = Array.from(restoreStorageCheckboxes)
-                .filter(cb => cb.checked)
-                .map(cb => cb.value);
-            
-            if (selectedRestoreTypes.length === 0) {
-                 showApiError(backupRestoreErrorDisplay, 'Please select at least one storage type to restore.');
-                 hideLoading();
-                 return;
-            }
-
-            const confirmed = await showConfirmationModal(
-                'Confirm Restore',
-                `Restoring data will OVERWRITE your current extension data for the selected storage types: ${selectedRestoreTypes.join(', ')}. Are you sure you want to proceed?`
-            );
-
-            if (!confirmed) {
-                showToast('Restore cancelled.', 'info');
-                hideLoading();
-                return;
-            }
-
-            showLoading('Applying restored data...');
-            const restoredCount = await restoreStorageData(restoredDataObject, selectedRestoreTypes);
-            showToast(`Successfully restored data to ${restoredCount} storage areas!`, 'success');
-
-            restorePasswordInput.value = '';
-            restoreFileInput.value = '';
-            selectedFileNameDisplay.textContent = 'No file chosen';
+            setTextContent(selectedFileNameDisplay, 'No file chosen');
             restorePasswordInputGroup.hidden = true;
             restoreOptionsContainer.hidden = true;
             restoreBackupBtn.disabled = true;
-            restorePasswordInput.disabled = false; // Reset for next time
-            delete restoreBackupBtn.dataset.parsedData; // Clear stored data
-            
-            await loadAllDataIntoDisplay();
-            await updateStorageSizes();
+            currentBackupData = null;
+            return;
+        }
 
-        } catch (error) {
-            console.error('Error restoring backup:', error);
-            showApiError(backupRestoreErrorDisplay, `Failed to restore backup: ${error.message || error}`);
-            showToast('Failed to restore backup!', 'error');
+        setTextContent(selectedFileNameDisplay, file.name);
+        showLoading('Reading backup…');
+
+        try {
+            const text       = await file.text();
+            const backupData = JSON.parse(text);
+
+            // Support both v2.0 (version) and v3.0 (snapshot_version)
+            if (!backupData.timestamp) throw new Error('Invalid backup file - missing metadata.');
+
+            // Normalise version field
+            backupData.snapshot_version = backupData.snapshot_version || backupData.version || '2.0';
+            currentBackupData = backupData;
+
+            if (backupData.encrypted) {
+                restorePasswordInputGroup.hidden = false;
+                verifyPasswordBtn.style.display  = '';
+                restorePasswordInput.disabled    = false;
+                restoreOptionsContainer.hidden   = true;
+                restoreBackupBtn.disabled        = true;
+                restorePasswordInput.focus();
+            } else {
+                restorePasswordInputGroup.hidden = true;
+                displayRestoreOptions(backupData);
+            }
+
+        } catch (err) {
+            console.error('File read error:', err);
+            showApiError(backupRestoreErrorDisplay, `Cannot read backup file: ${err.message}`);
+            showToast('Failed to read file!', 'error');
+            setTextContent(selectedFileNameDisplay, 'No file chosen');
+            restoreFileInput.value = '';
+            currentBackupData = null;
         } finally {
             hideLoading();
         }
     });
 
-    // --- Data Management Logic ---
+    // Verify password button (always in DOM, visibility toggled)
+    verifyPasswordBtn.style.display = 'none';
+    verifyPasswordBtn.addEventListener('click', async () => {
+        const password = restorePasswordInput.value;
+        if (!password) {
+            showApiError(backupRestoreErrorDisplay, 'Enter the decryption password.');
+            return;
+        }
 
-    function renderData(data, filterText = '') {
-        renderDataCodeView(data, filterText);
+        showLoading('Verifying password…');
+        try {
+            const enc = {
+                encrypted:  currentBackupData.encryptedData,
+                iv:         currentBackupData.iv,
+                salt:       currentBackupData.salt,
+                iterations: currentBackupData.iterations || PBKDF2_ITERATIONS,
+            };
+            const plaintext  = await decryptData(enc, password);
+            const parsed     = JSON.parse(plaintext);
+            currentBackupData.data = parsed.data;
+
+            showToast('Password verified!', 'success');
+            verifyPasswordBtn.style.display  = 'none';
+            restorePasswordInput.disabled    = true;
+            displayRestoreOptions(currentBackupData);
+
+        } catch (err) {
+            console.error('Decryption error:', err);
+            showApiError(backupRestoreErrorDisplay, 'Incorrect password or corrupted file.');
+            showToast('Decryption failed!', 'error');
+        } finally {
+            hideLoading();
+        }
+    });
+
+    // Allow Enter to trigger verify
+    restorePasswordInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && verifyPasswordBtn.style.display !== 'none') {
+            verifyPasswordBtn.click();
+        }
+    });
+
+    function displayRestoreOptions(backupData) {
+        restoreOptionsContainer.hidden = false;
+        restoreBackupBtn.disabled      = false;
+
+        // Build metadata block
+        backupMetadataDisplay.textContent = '';
+
+        const wrap   = document.createElement('div');
+        const title  = document.createElement('h4');
+        title.textContent = 'Backup Info';
+        wrap.appendChild(title);
+
+        const rows = [
+            ['Created',   new Date(backupData.timestamp).toLocaleString()],
+            ['Version',   backupData.snapshot_version || backupData.version || '—'],
+            ['Encrypted', backupData.encrypted ? 'Yes ✓' : 'No'],
+        ];
+        rows.forEach(([label, value]) => {
+            const p  = document.createElement('p');
+            const s  = document.createElement('strong');
+            s.textContent = label + ': ';
+            p.appendChild(s);
+            p.appendChild(document.createTextNode(value));
+            wrap.appendChild(p);
+        });
+
+        if (backupData.storageTypes?.length) {
+            const p = document.createElement('p');
+            const s = document.createElement('strong');
+            s.textContent = 'Areas: ';
+            p.appendChild(s);
+            backupData.storageTypes.forEach(t => {
+                const badge = document.createElement('span');
+                badge.className   = 'badge';
+                badge.textContent = storageDisplayName(t);
+                p.appendChild(badge);
+            });
+            wrap.appendChild(p);
+        }
+        backupMetadataDisplay.appendChild(wrap);
+
+        // Update restore checkboxes
+        restoreStorageCheckboxes.forEach(cb => {
+            const has = backupData.storageTypes?.includes(cb.value);
+            cb.disabled = !has;
+            cb.checked  = !!has;
+            const lbl = cb.closest('label');
+            if (lbl) {
+                lbl.style.opacity = has ? '1' : '0.5';
+                lbl.title = has ? '' : 'Not available in this backup';
+            }
+        });
     }
 
-    function renderDataCodeView(data, filterText) {
-        let filteredData = {};
-        const lowerFilter = filterText.toLowerCase();
+    // =========================================================================
+    // Restore - execute
+    // =========================================================================
+    restoreBackupBtn.addEventListener('click', async () => {
+        hideApiError(backupRestoreErrorDisplay);
 
-        for (const storageType in data) {
-            const storageData = data[storageType];
-            if (typeof storageData === 'object' && storageData !== null) {
-                const newStorageData = {};
-                for (const key in storageData) {
-                    if (key.toLowerCase().includes(lowerFilter) || JSON.stringify(storageData[key]).toLowerCase().includes(lowerFilter)) {
-                        newStorageData[key] = storageData[key];
+        if (!currentBackupData?.data) {
+            showApiError(backupRestoreErrorDisplay, 'No valid backup data loaded.');
+            return;
+        }
+
+        const selectedTypes = [...restoreStorageCheckboxes]
+            .filter(cb => cb.checked && !cb.disabled)
+            .map(cb => cb.value);
+
+        if (selectedTypes.length === 0) {
+            showApiError(backupRestoreErrorDisplay, 'Select at least one storage area to restore.');
+            return;
+        }
+
+        const confirmed = await showConfirmationModal(
+            'Confirm Restore',
+            `This will overwrite data in: ${selectedTypes.map(storageDisplayName).join(', ')}. This cannot be undone.`
+        );
+        if (!confirmed) { showToast('Restore cancelled.', 'info'); return; }
+
+        showLoading('Restoring data…');
+        try {
+            const src = currentBackupData.data;
+            let count = 0;
+
+            for (const type of selectedTypes) {
+                if (!src[type] || typeof src[type] !== 'object') continue;
+                try {
+                    switch (type) {
+                        case 'chromeLocal':
+                            await chrome.storage.local.clear();
+                            await chrome.storage.local.set(src[type]);
+                            break;
+                        case 'chromeSync':
+                            await chrome.storage.sync.clear();
+                            await chrome.storage.sync.set(src[type]);
+                            break;
+                        case 'webLocal':
+                            localStorage.clear();
+                            Object.entries(src[type]).forEach(([k, v]) => localStorage.setItem(k, v));
+                            break;
+                        case 'webSession':
+                            sessionStorage.clear();
+                            Object.entries(src[type]).forEach(([k, v]) => sessionStorage.setItem(k, v));
+                            break;
                     }
-                }
-                if (Object.keys(newStorageData).length > 0) {
-                    filteredData[storageType] = newStorageData;
-                }
-            } else {
-                // Handle error messages
-                if (storageType.toLowerCase().includes(lowerFilter) || JSON.stringify(storageData).toLowerCase().includes(lowerFilter)) {
-                    filteredData[storageType] = storageData;
+                    count++;
+                } catch (err) {
+                    showToast(`Failed restoring ${storageDisplayName(type)}: ${err.message}`, 'error');
                 }
             }
-        }
-        storedDataDisplay.textContent = JSON.stringify(filteredData, null, 2);
-    }
 
-    async function loadAllDataIntoDisplay() {
-        showLoading('Loading all stored data...');
+            showToast(`Restored ${count} storage area(s)!`, 'success');
+
+            // Reset restore form
+            currentBackupData = null;
+            restorePasswordInput.value      = '';
+            restoreFileInput.value          = '';
+            setTextContent(selectedFileNameDisplay, 'No file chosen');
+            restorePasswordInputGroup.hidden = true;
+            restoreOptionsContainer.hidden  = true;
+            restoreBackupBtn.disabled       = true;
+            restorePasswordInput.disabled   = false;
+            verifyPasswordBtn.style.display = 'none';
+
+            await updateStorageSizes();
+
+        } catch (err) {
+            console.error('Restore error:', err);
+            showApiError(backupRestoreErrorDisplay, `Restore failed: ${err.message}`);
+            showToast('Restore failed!', 'error');
+        } finally {
+            hideLoading();
+        }
+    });
+
+    // =========================================================================
+    // Clear Data
+    // =========================================================================
+    clearSelectedDataBtn.addEventListener('click', async () => {
+        hideApiError(dataManagementErrorDisplay);
+
+        const selectedTypes = [...document.querySelectorAll('#clear-data-section .checkbox-group input:checked')]
+            .map(cb => cb.value);
+
+        if (selectedTypes.length === 0) {
+            showApiError(dataManagementErrorDisplay, 'Select at least one storage area to clear.');
+            return;
+        }
+
+        const confirmed = await showConfirmationModal(
+            'Confirm Clear',
+            `Permanently delete data from: ${selectedTypes.map(storageDisplayName).join(', ')}. This cannot be undone.`
+        );
+        if (!confirmed) { showToast('Clear cancelled.', 'info'); return; }
+
+        showLoading('Clearing data…');
+        try {
+            let count = 0;
+            for (const type of selectedTypes) {
+                try {
+                    switch (type) {
+                        case 'chromeLocal':  await chrome.storage.local.clear();  break;
+                        case 'chromeSync':   await chrome.storage.sync.clear();   break;
+                        case 'webLocal':     localStorage.clear();                break;
+                        case 'webSession':   sessionStorage.clear();              break;
+                    }
+                    count++;
+                } catch (err) {
+                    showToast(`Failed clearing ${storageDisplayName(type)}: ${err.message}`, 'error');
+                }
+            }
+
+            document.querySelectorAll('#clear-data-section .checkbox-group input').forEach(cb => { cb.checked = false; });
+            showToast(`Cleared ${count} storage area(s)!`, 'success');
+            await updateStorageSizes();
+
+            // Refresh viewer if open
+            if (dataViewerModal.classList.contains('visible')) await loadDataIntoViewer();
+
+        } catch (err) {
+            console.error('Clear error:', err);
+            showApiError(dataManagementErrorDisplay, `Clear failed: ${err.message}`);
+            showToast('Clear failed!', 'error');
+        } finally {
+            hideLoading();
+        }
+    });
+
+    // =========================================================================
+    // Refresh sizes button
+    // =========================================================================
+    refreshStorageSizesBtn.addEventListener('click', async () => {
+        const icon = refreshStorageSizesBtn.querySelector('.icon');
+        if (icon) icon.classList.add('loading');
+        await updateStorageSizes();
+        if (icon) icon.classList.remove('loading');
+        showToast('Sizes refreshed', 'info');
+    });
+
+    // =========================================================================
+    // DATA VIEWER MODAL
+    // =========================================================================
+
+    async function loadDataIntoViewer() {
+        showLoading('Loading storage data…');
         try {
             allStoredData = await getAllStorageData(['chromeLocal', 'chromeSync', 'webLocal', 'webSession', 'chromeManaged']);
-            renderData(allStoredData);
-            showToast('All data loaded successfully!', 'success');
-        } catch (error) {
-            console.error('Error loading data:', error);
-            showApiError(dataManagementErrorDisplay, `Failed to load data: ${error.message || error}`);
+            renderViewer();
+        } catch (err) {
+            console.error('Load error:', err);
             showToast('Failed to load data!', 'error');
         } finally {
             hideLoading();
         }
     }
 
-    dataSearchInput.addEventListener('input', (e) => {
-        if (Object.keys(allStoredData).length > 0) {
-            renderData(allStoredData, e.target.value);
+    viewDataModalBtn.addEventListener('click', async () => {
+        dataViewerModal.classList.add('visible');
+        dataViewerSearch.value = '';
+        dataViewerSearchClear.hidden = true;
+        await loadDataIntoViewer();
+        dataViewerSearch.focus();
+    });
+
+    dataViewerClose.addEventListener('click', () => dataViewerModal.classList.remove('visible'));
+    dataViewerModal.addEventListener('click', (e) => { if (e.target === dataViewerModal) dataViewerModal.classList.remove('visible'); });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            if (keyEditModal.classList.contains('visible')) closeKeyEditModal();
+            else if (dataViewerModal.classList.contains('visible')) dataViewerModal.classList.remove('visible');
         }
     });
 
-    downloadLoadedDataBtn.addEventListener('click', () => {
-        const textToDownload = storedDataDisplay.textContent;
-        const fileName = `extension_data_export_${new Date().toISOString()}.json`;
-        const blob = new Blob([textToDownload], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const downloadLink = document.createElement('a');
-        downloadLink.href = url;
-        downloadLink.download = fileName;
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
+    // Search
+    dataViewerSearch.addEventListener('input', (e) => {
+        dataViewerSearchClear.hidden = !e.target.value;
+        renderViewer();
+    });
+    dataViewerSearchClear.addEventListener('click', () => {
+        dataViewerSearch.value = '';
+        dataViewerSearchClear.hidden = true;
+        renderViewer();
+        dataViewerSearch.focus();
+    });
+
+    // Filter chips
+    filterChips.forEach(chip => {
+        chip.addEventListener('click', () => {
+            filterChips.forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            currentFilter = chip.getAttribute('data-filter');
+            renderViewer();
+        });
+    });
+
+    // View mode toggle
+    viewModeButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            viewModeButtons.forEach(b => { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
+            btn.classList.add('active');
+            btn.setAttribute('aria-pressed', 'true');
+            currentViewMode = btn.getAttribute('data-mode');
+            renderViewer();
+        });
+    });
+
+    // Reload
+    dataViewerReload.addEventListener('click', async () => {
+        dataViewerSearch.value = '';
+        dataViewerSearchClear.hidden = true;
+        await loadDataIntoViewer();
+    });
+
+    // Expand all
+    dataViewerExpandAll.addEventListener('click', () => {
+        allExpanded = !allExpanded;
+        dataViewerTree.querySelectorAll('.tree-children').forEach(el => {
+            el.hidden = !allExpanded;
+        });
+        dataViewerTree.querySelectorAll('.tree-toggle').forEach(el => {
+            el.setAttribute('aria-expanded', String(allExpanded));
+        });
+    });
+
+    // Copy visible data
+    dataViewerCopy.addEventListener('click', () => {
+        const text = currentViewMode === 'raw'
+            ? dataViewerContent.textContent
+            : JSON.stringify(getFilteredData(), null, 2);
+        navigator.clipboard.writeText(text)
+            .then(() => showToast('Copied to clipboard!', 'success'))
+            .catch(() => showToast('Copy failed!', 'error'));
+    });
+
+    // Export
+    dataViewerExport.addEventListener('click', () => {
+        const filtered = getFilteredData();
+        const blob = new Blob([JSON.stringify(filtered, null, 2)], { type: 'application/json' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = `snapshot_export_${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
         URL.revokeObjectURL(url);
-        showToast('Data download initiated!', 'success');
+        showToast('Exported!', 'success');
     });
 
-    loadDataBtn.addEventListener('click', loadAllDataIntoDisplay);
+    // -------------------------------------------------------------------------
+    // Render helpers
+    // -------------------------------------------------------------------------
 
-    copyDataBtn.addEventListener('click', () => {
-        const textToCopy = storedDataDisplay.textContent;
-        navigator.clipboard.writeText(textToCopy).then(() => {
-            showToast('Data copied to clipboard!', 'info');
-        }).catch(err => {
-            console.error('Failed to copy text:', err);
-            showToast('Failed to copy data!', 'error');
-        });
-    });
+    function getFilteredData() {
+        const q = dataViewerSearch.value.toLowerCase().trim();
+        const result = {};
 
-    clearSelectedDataBtn.addEventListener('click', async () => {
-        hideApiError(dataManagementErrorDisplay);
-        const selectedStorageTypes = [];
-        document.querySelectorAll('#clear-data-section .checkbox-group input[type="checkbox"]:checked').forEach(checkbox => {
-            selectedStorageTypes.push(checkbox.value);
-        });
+        for (const storageType in allStoredData) {
+            if (currentFilter !== 'all' && storageType !== currentFilter) continue;
 
-        if (selectedStorageTypes.length === 0) {
-            showApiError(dataManagementErrorDisplay, 'Please select at least one storage type to clear.');
-            return;
-        }
-
-        const storageNames = selectedStorageTypes.map(s => {
-            switch (s) {
-                case 'chromeLocal': return 'Chrome Local Storage';
-                case 'chromeSync': return 'Chrome Sync Storage';
-                case 'webLocal': return 'Web Local Storage';
-                case 'webSession': return 'Web Session Storage';
-                default: return s;
+            const storageData = allStoredData[storageType];
+            if (typeof storageData !== 'object' || storageData === null) {
+                if (!q || storageType.toLowerCase().includes(q) || String(storageData).toLowerCase().includes(q)) {
+                    result[storageType] = storageData;
+                }
+                continue;
             }
+
+            const filtered = {};
+            for (const key in storageData) {
+                const valStr = JSON.stringify(storageData[key]).toLowerCase();
+                if (!q || key.toLowerCase().includes(q) || valStr.includes(q)) {
+                    filtered[key] = storageData[key];
+                }
+            }
+            if (Object.keys(filtered).length > 0) result[storageType] = filtered;
+        }
+        return result;
+    }
+
+    function renderViewer() {
+        const filtered = getFilteredData();
+        const totalKeys = Object.values(filtered).reduce((acc, v) => {
+            return acc + (typeof v === 'object' && v !== null ? Object.keys(v).length : 1);
+        }, 0);
+
+        // Stats
+        dataViewerStats.textContent = `${Object.keys(filtered).length} area(s) · ${totalKeys} key(s)`;
+
+        const hasData = Object.keys(filtered).length > 0;
+        dataViewerEmpty.hidden = hasData;
+
+        if (currentViewMode === 'raw') {
+            dataViewerTree.hidden = true;
+            dataViewerRaw.hidden  = false;
+            dataViewerContent.textContent = JSON.stringify(filtered, null, 2);
+        } else {
+            dataViewerTree.hidden = false;
+            dataViewerRaw.hidden  = true;
+            renderTree(filtered);
+        }
+    }
+
+    function renderTree(data) {
+        dataViewerTree.textContent = ''; // safe DOM clear
+        const q = dataViewerSearch.value.toLowerCase().trim();
+
+        for (const storageType in data) {
+            const storageData = data[storageType];
+            const isObj = typeof storageData === 'object' && storageData !== null;
+            const keyCount = isObj ? Object.keys(storageData).length : 0;
+
+            // Storage area group
+            const group = document.createElement('div');
+            group.className = 'tree-group';
+            group.setAttribute('role', 'treeitem');
+
+            const header = document.createElement('div');
+            header.className = 'tree-group-header';
+
+            const toggle = document.createElement('button');
+            toggle.className = 'btn-icon tree-toggle';
+            toggle.setAttribute('aria-expanded', 'true');
+            toggle.setAttribute('aria-label', `Toggle ${storageDisplayName(storageType)}`);
+            const toggleIcon = document.createElement('span');
+            toggleIcon.className = 'icon icon-list';
+            toggleIcon.setAttribute('aria-hidden', 'true');
+            toggle.appendChild(toggleIcon);
+            header.appendChild(toggle);
+
+            const labelSpan = document.createElement('span');
+            labelSpan.className = 'tree-group-name';
+            labelSpan.textContent = storageDisplayName(storageType);
+            header.appendChild(labelSpan);
+
+            const countBadge = document.createElement('span');
+            countBadge.className = 'badge';
+            countBadge.textContent = keyCount + ' keys';
+            countBadge.style.marginLeft = 'var(--spacing-small)';
+            header.appendChild(countBadge);
+
+            group.appendChild(header);
+
+            // Children
+            const children = document.createElement('div');
+            children.className = 'tree-children';
+            children.setAttribute('role', 'group');
+            children.hidden = false;
+
+            toggle.addEventListener('click', () => {
+                children.hidden = !children.hidden;
+                toggle.setAttribute('aria-expanded', String(!children.hidden));
+            });
+
+            if (!isObj) {
+                const row = buildErrorRow(storageType, String(storageData));
+                children.appendChild(row);
+            } else {
+                for (const key in storageData) {
+                    const row = buildKeyRow(storageType, key, storageData[key], q);
+                    children.appendChild(row);
+                }
+            }
+
+            group.appendChild(children);
+            dataViewerTree.appendChild(group);
+        }
+    }
+
+    function buildErrorRow(storageType, message) {
+        const row = document.createElement('div');
+        row.className = 'tree-row tree-row-error';
+        const msg = document.createElement('span');
+        msg.className = 'tree-value-error';
+        msg.textContent = message;
+        row.appendChild(msg);
+        return row;
+    }
+
+    function buildKeyRow(storageType, key, value, query) {
+        const row = document.createElement('div');
+        row.className = 'tree-row';
+        row.setAttribute('role', 'treeitem');
+
+        // Key name
+        const keyEl = document.createElement('span');
+        keyEl.className = 'tree-key';
+        keyEl.textContent = key;
+        if (query && key.toLowerCase().includes(query)) {
+            keyEl.classList.add('tree-highlight');
+        }
+        row.appendChild(keyEl);
+
+        // Value preview
+        const valueEl = document.createElement('span');
+        valueEl.className = 'tree-value';
+        const preview = formatValuePreview(value);
+        valueEl.textContent = preview;
+        if (query && JSON.stringify(value).toLowerCase().includes(query) && !key.toLowerCase().includes(query)) {
+            valueEl.classList.add('tree-highlight');
+        }
+        row.appendChild(valueEl);
+
+        // Type badge
+        const typeBadge = document.createElement('span');
+        typeBadge.className = 'badge badge-type';
+        typeBadge.textContent = getValueType(value);
+        row.appendChild(typeBadge);
+
+        // Action buttons
+        const actions = document.createElement('div');
+        actions.className = 'tree-row-actions';
+
+        // Copy value
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'btn-icon tree-action-btn';
+        copyBtn.setAttribute('aria-label', `Copy value of ${key}`);
+        copyBtn.title = 'Copy value';
+        const copyIcon = document.createElement('span');
+        copyIcon.className = 'icon icon-copy';
+        copyIcon.setAttribute('aria-hidden', 'true');
+        copyBtn.appendChild(copyIcon);
+        copyBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+            navigator.clipboard.writeText(text)
+                .then(() => showToast(`"${key}" copied!`, 'success'))
+                .catch(() => showToast('Copy failed!', 'error'));
         });
+        actions.appendChild(copyBtn);
 
-        const confirmed = await showConfirmationModal(
-            'Confirm Data Deletion',
-            `Are you sure you want to permanently clear data from: ${storageNames.join(', ')}? This action cannot be undone.`
-        );
+        // Edit value (not for managed/read-only)
+        if (storageType !== 'chromeManaged') {
+            const editBtn = document.createElement('button');
+            editBtn.className = 'btn-icon tree-action-btn';
+            editBtn.setAttribute('aria-label', `Edit ${key}`);
+            editBtn.title = 'Edit value';
+            const editIcon = document.createElement('span');
+            editIcon.className = 'icon icon-settings';
+            editIcon.setAttribute('aria-hidden', 'true');
+            editBtn.appendChild(editIcon);
+            editBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openKeyEditModal(storageType, key, value);
+            });
+            actions.appendChild(editBtn);
 
-        if (!confirmed) {
-            showToast('Data deletion cancelled.', 'info');
-            return;
+            // Delete key
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn-icon tree-action-btn tree-action-danger';
+            delBtn.setAttribute('aria-label', `Delete ${key}`);
+            delBtn.title = 'Delete key';
+            const delIcon = document.createElement('span');
+            delIcon.className = 'icon icon-trash';
+            delIcon.setAttribute('aria-hidden', 'true');
+            delBtn.appendChild(delIcon);
+            delBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const confirmed = await showConfirmationModal(
+                    'Delete Key',
+                    `Delete "${key}" from ${storageDisplayName(storageType)}? This cannot be undone.`
+                );
+                if (!confirmed) return;
+                await deleteKey(storageType, key);
+            });
+            actions.appendChild(delBtn);
         }
 
-        showLoading('Clearing selected data...');
+        row.appendChild(actions);
+        return row;
+    }
 
+    function formatValuePreview(value) {
+        if (value === null) return 'null';
+        if (value === undefined) return 'undefined';
+        if (typeof value === 'boolean') return String(value);
+        if (typeof value === 'number') return String(value);
+        if (typeof value === 'string') {
+            return value.length > 80 ? value.slice(0, 80) + '…' : value;
+        }
+        if (Array.isArray(value)) return `[${value.length} items]`;
+        if (typeof value === 'object') return `{${Object.keys(value).length} keys}`;
+        return String(value);
+    }
+
+    function getValueType(value) {
+        if (value === null) return 'null';
+        if (Array.isArray(value)) return 'array';
+        return typeof value;
+    }
+
+    // =========================================================================
+    // Key operations: delete, edit, save
+    // =========================================================================
+
+    async function deleteKey(storageType, key) {
+        showLoading(`Deleting "${key}"…`);
         try {
-            let clearedCount = 0;
-            for (const type of selectedStorageTypes) {
-                try {
-                    switch (type) {
-                        case 'chromeLocal':
-                            await chrome.storage.local.clear();
-                            clearedCount++;
-                            break;
-                        case 'chromeSync':
-                            await chrome.storage.sync.clear();
-                            clearedCount++;
-                            break;
-                        case 'webLocal':
-                            localStorage.clear();
-                            clearedCount++;
-                            break;
-                        case 'webSession':
-                            sessionStorage.clear();
-                            clearedCount++;
-                            break;
-                    }
-                    console.log(`Cleared ${type} storage.`);
-                }
-                catch (e) {
-                    console.error(`Error clearing ${type} storage:`, e);
-                    showToast(`Failed to clear ${type} storage: ${e.message}`, 'error');
-                }
+            switch (storageType) {
+                case 'chromeLocal':  await chrome.storage.local.remove(key);  break;
+                case 'chromeSync':   await chrome.storage.sync.remove(key);   break;
+                case 'webLocal':     localStorage.removeItem(key);            break;
+                case 'webSession':   sessionStorage.removeItem(key);          break;
+                default: throw new Error('Cannot delete from this storage area.');
             }
-
-            storedDataDisplay.innerHTML = `<code>No data loaded yet. Click 'Load Data' to view.</code>`;
-            document.querySelectorAll('#clear-data-section .checkbox-group input[type="checkbox"]').forEach(checkbox => checkbox.checked = false);
-            showToast(`Cleared data from ${clearedCount} selected storage areas!`, 'success');
-
+            // Update local cache
+            if (allStoredData[storageType]) delete allStoredData[storageType][key];
+            renderViewer();
             await updateStorageSizes();
-            await loadAllDataIntoDisplay(); // Reload to reflect changes
+            showToast(`"${key}" deleted!`, 'success');
+        } catch (err) {
+            showToast(`Delete failed: ${err.message}`, 'error');
+        } finally {
+            hideLoading();
+        }
+    }
 
-        } catch (error) {
-            console.error('Error clearing data:', error);
-            showApiError(dataManagementErrorDisplay, `Failed to clear data: ${error.message || error}`);
-            showToast('Failed to clear data!', 'error');
+    function openKeyEditModal(storageType, key, value) {
+        editContext = { storageType, key };
+        keyEditStorage.textContent = storageDisplayName(storageType);
+        keyEditKey.value = key;
+        keyEditValue.value = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+        keyEditErrorMsg.style.display = 'none';
+        keyEditErrorMsg.textContent = '';
+        keyEditModal.classList.add('visible');
+        keyEditValue.focus();
+    }
+
+    function closeKeyEditModal() {
+        keyEditModal.classList.remove('visible');
+        editContext = null;
+    }
+
+    keyEditClose.addEventListener('click', closeKeyEditModal);
+    keyEditCancel.addEventListener('click', closeKeyEditModal);
+    keyEditModal.addEventListener('click', (e) => { if (e.target === keyEditModal) closeKeyEditModal(); });
+
+    keyEditSave.addEventListener('click', async () => {
+        if (!editContext) return;
+        const { storageType, key } = editContext;
+        const rawValue = keyEditValue.value;
+
+        let parsedValue;
+        try {
+            parsedValue = JSON.parse(rawValue);
+        } catch {
+            // treat as plain string
+            parsedValue = rawValue;
+        }
+
+        showLoading(`Saving "${key}"…`);
+        try {
+            switch (storageType) {
+                case 'chromeLocal':
+                    await chrome.storage.local.set({ [key]: parsedValue });
+                    break;
+                case 'chromeSync':
+                    await chrome.storage.sync.set({ [key]: parsedValue });
+                    break;
+                case 'webLocal':
+                    localStorage.setItem(key, typeof parsedValue === 'string' ? parsedValue : JSON.stringify(parsedValue));
+                    break;
+                case 'webSession':
+                    sessionStorage.setItem(key, typeof parsedValue === 'string' ? parsedValue : JSON.stringify(parsedValue));
+                    break;
+                default:
+                    throw new Error('Cannot edit this storage area.');
+            }
+            // Update local cache
+            if (allStoredData[storageType]) allStoredData[storageType][key] = parsedValue;
+            renderViewer();
+            await updateStorageSizes();
+            showToast(`"${key}" saved!`, 'success');
+            closeKeyEditModal();
+        } catch (err) {
+            keyEditErrorMsg.textContent = `Save failed: ${err.message}`;
+            keyEditErrorMsg.style.display = 'block';
+            showToast(`Save failed: ${err.message}`, 'error');
         } finally {
             hideLoading();
         }
     });
 
+    // Ctrl+Enter to save in edit modal
+    keyEditValue.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) keyEditSave.click();
+    });
+
+    // =========================================================================
+    // Init
+    // =========================================================================
     document.querySelector('.sidebar-button.active').click();
     updateStorageSizes();
 });
