@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extension Notes - modcore Extension Manager</title>
+    <link rel="stylesheet" href="../css/notes.css">
+    <link rel="stylesheet" href="../../public/fonts/fonts.css">
+</head>
+<body>
+    <div id="app" class="modcore-notes-app">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-left">
+                <button class="back-btn" id="backBtn" aria-label="Go back">
+                    <img src="../../public/icons/svg/arrow-left.svg" alt="Back">
+                </button>
+                <h1>Extension Notes</h1>
+            </div>
+            <div class="header-actions">
+                <button class="icon-btn" id="masterPassBtn" aria-label="Master Password">
+                    <img src="../../public/icons/svg/shield.svg" alt="Master Password">
+                </button>
+                <button class="icon-btn" id="keyboardShortcutsBtn" aria-label="Keyboard shortcuts">
+                    <img src="../../public/icons/svg/keyboard.svg" alt="Shortcuts">
+                </button>
+                <button class="icon-btn" id="exportBtn" aria-label="Export notes">
+                    <img src="../../public/icons/svg/install.svg" alt="Export">
+                </button>
+                <button class="icon-btn" id="importBtn" aria-label="Import notes">
+                    <img src="../../public/icons/svg/upload.svg" alt="Import">
+                </button>
+                <input type="file" id="importFileInput" accept=".json" style="display:                none;">
+            </div>
+        </header>
+
+        <!-- Main Layout -->
+        <div class="app-layout">
+            <!-- Sidebar: Extension List -->
+            <aside class="sidebar" id="sidebar">
+                <div class="sidebar-header">
+                    <div class="search-box">
+                        <img src="../../public/icons/svg/search.svg" alt="Search" class="search-icon">
+                        <input 
+                            type="text" 
+                            id="extensionSearch" 
+                            placeholder="Search extensions..." 
+                            aria-label="Search extensions"
+                        >
+                        <button class="clear-search" id="clearExtSearch" aria-label="Clear search">
+                            <img src="../../public/icons/svg/close.svg" alt="Clear">
+                        </button>
+                    </div>
+                    <div class="filter-chips" id="filterChips">
+                        <button class="chip" data-filter="all" aria-pressed="true">All</button>
+                        <button class="chip" data-filter="has-notes" aria-pressed="false">Has Notes</button>
+                        <button class="chip" data-filter="pinned" aria-pressed="false">Pinned</button>
+                    </div>
+                </div>
+                
+                <div class="extensions-list" id="extensionsList" role="list">
+                    <!-- Extensions populated dynamically -->
+                </div>
+                
+                <div class="empty-state-sidebar" id="emptySidebar" style="display: none;">
+                    <img src="../../public/icons/svg/search-off.svg" alt="No results">
+                    <p>No extensions found</p>
+                    <button class="text-btn" id="clearFiltersBtn">Clear filters</button>
+                </div>
+            </aside>
+
+            <!-- Main Content: Notes Area -->
+            <main class="main-content" id="mainContent">
+                <!-- Welcome State -->
+                <div class="welcome-state" id="welcomeState">
+                    <div class="welcome-illustration">
+                        <img src="../../public/icons/svg/notes-illustration.svg" alt="Notes illustration">
+                    </div>
+                    <h2>Welcome to Extension Notes</h2>
+                    <p>Select an extension from the sidebar to view, create, and manage your notes.</p>
+                    <div class="welcome-features">
+                        <div class="feature">
+                            <img src="../../public/icons/svg/tag.svg" alt="Tags">
+                            <span>Organize with tags</span>
+                        </div>
+                        <div class="feature">
+                            <img src="../../public/icons/svg/pin.svg" alt="Pin">
+                            <span>Pin important notes</span>
+                        </div>
+                        <div class="feature">
+                            <img src="../../public/icons/svg/shield.svg" alt="Security">
+                            <span>Secure with encryption</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Extension Notes View -->
+                <div class="extension-notes-view" id="extensionNotesView" style="display: none;">
+                    <div class="ext-header">
+                        <div class="ext-info">
+                            <img id="selectedExtIcon" src="" alt="" class="ext-icon">
+                            <div class="ext-details">
+                                <h2 id="selectedExtName">Extension Name</h2>
+                                <span class="ext-note-count" id="extNoteCount">0 notes</span>
+                            </div>
+                        </div>
+                        <div class="ext-actions">
+                            <button class="modcore-btn modcore-btn-secondary" id="manageExtBtn">
+                                <img src="../../public/icons/svg/settings.svg" alt="">
+                                Manage
+                            </button>
+                            <button class="modcore-btn modcore-btn-primary" id="newNoteBtn">
+                                <img src="../../public/icons/svg/plus.svg" alt="">
+                                New Note
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Global Search within Extension -->
+                    <div class="notes-search-container">
+                        <div class="search-box">
+                            <img src="../../public/icons/svg/search.svg" alt="Search" class="search-icon">
+                            <input 
+                                type="text" 
+                                id="notesSearch" 
+                                placeholder="Search notes in this extension..." 
+                                aria-label="Search notes"
+                            >
+                            <button class="clear-search" id="clearNotesSearch" aria-label="Clear search">
+                                <img src="../../public/icons/svg/close.svg" alt="Clear">
+                            </button>
+                        </div>
+                        <div class="tags-filter" id="tagsFilter">
+                            <!-- Tags populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Notes List -->
+                    <div class="notes-container" id="notesContainer">
+                        <!-- Notes populated dynamically -->
+                    </div>
+
+                    <!-- Empty State for No Notes -->
+                    <div class="empty-state-notes" id="emptyNotes" style="display: none;">
+                        <img src="../../public/icons/svg/empty-notes.svg" alt="No notes">
+                        <h3>No notes yet</h3>
+                        <p>Create your first note to remember important details about this extension.</p>
+                        <button class="modcore-btn modcore-btn-primary" id="createFirstNoteBtn">
+                            Create Note
+                        </button>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Note Editor Modal -->
+        <div class="modal-overlay" id="noteEditorModal" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+            <div class="modal-content note-editor">
+                <div class="modal-header">
+                    <h2 id="editorTitle">New Note</h2>
+                    <button class="close-btn" id="closeEditor" aria-label="Close editor">
+                        <img src="../../public/icons/svg/close.svg" alt="Close">
+                    </button>
+                </div>
+                
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="noteTitle">Title <span class="required">*</span></label>
+                        <input 
+                            type="text" 
+                            id="noteTitle" 
+                            placeholder="Enter note title..." 
+                            maxlength="100"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="noteContent">Content</label>
+                        <textarea 
+                            id="noteContent" 
+                            placeholder="Write your notes here..." 
+                            rows="8"
+                        ></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="noteTags">Tags</label>
+                        <div class="tags-input-container" id="tagsInputContainer">
+                            <div class="tags-list" id="editorTagsList"></div>
+                            <input 
+                                type="text" 
+                                id="noteTags" 
+                                placeholder="Add tags (press Enter or comma to add)..."
+                                list="existingTags"
+                            >
+                            <datalist id="existingTags"></datalist>
+                        </div>
+                        <div class="tag-suggestions" id="tagSuggestions"></div>
+                    </div>
+
+                    <div class="form-row">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="notePinned">
+                            <span class="checkmark"></span>
+                            Pin this note
+                        </label>
+                        
+                        <label class="checkbox-label security-checkbox">
+                            <input type="checkbox" id="noteSecure">
+                            <span class="checkmark"></span>
+                            <img src="../../public/icons/svg/lock.svg" alt="Secure" class="security-icon">
+                            Secure this note
+                        </label>
+                    </div>
+
+                    <!-- Security Panel (shown when secure is checked) -->
+                    <div class="security-panel" id="securityPanel" style="display: none;">
+                        <div class="security-banner">
+                            <img src="../../public/icons/svg/shield.svg" alt="Security">
+                            <div>
+                                <strong>Secure Note</strong>
+                                <p>This note will be encrypted and require a password to view.</p>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="securityPassword">Set Password</label>
+                            <input 
+                                type="password" 
+                                id="securityPassword" 
+                                placeholder="Enter password..."
+                                minlength="4"
+                            >
+                        </div>
+                        <div class="form-group">
+                            <label for="confirmPassword">Confirm Password</label>
+                            <input 
+                                type="password" 
+                                id="confirmPassword" 
+                                placeholder="Confirm password..."
+                            >
+                        </div>
+                        
+                        <!-- Master Password Permissions -->
+                        <div class="master-permissions">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="allowMasterAccess" checked>
+                                <span class="checkmark"></span>
+                                Allow Master Password to unlock this note
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="allowMasterReset" checked>
+                                <span class="checkmark"></span>
+                                Allow Master Password to reset this note's password
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="modcore-btn modcore-btn-text" id="cancelNote">Cancel</button>
+                    <button class="modcore-btn modcore-btn-primary" id="saveNote">Save Note</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Security Unlock Modal -->
+        <div class="modal-overlay" id="unlockModal" role="dialog" aria-modal="true">
+            <div class="modal-content unlock-modal">
+                <div class="security-icon-large">
+                    <img src="../../public/icons/svg/lock.svg" alt="Secure">
+                </div>
+                <h2>Secure Note</h2>
+                <p>This note is protected. Enter the password to view it.</p>
+                <div class="form-group">
+                    <input 
+                        type="password" 
+                        id="unlockPassword" 
+                        placeholder="Enter password..."
+                        autofocus
+                    >
+                </div>
+                <div class="modal-footer">
+                    <button class="modcore-btn modcore-btn-text" id="cancelUnlock">Cancel</button>
+                    <button class="modcore-btn modcore-btn-primary" id="confirmUnlock">Unlock</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global Search Modal -->
+        <div class="modal-overlay" id="globalSearchModal" role="dialog" aria-modal="true">
+            <div class="modal-content global-search-modal">
+                <div class="modal-header">
+                    <h2>Search All Notes</h2>
+                    <button class="close-btn" id="closeGlobalSearch" aria-label="Close search">
+                        <img src="../../public/icons/svg/close.svg" alt="Close">
+                    </button>
+                </div>
+                <div class="global-search-container">
+                    <div class="search-box large">
+                        <img src="../../public/icons/svg/search.svg" alt="Search" class="search-icon">
+                        <input 
+                            type="text" 
+                            id="globalSearchInput" 
+                            placeholder="Search across all extension notes..." 
+                            aria-label="Global search"
+                            autofocus
+                        >
+                    </div>
+                    <div class="search-filters">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="searchTitles" checked>
+                            <span class="checkmark"></span>
+                            Titles
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="searchContent" checked>
+                            <span class="checkmark"></span>
+                            Content
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="searchTags">
+                            <span class="checkmark"></span>
+                            Tags
+                        </label>
+                    </div>
+                    <div class="search-results" id="searchResults">
+                        <!-- Results populated dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Keyboard Shortcuts Modal -->
+        <div class="modal-overlay" id="shortcutsModal" role="dialog" aria-modal="true">
+            <div class="modal-content shortcuts-modal">
+                <div class="modal-header">
+                    <h2>Keyboard Shortcuts</h2>
+                    <button class="close-btn" id="closeShortcuts" aria-label="Close">
+                        <img src="../../public/icons/svg/close.svg" alt="Close">
+                    </button>
+                </div>
+                <div class="shortcuts-list">
+                    <div class="shortcut">
+                        <kbd>Ctrl</kbd> + <kbd>K</kbd>
+                        <span>Search extensions</span>
+                    </div>
+                    <div class="shortcut">
+                        <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd>
+                        <span>Global note search</span>
+                    </div>
+                    <div class="shortcut">
+                        <kbd>Ctrl</kbd> + <kbd>N</kbd>
+                        <span>New note</span>
+                    </div>
+                    <div class="shortcut">
+                        <kbd>Ctrl</kbd> + <kbd>S</kbd>
+                        <span>Save note</span>
+                    </div>
+                    <div class="shortcut">
+                        <kbd>Ctrl</kbd> + <kbd>P</kbd>
+                        <span>Toggle pin</span>
+                    </div>
+                    <div class="shortcut">
+                        <kbd>Escape</kbd>
+                        <span>Close modal / Clear selection</span>
+                    </div>
+                    <div class="shortcut">
+                        <kbd>?</kbd>
+                        <span>Show this help</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div class="toast-container" id="toastContainer" role="status" aria-live="polite"></div>
+
+        <!-- Confirm Dialog -->
+        <div class="modal-overlay" id="confirmModal" role="dialog" aria-modal="true">
+            <div class="modal-content confirm-modal">
+                <h3 id="confirmTitle">Confirm</h3>
+                <p id="confirmMessage">Are you sure?</p>
+                <div class="modal-footer">
+                    <button class="modcore-btn modcore-btn-text" id="confirmCancel">Cancel</button>
+                    <button class="modcore-btn modcore-btn-primary" id="confirmAction">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/features/notes.js"></script>
+</body>
+</html>
