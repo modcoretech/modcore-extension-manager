@@ -1,10 +1,10 @@
 /* ==========================================================================
-   Enhanced Styles, Variables & Automatic Theming
+   modcore Snapshot
    ========================================================================== */
 
 /* Define Common Variables*/
 :root {
-    /* Typography - Using "modcore-inter-font-custom" system font fallback */
+    /* Typography */
     --font-family-sans-serif: 'modcore-inter-font-custom', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     --font-family-monospace: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
 
@@ -32,7 +32,7 @@
     --font-weight-semibold: 600;
     --font-weight-bold: 700;
 
-    /* Spacing & Layout - Consistent with previous Apple-like CSS */
+    /* Spacing & Layout */
     --spacing-extra-small: 4px;
     --spacing-small: 8px;
     --spacing-medium: 12px;
@@ -56,11 +56,11 @@
     --transition-duration-medium: 200ms;
     --transition-duration-long: 300ms;
     --transition-easing-standard: ease-out; /* Simpler easing */
-    --transition-easing-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1); /* Apple-like bounce */
+    --transition-easing-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
 
     --transition-base: all var(--transition-duration-medium) var(--transition-easing-standard);
 
-    /* Shadows / Elevation (NONE, Apple doesn't use shadows!) */
+    /* Shadows / Elevation */
     --elevation-level-0: none;
     --elevation-level-1: none;
     --elevation-level-2: none;
@@ -68,17 +68,17 @@
     --elevation-level-4: none;
     --elevation-level-5: none;
 
-    /* Risk Colors (Using Apple's system-like colors for consistency) */
-    --risk-low-color: #34a853; /* Apple Green */
-    --risk-medium-color: #fbbc04; /* Apple Yellow */
-    --risk-high-color: #ff3b30; /* Apple Red */
-    --risk-varies-color: #8e8e93; /* iOS grey */
+    /* Risk Colors */
+    --risk-low-color: #34a853;
+    --risk-medium-color: #fbbc04;
+    --risk-high-color: #ff3b30;
+    --risk-varies-color: #8e8e93;
 }
 
-/* Light Theme Variables (Apple UI Palette) */
+/* Light Theme Variables */
 :root {
-    /* Core Palette (Apple UI) */
-    --primary-color: #007aff; /* Apple Blue */
+    /* Core Palette */
+    --primary-color: #007aff;
     --primary-hover-color: #0072e6;
     --on-primary-color: #ffffff; /* White */
     --primary-container-color: rgba(0, 122, 255, 0.1); /* Light blue tint for primary backgrounds */
@@ -95,7 +95,7 @@
     --tertiary-container-color: #f8f8fa;
     --on-tertiary-container-color: #1c1c1c;
 
-    --error-color: #ff3b30; /* Apple Red */
+    --error-color: #ff3b30;
     --error-hover-color: #e63229;
     --on-error-color: #ffffff;
     --error-container-color: rgba(255, 59, 48, 0.1); /* Light red tint */
@@ -104,7 +104,7 @@
     --neutral-color: #a0a0a0; /* Medium grey */
     --neutral-variant-color: #c0c0c0; /* Light grey */
 
-    /* Backgrounds & Text (Light) - Apple UI */
+    /* Backgrounds & Text (Light) */
     --background-color: #fff; /* Very light grey */
     --on-background-color: #1c1c1c; /* Almost black */
     --surface-color: #ffffff; /* Pure white for elements on bg */
@@ -138,7 +138,7 @@
 
     --border-color: var(--outline-color);
     --border-color-light: var(--outline-variant-color);
-    --focus-ring-color: rgba(0, 122, 255, 0.5); /* Apple blue focus ring */
+    --focus-ring-color: rgba(0, 122, 255, 0.5); /* blue focus ring */
     --primary-color-rgb: 0, 122, 255;
     --success-rgb: 52, 199, 89;
     --warning-rgb: 255, 204, 0;
@@ -169,7 +169,7 @@
     --risk-varies-color-rgb: 142, 142, 147;
 
 
-    /* Apple-like Surface Container Colors */
+    /* Surface Container Colors */
     --surface-container-lowest: #ffffff;
     --surface-container-low: #f8f8fa; /* Similar to light mode bg-disabled */
     --surface-container: #fff; /* Similar to surface-hover */
@@ -177,17 +177,17 @@
     --surface-container-highest: #e0e0e0;
 }
 
-/* Dark Theme Overrides (Apple UI Palette) */
+/* Dark Theme Overrides */
 @media (prefers-color-scheme: dark) {
     :root {
         /* Core Palette (Dark) */
-        --primary-color: #0a84ff; /* Brighter Apple Blue for dark mode */
+        --primary-color: #0a84ff; /* Brighter Blue for dark mode */
         --primary-hover-color: #30a7ff;
         --on-primary-color: #ffffff;
         --primary-container-color: rgba(10, 132, 255, 0.2);
         --on-primary-container-color: #ffffff;
 
-        --secondary-color: #2a2a2a; /* Dark grey for secondary buttons */
+        --secondary-color: #222225; /* Dark grey for secondary buttons */
         --secondary-hover-color: #3a3a3a;
         --on-secondary-color: #ffffff;
         --secondary-container-color: #222222;
@@ -198,7 +198,7 @@
         --tertiary-container-color: #1a1a1a;
         --on-tertiary-container-color: #ffffff;
 
-        --error-color: #ff453a; /* Brighter Apple Red for dark mode */
+        --error-color: #ff453a; /* Brighter Red for dark mode */
         --error-hover-color: #ff6d63;
         --on-error-color: #ffffff;
         --error-container-color: rgba(255, 69, 58, 0.2);
@@ -207,10 +207,10 @@
         --neutral-color: #8e8e93;
         --neutral-variant-color: #6a6a6a;
 
-        /* Backgrounds & Text (Dark) - Apple UI */
-        --background-color: #111112; /* Deep dark grey/black */
+        /* Backgrounds & Text (Dark) */
+        --background-color: #111115; /* Deep dark grey/black */
         --on-background-color: #ffffff; /* Pure white */
-        --surface-color: #111112; /* Slightly lighter dark grey for elements */
+        --surface-color: #111115; /* Slightly lighter dark grey for elements */
         --on-surface-color: #ffffff;
         --surface-variant-color: #1a1a1a; /* Darker grey for variants */
         --on-surface-variant-color: #a0a0a0; /* Lighter grey for secondary text */
@@ -272,10 +272,10 @@
         --risk-varies-color-rgb: 142, 142, 147;
 
 
-         /* Apple-like Surface Container Colors (Dark Placeholder) */
-        --surface-container-lowest: #111112;
-        --surface-container-low: #1a1a1a;
-        --surface-container: #111112;
+         /* Surface Container Colors (Dark Placeholder) */
+        --surface-container-lowest: #111115;
+        --surface-container-low: #222225;
+        --surface-container: #111115;
         --surface-container-high: #2c2c2c;
         --surface-container-highest: #333333;
     }
@@ -341,13 +341,11 @@ strong { font-weight: var(--font-weight-semibold); }
     color: var(--icon-color);
     transition: color var(--transition-duration-short);
 }
-/* Icon Masks (Placeholder - will need actual SVG paths or files) */
-/* Assuming icons are in ./icons/svg/ relative to the CSS file for this example */
+/* Icon Masks */
 .icon-info { -webkit-mask-image: url(../../public/icons/svg/info.svg); mask-image: url(../../public/icons/svg/info.svg); }
 .icon-settings { -webkit-mask-image: url(../../public/icons/svg/settings.svg); mask-image: url(../../public/icons/svg/settings.svg); }
 .icon-shield { -webkit-mask-image: url(../../public/icons/svg/shield.svg); mask-image: url(../../public/icons/svg/shield.svg); }
 .icon-link { -webkit-mask-image: url(../../public/icons/svg/link.svg); mask-image: url(../../public/icons/svg/link.svg); }
-.icon-id { -webkit-mask-image: url(../../public/icons/svg/id.svg); mask-image: url(../../public/icons/svg/id.svg); }
 .icon-trash { -webkit-mask-image: url(../../public/icons/svg/trash.svg); mask-image: url(../../public/icons/svg/trash.svg); }
 .icon-store { -webkit-mask-image: url(../../public/icons/svg/store.svg); mask-image: url(../../public/icons/svg/store.svg); }
 .icon-toggle-on { -webkit-mask-image: url(../../public/icons/svg/power.svg); mask-image: url(../../public/icons/svg/power.svg); }
@@ -365,9 +363,10 @@ strong { font-weight: var(--font-weight-semibold); }
 .icon-grid { -webkit-mask-image: url(../../public/icons/svg/grid.svg); mask-image: url(../../public/icons/svg/grid.svg); }
 .icon-code { -webkit-mask-image: url(../../public/icons/svg/code.svg); mask-image: url(../../public/icons/svg/code.svg); }
 .icon-support { -webkit-mask-image: url(../../public/icons/svg/support.svg); mask-image: url(../../public/icons/svg/support.svg); }
-.icon-download { -webkit-mask-image: url(../../public/icons/svg/install.svg); mask-image: url(../../public/icons/svg/install.svg); } /* New icon for download */
-.icon-upload { -webkit-mask-image: url(../../public/icons/svg/upload.svg); mask-image: url(../../public/icons/svg/upload.svg); } /* New icon for upload */
-
+.icon-host { -webkit-mask-image: url(../../public/icons/svg/host.svg); mask-image: url(../../public/icons/svg/host.svg); }
+.icon-download { -webkit-mask-image: url(../../public/icons/svg/install.svg); mask-image: url(../../public/icons/svg/install.svg); } 
+.icon-upload { -webkit-mask-image: url(../../public/icons/svg/upload.svg); mask-image: url(../../public/icons/svg/upload.svg); }
+.icon-close    { -webkit-mask-image: url(../../public/icons/svg/close.svg);    mask-image: url(../../public/icons/svg/close.svg); }
 
 /* Icon Sizes & Colors */
 .sidebar-button .icon { width: 1.5em; height: 1.5em; margin-right: var(--spacing-small); opacity: 0.9; vertical-align: middle; }
@@ -525,7 +524,7 @@ img.header-logo.no-mask {
 
 
 .section-title { font-size: var(--headline-small); font-weight: var(--font-weight-semibold); color: var(--on-surface-color); margin-bottom: var(--spacing-large); }
-.section-title.small-title { font-size: var(--label-large); text-transform: uppercase; letter-spacing: 0.05em; color: var(--on-surface-variant-color); margin-bottom: var(--spacing-medium); }
+.section-title.small-title { font-size: var(--label-large); letter-spacing: 0.05em; color: var(--on-surface-variant-color); margin-bottom: var(--spacing-medium); }
 
 .api-error-display {
     display: flex; /* Changed from none to flex for visibility by default for demonstration */
@@ -607,7 +606,7 @@ img.header-logo.no-mask {
 
 
 /* ==========================================================================
-   Button Styles (Apple UI Inspired)
+   Button Styles
    ========================================================================== */
 button.btn, a.btn {
     font-family: inherit;
@@ -851,7 +850,7 @@ button.btn-icon.active { background-color: var(--primary-container-color); color
 .detail-item { display: flex; flex-direction: column; gap: var(--spacing-extra-small); }
 .detail-item.detail-item-full-width { grid-column: 1 / -1; }
 
-.detail-label { font-size: var(--label-large); font-weight: var(--font-weight-medium); color: var(--text-muted); text-transform: uppercase; display: inline-flex; align-items: center; gap: var(--spacing-small); }
+.detail-label { font-size: var(--label-large); font-weight: var(--font-weight-medium); color: var(--text-muted); display: inline-flex; align-items: center; gap: var(--spacing-small); }
 .detail-value { font-size: var(--body-large); color: var(--on-surface-color); word-break: break-word; display: flex; align-items: center; gap: var(--spacing-small); }
 .detail-value.emphasis { font-size: var(--title-large); font-weight: var(--font-weight-semibold); }
 .detail-value a { word-break: break-all; }
@@ -1061,4 +1060,551 @@ button.btn-icon.active { background-color: var(--primary-container-color); color
 @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
     *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+/* ==========================================================================
+   Enhanced Data Viewer Modal Styles
+   ========================================================================== */
+.icon-close { -webkit-mask-image: url(../../public/icons/svg/close.svg); mask-image: url(../../public/icons/svg/close.svg); }
+
+.modal-large {
+    max-width: 800px;
+    width: 95%;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-large);
+    padding-bottom: var(--spacing-medium);
+    border-bottom: 1px solid var(--outline-color);
+}
+
+.modal-header h3 {
+    font-size: var(--headline-small);
+    margin: 0;
+}
+
+.modal-body {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.modal-body .code-block {
+    margin-top: 0;
+}
+
+.modal-body .code-block pre {
+    padding-right: 0;
+}
+
+/* ==========================================================================
+   Enhanced Accessibility & Focus States
+   ========================================================================== */
+*:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: 2px;
+}
+
+button:focus-visible,
+.btn:focus-visible {
+    box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+}
+
+input[type="checkbox"]:focus-visible + .checkmark {
+    box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+}
+
+input[type="text"]:focus-visible,
+input[type="password"]:focus-visible,
+input[type="file"]:focus-visible {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+}
+
+/* Screen reader only content */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* ==========================================================================
+   Enhanced Helper Text & Descriptions
+   ========================================================================== */
+.detail-description-text {
+    display: block;
+    font-size: var(--body-small);
+    color: var(--text-secondary);
+    margin-top: var(--spacing-extra-small);
+    line-height: var(--line-height-base);
+}
+
+small.detail-description-text {
+    display: block;
+    margin-top: var(--spacing-small);
+}
+
+/* ==========================================================================
+   Password Strength Meter Enhancements
+   ========================================================================== */
+.password-strength-meter progress {
+    width: 100%;
+    height: 8px;
+    border-radius: var(--border-radius-small);
+    overflow: hidden;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+}
+
+.password-strength-meter progress::-webkit-progress-bar {
+    background-color: var(--surface-container-low);
+    border-radius: var(--border-radius-small);
+}
+
+.password-strength-meter progress::-webkit-progress-value {
+    background-color: var(--text-muted);
+    border-radius: var(--border-radius-small);
+    transition: background-color var(--transition-duration-medium);
+}
+
+.password-strength-meter progress::-moz-progress-bar {
+    background-color: var(--text-muted);
+    border-radius: var(--border-radius-small);
+    transition: background-color var(--transition-duration-medium);
+}
+
+.password-strength-meter progress.weak::-webkit-progress-value {
+    background-color: var(--risk-high-color);
+}
+
+.password-strength-meter progress.weak::-moz-progress-bar {
+    background-color: var(--risk-high-color);
+}
+
+.password-strength-meter progress.fair::-webkit-progress-value {
+    background-color: var(--risk-medium-color);
+}
+
+.password-strength-meter progress.fair::-moz-progress-bar {
+    background-color: var(--risk-medium-color);
+}
+
+.password-strength-meter progress.good::-webkit-progress-value {
+    background-color: #4a90e2;
+}
+
+.password-strength-meter progress.good::-moz-progress-bar {
+    background-color: #4a90e2;
+}
+
+.password-strength-meter progress.strong::-webkit-progress-value {
+    background-color: var(--risk-low-color);
+}
+
+.password-strength-meter progress.strong::-moz-progress-bar {
+    background-color: var(--risk-low-color);
+}
+
+.strength-text {
+    font-size: var(--body-small);
+    font-weight: var(--font-weight-medium);
+    margin-left: var(--spacing-small);
+}
+
+/* ==========================================================================
+   Improved Loading States
+   ========================================================================== */
+.loading-overlay[aria-busy="true"] {
+    pointer-events: all;
+}
+
+/* ==========================================================================
+   Enhanced Button States
+   ========================================================================== */
+button:disabled,
+.btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+button:disabled:hover,
+.btn:disabled:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+/* ==========================================================================
+   Badge Enhancements
+   ========================================================================== */
+.badge {
+    white-space: nowrap;
+    user-select: none;
+}
+
+/* ==========================================================================
+   Improved Modal Animations
+   ========================================================================== */
+@media (prefers-reduced-motion: no-preference) {
+    .modal-overlay {
+        animation: fadeIn var(--transition-duration-medium) var(--transition-easing-standard);
+    }
+    
+    .modal-overlay.visible .modal-content {
+        animation: scaleIn var(--transition-duration-medium) var(--transition-easing-emphasized);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        transform: scale(0.95);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* ==========================================================================
+   High Contrast Mode Support
+   ========================================================================== */
+@media (prefers-contrast: high) {
+    :root {
+        --border-width: 2px;
+        --focus-ring-width: 3px;
+    }
+    
+    .btn {
+        border-width: 2px;
+    }
+    
+    .checkbox-container .checkmark {
+        border-width: 2px;
+    }
+}
+/* ==========================================================================
+   Storage Overview Cards (Data Management panel)
+   ========================================================================== */
+.storage-overview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: var(--spacing-medium);
+    margin-bottom: var(--spacing-large);
+}
+
+.storage-card {
+    background-color: var(--surface-container-low);
+    border: var(--border-width) solid var(--outline-color);
+    border-radius: var(--border-radius-medium);
+    padding: var(--spacing-medium) var(--spacing-large);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-extra-small);
+    transition: border-color var(--transition-duration-short);
+}
+.storage-card:hover { border-color: var(--outline-variant-color); }
+
+.storage-card-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-small);
+    font-size: var(--body-medium);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-secondary);
+}
+.storage-card-header .icon { width: 1.1em; height: 1.1em; }
+
+.storage-card-size code.storage-size {
+    font-size: var(--title-medium);
+    font-weight: var(--font-weight-semibold);
+    color: var(--on-surface-color);
+    background: none;
+    border: none;
+    padding: 0;
+}
+
+/* ==========================================================================
+   Input with toggle (password show/hide)
+   ========================================================================== */
+.input-with-toggle {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.input-with-toggle .text-input {
+    padding-right: 40px;
+}
+.input-with-toggle .btn-icon {
+    position: absolute;
+    right: var(--spacing-extra-small);
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+}
+.input-with-toggle .btn-icon:hover { color: var(--primary-color); }
+
+/* ==========================================================================
+   Data Viewer - Toolbar & Controls
+   ========================================================================== */
+.viewer-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-medium);
+    margin-bottom: var(--spacing-medium);
+    padding-bottom: var(--spacing-medium);
+    border-bottom: var(--border-width) solid var(--outline-color);
+}
+
+.viewer-search-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 180px;
+}
+.viewer-search-icon {
+    position: absolute;
+    left: var(--spacing-medium);
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1.1em;
+    height: 1.1em;
+    color: var(--text-muted);
+    pointer-events: none;
+}
+.viewer-search-input {
+    padding-left: 36px;
+    padding-right: 36px;
+}
+.viewer-search-clear {
+    position: absolute;
+    right: var(--spacing-extra-small);
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+}
+.viewer-search-clear:hover { color: var(--primary-color); }
+
+/* Filter chips */
+.viewer-filter-chips {
+    display: flex;
+    gap: var(--spacing-extra-small);
+    flex-wrap: wrap;
+}
+
+.chip {
+    font-family: inherit;
+    font-size: var(--body-small);
+    font-weight: var(--font-weight-medium);
+    padding: var(--spacing-extra-small) var(--spacing-medium);
+    border-radius: var(--border-radius-large);
+    border: var(--border-width) solid var(--outline-color);
+    background-color: var(--surface-container-low);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-duration-short);
+    user-select: none;
+    line-height: var(--line-height-dense);
+}
+.chip:hover { background-color: var(--surface-container-high); color: var(--primary-color); border-color: var(--primary-color); }
+.chip.active { background-color: var(--primary-container-color); color: var(--primary-color); border-color: var(--primary-color); }
+.chip:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+
+/* Viewer action buttons row */
+.viewer-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-extra-small);
+    margin-left: auto;
+}
+
+/* View mode toggle cluster */
+.modal-header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-small);
+}
+.view-mode-toggle {
+    display: flex;
+    gap: 2px;
+    background-color: var(--surface-container-low);
+    border: var(--border-width) solid var(--outline-color);
+    border-radius: var(--border-radius-medium);
+    padding: 2px;
+}
+.view-mode-btn {
+    border-radius: calc(var(--border-radius-medium) - 2px);
+    transition: background-color var(--transition-duration-short);
+}
+.view-mode-btn.active {
+    background-color: var(--primary-container-color);
+    color: var(--primary-color);
+}
+
+/* Stats bar */
+.viewer-stats {
+    font-size: var(--body-small);
+    color: var(--text-muted);
+    margin-bottom: var(--spacing-small);
+    min-height: 1.4em;
+}
+
+/* ==========================================================================
+   Data Tree
+   ========================================================================== */
+.data-tree {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-small);
+}
+
+.tree-group {
+    border: var(--border-width) solid var(--outline-color);
+    border-radius: var(--border-radius-medium);
+    overflow: hidden;
+}
+
+.tree-group-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-small);
+    padding: var(--spacing-small) var(--spacing-medium);
+    background-color: var(--surface-container-low);
+    cursor: default;
+    user-select: none;
+}
+.tree-group-name {
+    font-size: var(--body-medium);
+    font-weight: var(--font-weight-semibold);
+    color: var(--on-surface-color);
+    flex: 1;
+}
+.tree-toggle { color: var(--text-muted); }
+
+.tree-children {
+    border-top: var(--border-width) solid var(--outline-color);
+}
+.tree-children[hidden] { display: none; }
+
+.tree-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-medium);
+    padding: var(--spacing-extra-small) var(--spacing-medium);
+    border-bottom: var(--border-width) solid var(--outline-color);
+    transition: background-color var(--transition-duration-short);
+}
+.tree-row:last-child { border-bottom: none; }
+.tree-row:hover { background-color: var(--surface-container-low); }
+.tree-row:hover .tree-row-actions { opacity: 1; }
+
+.tree-key {
+    font-family: var(--font-family-monospace);
+    font-size: var(--body-small);
+    font-weight: var(--font-weight-medium);
+    color: var(--primary-color);
+    min-width: 120px;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex-shrink: 0;
+    cursor: default;
+}
+
+.tree-value {
+    font-family: var(--font-family-monospace);
+    font-size: var(--body-small);
+    color: var(--text-secondary);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: default;
+}
+
+.tree-highlight {
+    background-color: rgba(var(--warning-rgb), 0.25);
+    border-radius: 2px;
+    padding: 0 2px;
+}
+
+.badge-type {
+    font-size: var(--label-small);
+    color: var(--text-muted);
+    background-color: var(--surface-container-high);
+    flex-shrink: 0;
+    font-family: var(--font-family-monospace);
+}
+
+.tree-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity var(--transition-duration-short);
+    flex-shrink: 0;
+}
+.tree-row:focus-within .tree-row-actions { opacity: 1; }
+
+.tree-action-btn { width: 28px; height: 28px; min-width: 28px; min-height: 28px; }
+.tree-action-btn .icon { width: 1em; height: 1em; }
+.tree-action-danger:hover .icon { color: var(--error-color); }
+.tree-action-danger:hover { background-color: var(--error-container-color); }
+
+.tree-row-error { background-color: var(--error-container-color); }
+.tree-value-error { font-size: var(--body-small); color: var(--error-color); font-style: italic; }
+
+/* Empty state */
+.viewer-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-medium);
+    padding: var(--spacing-double-extra-large);
+    color: var(--text-muted);
+    font-size: var(--body-medium);
+}
+.viewer-empty-state[hidden] { display: none; }
+
+/* ==========================================================================
+   Key Edit Modal
+   ========================================================================== */
+.modal-edit {
+    max-width: 560px;
+    width: 95%;
+}
+
+.key-edit-textarea {
+    font-family: var(--font-family-monospace);
+    font-size: var(--body-small);
+    line-height: 1.6;
+    resize: vertical;
+    min-height: 120px;
+}
+
+/* ==========================================================================
+   Responsive - Data Viewer toolbar
+   ========================================================================== */
+@media (max-width: 600px) {
+    .viewer-toolbar { flex-direction: column; align-items: stretch; }
+    .viewer-actions { margin-left: 0; justify-content: flex-end; }
+    .viewer-filter-chips { justify-content: flex-start; }
+    .storage-overview-grid { grid-template-columns: 1fr 1fr; }
 }
