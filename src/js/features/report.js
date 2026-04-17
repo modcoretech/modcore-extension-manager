@@ -7,6 +7,47 @@
 let reportDialogElement = null;
 
 /**
+ * Captured console logs/errors, stored before the modal opens.
+ * @type {Array<{type: string, message: string, timestamp: string}>}
+ */
+const _capturedConsoleLogs = [];
+const MAX_CONSOLE_ENTRIES = 50;
+
+/**
+ * Intercept console.log and console.error as early as possible to capture
+ * relevant messages before the user opens the report dialog.
+ */
+(function installConsoleCapture() {
+    const _origLog = console.log.bind(console);
+    const _origError = console.error.bind(console);
+    const _origWarn = console.warn.bind(console);
+
+    function _capture(type, args) {
+        if (_capturedConsoleLogs.length >= MAX_CONSOLE_ENTRIES) {
+            _capturedConsoleLogs.shift(); // Drop oldest to keep buffer bounded
+        }
+        try {
+            const message = args
+                .map(a => {
+                    if (typeof a === 'string') return a;
+                    try { return JSON.stringify(a, null, 0); } catch { return String(a); }
+                })
+                .join(' ')
+                .slice(0, 300); // Cap per-message length to keep URL manageable
+            _capturedConsoleLogs.push({
+                type,
+                message,
+                timestamp: new Date().toISOString().slice(11, 23) // HH:MM:SS.mmm
+            });
+        } catch { /* swallow capture errors */ }
+    }
+
+    console.log = function (...args) { _capture('log', args); _origLog(...args); };
+    console.error = function (...args) { _capture('error', args); _origError(...args); };
+    console.warn = function (...args) { _capture('warn', args); _origWarn(...args); };
+})();
+
+/**
  * Configuration for the GitHub repository.
  */
 const GITHUB_REPO_OWNER = 'modcoretech';
@@ -15,8 +56,13 @@ const GITHUB_BASE_URL = `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_N
 const TOTAL_STEPS = 3;
 
 /**
+ * Soft URL budget: GitHub URLs over ~8 000 chars are often truncated.
+ * We leave headroom for the title, label param, and encoding overhead.
+ */
+const MAX_BODY_CHARS = 6500;
+
+/**
  * Conversational Issue templates to guide the user and format the GitHub issue.
- * The 'description' now includes a more helpful, conversational name.
  */
 const ISSUE_TEMPLATES = {
     BUG: {
@@ -25,7 +71,7 @@ const ISSUE_TEMPLATES = {
         label: 'bug',
         summaryPlaceholder: 'e.g., The settings button disappears on page reload.',
         descriptionPlaceholder: '1. What are the clear, repeatable steps to see the issue?\n2. What should have happened (expected result)?\n3. What actually happened (incorrect result)?',
-        instructions: 'Crucial: Provide clear **steps to reproduce** the bug so we can fix it quickly.',
+        instructions: 'Crucial: Provide clear steps to reproduce the bug so we can fix it quickly.',
     },
     FEATURE: {
         name: '✨ I have an idea (Feature Suggestion)',
@@ -33,7 +79,7 @@ const ISSUE_TEMPLATES = {
         label: 'enhancement',
         summaryPlaceholder: 'e.g., Add a dark mode toggle button.',
         descriptionPlaceholder: 'Describe the feature in detail. Why is it needed, and how would it improve the extension?',
-        instructions: 'Clearly explain the **value and usage** of your suggestion.',
+        instructions: 'Clearly explain the value and usage of your suggestion.',
     },
     GENERAL: {
         name: '💬 General question or feedback',
@@ -45,412 +91,740 @@ const ISSUE_TEMPLATES = {
     }
 };
 
+// ---------------------------------------------------------------------------
+// DOM Helpers
+// ---------------------------------------------------------------------------
+
 /**
  * Creates a DOM element with specified tag, classes, and attributes.
- * @param {string} tag The HTML tag name.
- * @param {string} [className=''] Class names to apply.
- * @param {Object} [attributes={}] Attributes to set.
- * @returns {HTMLElement} The created element.
+ * @param {string} tag
+ * @param {string} [className='']
+ * @param {Object} [attributes={}]
+ * @returns {HTMLElement}
  */
 function createElement(tag, className = '', attributes = {}) {
     const el = document.createElement(tag);
-    if (className) {
-        el.className = className;
-    }
-    for (const key in attributes) {
-        if (attributes.hasOwnProperty(key)) {
-            el.setAttribute(key, attributes[key]);
-        }
+    if (className) el.className = className;
+    for (const key of Object.keys(attributes)) {
+        el.setAttribute(key, attributes[key]);
     }
     return el;
 }
 
+// ---------------------------------------------------------------------------
+// Data Collection
+// ---------------------------------------------------------------------------
+
 /**
- * Fetches the extension version from the manifest.
- * @returns {string} The extension version, or 'N/A' if unavailable.
+ * Returns the extension version from the manifest, or 'N/A'.
+ * @returns {string}
  */
 function getExtensionVersion() {
     try {
-        // Using optional chaining and nullish coalescing for cleaner error handling
         return chrome.runtime.getManifest()?.version ?? 'N/A';
-    } catch (e) {
+    } catch {
         return 'N/A';
     }
 }
 
 /**
- * Gathers enhanced technical information using modern browser APIs.
- * Includes more specific platform details and browser engine.
- * @returns {Promise<string>} A promise that resolves to a formatted string of technical details.
+ * Gathers a rich set of technical environment details.
+ * Uses User-Agent Client Hints where available and falls back gracefully.
+ * @returns {Promise<string>} Markdown table string.
  */
 async function getAccurateTechnicalInfo() {
-    let browserName = 'N/A';
+    let browserName = 'Unknown';
     let browserVersion = 'N/A';
-    let browserEngine = 'N/A';
+    let browserEngine = 'Unknown';
     let os = 'Unknown';
     let osVersion = 'N/A';
-    const userAgent = navigator.userAgent;
+    let architecture = 'N/A';
+    const ua = navigator.userAgent;
 
+    // --- Browser / OS detection (Client Hints preferred) ---
     if (navigator.userAgentData) {
         try {
-            // High entropy values provide more accurate and detailed client hints
-            const highEntropyValues = await navigator.userAgentData.getHighEntropyValues(['platform', 'platformVersion', 'fullVersionList', 'architecture']);
-            
-            os = highEntropyValues.platform || 'Unknown';
-            osVersion = highEntropyValues.platformVersion || 'N/A';
+            const hints = await navigator.userAgentData.getHighEntropyValues([
+                'platform', 'platformVersion', 'fullVersionList', 'architecture', 'model', 'bitness'
+            ]);
+            os = hints.platform || 'Unknown';
+            osVersion = hints.platformVersion || 'N/A';
+            architecture = hints.architecture
+                ? `${hints.architecture}${hints.bitness ? `-${hints.bitness}bit` : ''}`
+                : 'N/A';
 
-            // Heuristic to determine the primary, non-spoofing browser brand
-            const primaryBrowser = highEntropyValues.fullVersionList?.find(b => !b.brand.includes('Not')) || highEntropyValues.fullVersionList?.[0];
-            if (primaryBrowser) {
-                browserName = primaryBrowser.brand;
-                browserVersion = primaryBrowser.version;
+            // Prefer the real browser brand over "Not A Brand" / "Chromium"
+            const primary = hints.fullVersionList?.find(
+                b => b.brand && !b.brand.includes('Not') && b.brand !== 'Chromium'
+            ) ?? hints.fullVersionList?.[0];
+            if (primary) {
+                browserName = primary.brand;
+                browserVersion = primary.version;
             }
-
-        } catch (e) { /* Fallback to User Agent parsing */ }
-    } else {
-        // Basic fallback for older browsers without User-Agent Client Hints
-        if (userAgent.includes('Win')) os = 'Windows';
-        else if (userAgent.includes('Mac')) os = 'macOS';
-        else if (userAgent.includes('Linux')) os = 'Linux';
+        } catch { /* fall through to UA parsing */ }
     }
 
-    // Attempt to determine rendering engine (will be an approximation)
-    if (userAgent.includes('Chrome') || userAgent.includes('CriOS')) browserEngine = 'Blink';
-    else if (userAgent.includes('Firefox')) browserEngine = 'Gecko';
-    else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) browserEngine = 'WebKit';
+    if (browserName === 'Unknown') {
+        // UA string fallback
+        const chromeMatch = ua.match(/(?:Chrome|CriOS)\/([\d.]+)/);
+        const edgeMatch   = ua.match(/Edg\/([\d.]+)/);
+        const ffMatch     = ua.match(/Firefox\/([\d.]+)/);
+        const safariMatch = ua.match(/Version\/([\d.]+).*Safari/);
 
-    const screenWidth = window.screen.width;
-    const screenHeight = window.screen.height;
-    const colorDepth = window.screen.colorDepth;
-    const windowWidth = window.innerWidth;
-    const windowHeight = window.innerHeight;
-    const pixelRatio = window.devicePixelRatio;
-    const lang = navigator.language;
-    const memory = navigator.deviceMemory ?? 'N/A'; // deviceMemory is non-standard but often available
+        if (edgeMatch)         { browserName = 'Edge';    browserVersion = edgeMatch[1]; }
+        else if (chromeMatch)  { browserName = 'Chrome';  browserVersion = chromeMatch[1]; }
+        else if (ffMatch)      { browserName = 'Firefox'; browserVersion = ffMatch[1]; }
+        else if (safariMatch)  { browserName = 'Safari';  browserVersion = safariMatch[1]; }
+
+        if (ua.includes('Windows'))     os = 'Windows';
+        else if (ua.includes('Mac'))    os = 'macOS';
+        else if (ua.includes('Linux'))  os = 'Linux';
+        else if (ua.includes('Android'))os = 'Android';
+        else if (ua.includes('iOS'))    os = 'iOS';
+    }
+
+    // Engine
+    if (ua.includes('Firefox'))                               browserEngine = 'Gecko';
+    else if (ua.includes('Safari') && !ua.includes('Chrome')) browserEngine = 'WebKit';
+    else if (ua.includes('Chrome') || ua.includes('CriOS'))   browserEngine = 'Blink';
+
+    // --- Connectivity ---
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    const networkType   = connection?.effectiveType ?? 'N/A';
+    const downlink      = connection?.downlink != null ? `${connection.downlink} Mbps` : 'N/A';
+    const saveData      = connection?.saveData != null ? String(connection.saveData) : 'N/A';
+
+    // --- Performance timing (page load) ---
+    let pageLoadMs = 'N/A';
+    try {
+        const nav = performance.getEntriesByType('navigation')[0];
+        if (nav) pageLoadMs = `${Math.round(nav.loadEventEnd - nav.startTime)} ms`;
+    } catch { /* ignore */ }
+
+    // --- Misc capabilities ---
+    const memory        = navigator.deviceMemory != null ? `${navigator.deviceMemory} GB` : 'N/A';
+    const cpuCores      = navigator.hardwareConcurrency ?? 'N/A';
+    const screenRes     = `${screen.width}×${screen.height} (${screen.colorDepth}-bit) @ ${window.devicePixelRatio}x DPR`;
+    const viewport      = `${window.innerWidth}×${window.innerHeight}`;
+    const touchPoints   = navigator.maxTouchPoints ?? 0;
+    const lang          = navigator.language;
+    const cookiesOn     = navigator.cookieEnabled ? 'Yes' : 'No';
+    const doNotTrack    = navigator.doNotTrack === '1' ? 'Yes' : (navigator.doNotTrack === '0' ? 'No' : 'N/A');
+    const timezone      = Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'N/A';
+    const currentURL    = window.location.href.slice(0, 120); // cap length
 
     return `
 ### Technical Environment
 | Detail | Value |
 | :--- | :--- |
 | **Extension Version** | \`${getExtensionVersion()}\` |
-| **Current URL** | \`${window.location.href}\` |
-| **Browser** | \`${browserName} (\`\`${browserVersion}\`\` \`\`${browserEngine}\`\`) |
-| **Operating System** | \`${os} (\`\`${osVersion}\`\`) |
-| **Device Memory (GB)** | \`${memory}\` |
-| **Screen Resolution** | \`${screenWidth}x${screenHeight} (${colorDepth}bit) @ ${pixelRatio}x DPR\` |
-| **Viewport Size** | \`${windowWidth}x${windowHeight}\` |
+| **Browser** | \`${browserName} ${browserVersion} (${browserEngine})\` |
+| **Operating System** | \`${os} ${osVersion}\` |
+| **Architecture** | \`${architecture}\` |
+| **Device Memory** | \`${memory}\` |
+| **CPU Cores (logical)** | \`${cpuCores}\` |
+| **Screen Resolution** | \`${screenRes}\` |
+| **Viewport** | \`${viewport}\` |
+| **Touch Points** | \`${touchPoints}\` |
+| **Network Type** | \`${networkType}\` |
+| **Downlink Speed** | \`${downlink}\` |
+| **Data Saver** | \`${saveData}\` |
+| **Page Load Time** | \`${pageLoadMs}\` |
+| **Timezone** | \`${timezone}\` |
 | **Language** | \`${lang}\` |
-    `.trim();
+| **Cookies Enabled** | \`${cookiesOn}\` |
+| **Do Not Track** | \`${doNotTrack}\` |
+| **Current URL** | \`${currentURL}\` |
+`.trim();
 }
 
 /**
- * Creates the modal's HTML structure with styles and step-by-step logic.
- * @returns {HTMLElement} The complete dialog element.
+ * Queries the list of installed extensions via chrome.management API.
+ * Returns a compact Markdown table capped to keep the URL length reasonable.
+ * @returns {Promise<string>}
  */
+async function getInstalledExtensionsInfo() {
+    try {
+        if (!chrome?.management?.getAll) return '_chrome.management API not available._';
+
+        const extensions = await new Promise((resolve, reject) => {
+            chrome.management.getAll(result => {
+                if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+                else resolve(result);
+            });
+        });
+
+        // Exclude the reporter itself; sort by name
+        const selfId = chrome.runtime.id;
+        const list = extensions
+            .filter(e => e.id !== selfId)
+            .sort((a, b) => a.name.localeCompare(b.name));
+
+        if (!list.length) return '_No other extensions installed._';
+
+        // Build compact table - cap at 30 entries to protect URL budget
+        const MAX_EXT = 30;
+        const rows = list.slice(0, MAX_EXT).map(e => {
+            const name    = e.name.slice(0, 40).replace(/\|/g, '\\|');
+            const version = (e.version ?? 'N/A').slice(0, 10);
+            const state   = e.enabled ? '✅ Enabled' : '⛔ Disabled';
+            const type    = e.type ?? 'extension';
+            return `| ${name} | ${version} | ${state} | ${type} |`;
+        });
+
+        const truncNote = list.length > MAX_EXT
+            ? `\n_…and ${list.length - MAX_EXT} more (truncated for URL length)._`
+            : '';
+
+        return `
+### Installed Extensions (${Math.min(list.length, MAX_EXT)} shown)
+| Name | Version | State | Type |
+| :--- | :--- | :--- | :--- |
+${rows.join('\n')}${truncNote}
+`.trim();
+    } catch (err) {
+        return `_Could not retrieve extensions list: ${String(err).slice(0, 100)}_`;
+    }
+}
+
+/**
+ * Formats captured console logs/errors into a Markdown code block.
+ * @param {number} [maxEntries=MAX_CONSOLE_ENTRIES]
+ * @returns {string}
+ */
+function getConsoleLogs(maxEntries = MAX_CONSOLE_ENTRIES) {
+    if (!_capturedConsoleLogs.length) return '_No console activity captured._';
+
+    const entries = _capturedConsoleLogs.slice(-maxEntries);
+    const lines = entries.map(e => `[${e.timestamp}] [${e.type.toUpperCase()}] ${e.message}`);
+
+    return `
+### Console Logs (last ${entries.length} entries)
+\`\`\`
+${lines.join('\n')}
+\`\`\`
+`.trim();
+}
+
+// ---------------------------------------------------------------------------
+// Modal Construction
+// ---------------------------------------------------------------------------
+
 function createReportDialog() {
-    // --- Styles for the Modal (Modern, Compact, Fixed Dark Mode) ---
-    // Note: Styles are kept in a <style> tag for simplicity in a single file scenario.
+
+    // ---- Styles ----
     const style = createElement('style');
     style.textContent = `
-        /* Theme variables (light defaults, overridden in dark mode) */
+        /* ===========================
+           modcore Issue Reporter CSS
+           =========================== */
+
+        /* Theme tokens */
         .modcore-dialog-overlay {
             --mc-bg: #ffffff;
             --mc-text: #1a1a1a;
+            --mc-text-muted: #6b6b6b;
             --mc-accent: #007bff;
-            --mc-surface: #f9f9f9;
-            --mc-border: #ccc;
-            --mc-note-bg: #f0f8ff;
-            --mc-note-text: #1a1a1a;
-            --mc-privacy-bg: #fff3cd;
-            --mc-privacy-text: #856404;
-            --mc-btn-secondary: #6c757d;
+            --mc-accent-hover: #0062cc;
+            --mc-surface: #f4f6f9;
+            --mc-surface-hover: #edf0f5;
+            --mc-border: #dde1e9;
+            --mc-border-focus: #007bff;
+            --mc-note-bg: #eef4ff;
+            --mc-note-text: #374a6e;
+            --mc-privacy-bg: #fffbeb;
+            --mc-privacy-text: #7a5c0d;
+            --mc-privacy-border: #f0d080;
+            --mc-btn-secondary-bg: #f0f2f5;
+            --mc-btn-secondary-text: #444;
             --mc-btn-primary: #007bff;
-            --mc-btn-success: #28a745;
-            --mc-type-bg: #f9f9f9;
-            --mc-type-border: #ccc;
+            --mc-btn-primary-hover: #0062cc;
+            --mc-btn-success: #1a8a3e;
+            --mc-btn-success-hover: #156d30;
+            --mc-error-bg: rgba(220,38,38,0.07);
+            --mc-error-border: rgba(220,38,38,0.4);
+            --mc-error-text: #c0392b;
+            --mc-shadow: 0 12px 40px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.08);
+            --mc-checkbox-size: 17px;
+            --mc-radius: 14px;
+            --mc-radius-sm: 10px;
         }
 
-        /* Custom Font Specification */
+        /* Dark mode overrides */
+        @media (prefers-color-scheme: dark) {
+            .modcore-dialog-overlay {
+                --mc-bg: #18181c;
+                --mc-text: #f0f0f0;
+                --mc-text-muted: #8a8a9a;
+                --mc-accent: #3b9eff;
+                --mc-accent-hover: #60b0ff;
+                --mc-surface: #25252b;
+                --mc-surface-hover: #2e2e36;
+                --mc-border: #35353f;
+                --mc-border-focus: #3b9eff;
+                --mc-note-bg: #1e2a40;
+                --mc-note-text: #9ab4dc;
+                --mc-privacy-bg: #2a240f;
+                --mc-privacy-text: #e8c96a;
+                --mc-privacy-border: #5a4a14;
+                --mc-btn-secondary-bg: #2c2c34;
+                --mc-btn-secondary-text: #c0c0cc;
+                --mc-btn-primary: #2273d4;
+                --mc-btn-primary-hover: #1a5fad;
+                --mc-btn-success: #166e32;
+                --mc-btn-success-hover: #105226;
+                --mc-error-bg: rgba(220,38,38,0.12);
+                --mc-error-border: rgba(220,38,38,0.5);
+                --mc-error-text: #f07070;
+                --mc-shadow: 0 16px 50px rgba(0,0,0,0.55), 0 2px 10px rgba(0,0,0,0.3);
+            }
+        }
+
+        /* Reduced motion */
+        @media (prefers-reduced-motion: reduce) {
+            .modcore-dialog-overlay,
+            .modcore-dialog-content,
+            .modcore-form-step,
+            .modcore-dialog-overlay *  {
+                transition: none !important;
+                animation: none !important;
+                transform: none !important;
+                opacity: 1 !important;
+            }
+        }
+
+        /* Reset */
         .modcore-dialog-overlay * {
             box-sizing: border-box;
-            font-family: modcore-inter-font-custom, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
-            line-height: 1.4;
+            font-family: modcore-inter-font-custom, -apple-system, BlinkMacSystemFont,
+                "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans",
+                "Droid Sans", "Helvetica Neue", sans-serif;
+            line-height: 1.45;
         }
 
-        /* Dialog Overlay and Transitions */
+        /* ---- Overlay ---- */
         .modcore-dialog-overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.75);
+            inset: 0;
+            background: rgba(0,0,0,0.65);
+            backdrop-filter: blur(3px);
+            -webkit-backdrop-filter: blur(3px);
             display: flex;
             justify-content: center;
             align-items: center;
-            z-index: 2147483647; 
+            z-index: 2147483647;
             opacity: 0;
-            transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: opacity 0.22s ease;
         }
         .modcore-dialog-overlay.is-open { opacity: 1; }
 
-        /* Dialog Content Box */
+        /* ---- Dialog box ---- */
         .modcore-dialog-content {
-            background-color: var(--mc-bg);
+            background: var(--mc-bg);
             color: var(--mc-text);
-            padding: 20px;
-            border-radius: 16px;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
-            width: 90%;
-            max-width: 450px;
-            max-height: 90vh;
+            padding: 22px 22px 18px;
+            border-radius: var(--mc-radius);
+            box-shadow: var(--mc-shadow);
+            width: 92%;
+            max-width: 460px;
+            max-height: 92vh;
             overflow-y: auto;
-            transform: scale(0.98);
-            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
+            overflow-x: hidden;
+            transform: scale(0.94) translateY(10px);
+            transition: transform 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.2),
+                        opacity  0.25s ease;
             opacity: 0;
+            scrollbar-width: thin;
+            scrollbar-color: var(--mc-border) transparent;
         }
         .modcore-dialog-overlay.is-open .modcore-dialog-content {
-            transform: scale(1);
+            transform: scale(1) translateY(0);
             opacity: 1;
         }
-        
-        /* Reduced Motion support */
-        @media (prefers-reduced-motion: reduce) {
-            .modcore-dialog-overlay, .modcore-dialog-content, .modcore-form-step { 
-                transition: none !important; 
-                transform: none !important; 
-                opacity: 1 !important; 
-                animation: none !important;
-            }
+        /* Scrollbar (webkit) */
+        .modcore-dialog-content::-webkit-scrollbar { width: 5px; }
+        .modcore-dialog-content::-webkit-scrollbar-thumb {
+            background: var(--mc-border);
+            border-radius: 4px;
         }
 
-        /* Dark Mode: override variables for consistent theming */
-        @media (prefers-color-scheme: dark) {
-            .modcore-dialog-overlay {
-                --mc-bg: #0a0a0a;
-                --mc-text: #d4d4d4;
-                --mc-accent: #63b3ed;
-                --mc-surface: #2d2d2d;
-                --mc-border: #3c3c3c;
-                --mc-note-bg: #2d2d2d;
-                --mc-note-text: #a0a0a0;
-                --mc-privacy-bg: #2b2a22;
-                --mc-privacy-text: #f0dca3;
-                --mc-btn-secondary: #444;
-                --mc-btn-primary: #1f6feb;
-                --mc-btn-success: #218838;
-                --mc-type-bg: #2d2d2d;
-                --mc-type-border: #444;
-            }
-        }
-
-        /* Typography and Structure */
+        /* ---- Header ---- */
         .modcore-form-header {
-            font-size: 1.15em;
-            font-weight: 600;
-            margin-bottom: 15px;
-            padding-bottom: 5px;
+            font-size: 1.12em;
+            font-weight: 700;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
             border-bottom: 2px solid var(--mc-accent);
             color: var(--mc-accent);
             display: flex;
             justify-content: space-between;
-            align-items: flex-end;
+            align-items: center;
         }
         .modcore-form-step-status {
-            font-size: 0.8em;
-            font-weight: 400;
-            color: rgba(0,0,0,0.45);
+            font-size: 0.75em;
+            font-weight: 500;
+            color: var(--mc-text-muted);
+            background: var(--mc-surface);
+            padding: 3px 8px;
+            border-radius: 20px;
         }
+
+        /* ---- Progress bar ---- */
+        .modcore-progress-bar-track {
+            height: 3px;
+            background: var(--mc-border);
+            border-radius: 3px;
+            margin-bottom: 18px;
+            overflow: hidden;
+        }
+        .modcore-progress-bar-fill {
+            height: 100%;
+            background: var(--mc-accent);
+            border-radius: 3px;
+            transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            width: 33.33%;
+        }
+
+        /* ---- Labels & Inputs ---- */
         .modcore-dialog-content label {
             display: block;
-            margin-bottom: 3px;
-            font-size: 0.9em;
-            font-weight: 500;
+            margin-bottom: 4px;
+            font-size: 0.87em;
+            font-weight: 600;
             color: var(--mc-text);
         }
         .modcore-dialog-content input:not([type="checkbox"]):not(.modcore-type-radio),
         .modcore-dialog-content textarea,
         .modcore-dialog-content select {
             width: 100%;
-            padding: 8px;
-            border-radius: 12px;
-            margin-top: 3px;
-            margin-bottom: 10px;
-            font-size: 0.9em;
-            border: 1px solid var(--mc-border);
-            background-color: var(--mc-surface);
+            padding: 9px 12px;
+            border-radius: var(--mc-radius-sm);
+            margin-top: 2px;
+            margin-bottom: 12px;
+            font-size: 0.88em;
+            border: 1.5px solid var(--mc-border);
+            background: var(--mc-surface);
             color: var(--mc-text);
+            transition: border-color 0.15s, box-shadow 0.15s;
         }
         .modcore-dialog-content input:not([type="checkbox"]):focus,
         .modcore-dialog-content textarea:focus,
         .modcore-dialog-content select:focus {
             outline: none;
-            border-color: var(--mc-accent);
-            box-shadow: 0 0 0 4px rgba(0, 123, 255, 0.08);
+            border-color: var(--mc-border-focus);
+            box-shadow: 0 0 0 3.5px rgba(0,123,255,0.12);
         }
-        .modcore-dialog-content textarea { min-height: 80px; }
-        .modcore-modal-note {
-            background-color: var(--mc-note-bg);
-            color: var(--mc-note-text);
-            padding: 8px;
-            border-radius: 12px;
-            font-size: 0.8em;
-            margin-top: 5px;
-            border: 1px solid rgba(0,0,0,0.06);
-        }
-        .modcore-privacy-note {
-            margin-top: 15px;
-            padding: 8px;
-            font-size: 0.75em;
-            background-color: var(--mc-privacy-bg);
-            color: var(--mc-privacy-text);
-            border: 1px solid rgba(0,0,0,0.06);
-            border-radius: 12px;
+        .modcore-dialog-content textarea { min-height: 88px; resize: vertical; }
+
+        /* aria-invalid styling */
+        .modcore-dialog-content input[aria-invalid="true"],
+        .modcore-dialog-content textarea[aria-invalid="true"] {
+            border-color: var(--mc-error-text) !important;
+            background: var(--mc-error-bg);
         }
 
-        /* Stepper Logic */
+        /* ---- Notes / Callouts ---- */
+        .modcore-modal-note {
+            background: var(--mc-note-bg);
+            color: var(--mc-note-text);
+            padding: 9px 12px;
+            border-radius: var(--mc-radius-sm);
+            font-size: 0.8em;
+            margin-top: 4px;
+            border: 1px solid rgba(0,123,255,0.12);
+            animation: noteSlideIn 0.22s ease forwards;
+        }
+        @keyframes noteSlideIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .modcore-privacy-note {
+            margin-top: 14px;
+            padding: 9px 12px;
+            font-size: 0.75em;
+            background: var(--mc-privacy-bg);
+            color: var(--mc-privacy-text);
+            border: 1px solid var(--mc-privacy-border);
+            border-radius: var(--mc-radius-sm);
+        }
+        .modcore-error-note {
+            background: var(--mc-error-bg);
+            color: var(--mc-error-text);
+            padding: 9px 12px;
+            border-radius: var(--mc-radius-sm);
+            font-size: 0.82em;
+            border: 1.5px solid var(--mc-error-border);
+            animation: shakeError 0.35s ease;
+        }
+        @keyframes shakeError {
+            0%,100% { transform: translateX(0); }
+            20%      { transform: translateX(-5px); }
+            40%      { transform: translateX(5px); }
+            60%      { transform: translateX(-3px); }
+            80%      { transform: translateX(3px); }
+        }
+
+        /* ---- Step transitions ---- */
         .modcore-form-step {
             display: none;
             flex-direction: column;
-            gap: 12px;
-            animation: fadeInStep 0.3s forwards;
+            gap: 10px;
         }
-        .modcore-form-step.current { display: flex; }
-        @keyframes fadeInStep {
-            from { opacity: 0; transform: translateY(5px); }
-            to { opacity: 1; transform: translateY(0); }
+        .modcore-form-step.current {
+            display: flex;
+            animation: stepIn 0.25s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+        .modcore-form-step.step-out {
+            animation: stepOut 0.18s ease forwards;
+        }
+        @keyframes stepIn {
+            from { opacity: 0; transform: translateX(18px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes stepOut {
+            from { opacity: 1; transform: translateX(0); }
+            to   { opacity: 0; transform: translateX(-14px); }
+        }
+        .modcore-form-step.step-back-in {
+            animation: stepBackIn 0.25s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+        @keyframes stepBackIn {
+            from { opacity: 0; transform: translateX(-18px); }
+            to   { opacity: 1; transform: translateX(0); }
         }
 
-        /* Conversational Type Selection (New UI) */
+        /* ---- Type selection cards ---- */
         .modcore-type-options-group {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 7px;
         }
         .modcore-type-option {
-            position: relative; /* ensure hidden radio stays in flow */
+            position: relative;
             display: flex;
             align-items: center;
-            padding: 10px 12px 10px 44px; /* leave space for radio (accessible) */
-            border: 1px solid var(--mc-type-border);
-            border-radius: 12px;
+            padding: 10px 12px 10px 44px;
+            border: 1.5px solid var(--mc-border);
+            border-radius: var(--mc-radius-sm);
             cursor: pointer;
-            transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
-            background-color: var(--mc-type-bg);
-            color: inherit;
+            transition: background 0.15s, border-color 0.15s, box-shadow 0.15s,
+                        transform 0.12s;
+            background: var(--mc-surface);
+            color: var(--mc-text);
         }
-
         .modcore-type-option:hover {
-            background-color: rgba(0,0,0,0.04);
+            background: var(--mc-surface-hover);
+            transform: translateY(-1px);
         }
+        .modcore-type-option:active { transform: translateY(0); }
         .modcore-type-option.is-selected {
             border-color: var(--mc-accent);
-            background-color: rgba(0, 123, 255, 0.06);
-            box-shadow: 0 0 0 4px rgba(0, 123, 255, 0.06);
+            background: rgba(0,123,255,0.06);
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
         }
         .modcore-type-radio {
             position: absolute;
-            left: 14px;
-            top: 50%;
+            left: 14px; top: 50%;
             transform: translateY(-50%);
             margin: 0;
-            width: 16px;
-            height: 16px;
-            opacity: 0; /* keep hidden visually but present for screen readers */
+            width: 16px; height: 16px;
+            opacity: 0;
         }
-        /* Provide a visible custom marker for selected state */
         .modcore-type-option::before {
             content: "";
             position: absolute;
-            left: 18px;
-            top: 50%;
+            left: 14px; top: 50%;
             transform: translateY(-50%);
-            width: 10px;
-            height: 10px;
+            width: 14px; height: 14px;
             border-radius: 50%;
-            background-color: transparent;
-            border: 2px solid rgba(0,0,0,0.15);
+            background: transparent;
+            border: 2px solid var(--mc-border);
+            transition: background 0.15s, border-color 0.15s;
         }
         .modcore-type-option.is-selected::before {
-            background-color: var(--mc-accent);
+            background: var(--mc-accent);
             border-color: var(--mc-accent);
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.2);
         }
-        .modcore-type-option-text {
-            font-weight: 500;
+        /* checkmark inside the dot */
+        .modcore-type-option.is-selected::after {
+            content: "";
+            position: absolute;
+            left: 19px; top: 50%;
+            transform: translateY(-50%) rotate(45deg);
+            width: 4px; height: 7px;
+            border-right: 2px solid #fff;
+            border-bottom: 2px solid #fff;
+            margin-top: -1px;
+        }
+        .modcore-type-option-text { font-weight: 500; font-size: 0.9em; }
+
+        /* ---- Checkbox row (enhanced) ---- */
+        .mc-checkbox-row {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 11px 13px;
+            border: 1.5px solid var(--mc-border);
+            border-radius: var(--mc-radius-sm);
+            background: var(--mc-surface);
+            transition: border-color 0.15s, background 0.15s;
+            cursor: pointer;
+        }
+        .mc-checkbox-row:has(input:checked) {
+            border-color: var(--mc-accent);
+            background: rgba(0,123,255,0.04);
+        }
+        .mc-checkbox-row:hover { background: var(--mc-surface-hover); }
+        .mc-checkbox-header {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+        }
+        .mc-checkbox-header input[type="checkbox"] {
+            width: var(--mc-checkbox-size);
+            height: var(--mc-checkbox-size);
+            flex-shrink: 0;
+            accent-color: var(--mc-accent);
+            cursor: pointer;
+        }
+        .mc-checkbox-header label {
+            font-weight: 600;
+            font-size: 0.88em;
+            margin-bottom: 0;
+            cursor: pointer;
+            flex: 1;
+        }
+        .mc-checkbox-badge {
+            font-size: 0.7em;
+            font-weight: 600;
+            padding: 2px 7px;
+            border-radius: 20px;
+            background: rgba(0,123,255,0.12);
+            color: var(--mc-accent);
+        }
+        .mc-checkbox-desc {
+            font-size: 0.77em;
+            color: var(--mc-text-muted);
+            padding-left: calc(var(--mc-checkbox-size) + 9px);
+            line-height: 1.4;
         }
 
-        /* Buttons */
+        /* ---- Buttons ---- */
         .modcore-form-actions {
             display: flex;
             justify-content: space-between;
-            gap: 10px;
-            margin-top: 15px;
-            padding-top: 10px;
-            border-top: 1px solid rgba(0,0,0,0.06);
+            gap: 8px;
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1.5px solid var(--mc-border);
+        }
+        .modcore-form-actions .mc-right-actions {
+            display: flex;
+            gap: 8px;
         }
         .modcore-dialog-content button {
-            padding: 8px 12px;
+            padding: 8px 15px;
             border: none;
-            border-radius: 12px;
+            border-radius: var(--mc-radius-sm);
             cursor: pointer;
-            font-weight: 500;
-            font-size: 0.9em;
-            transition: background-color 0.2s, box-shadow 0.2s;
+            font-weight: 600;
+            font-size: 0.86em;
+            transition: background 0.18s, box-shadow 0.18s, transform 0.1s, opacity 0.18s;
             color: #fff;
+            position: relative;
+            overflow: hidden;
         }
-        .modcore-dialog-content button:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
-        .btn-secondary { background-color: var(--mc-btn-secondary); color: #ffffff; }
-        .btn-primary { background-color: var(--mc-btn-primary); color: #ffffff; }
-        .btn-success { background-color: var(--mc-btn-success); color: #ffffff; }
+        /* Ripple */
+        .modcore-dialog-content button::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: rgba(255,255,255,0.18);
+            opacity: 0;
+            border-radius: inherit;
+            transition: opacity 0.25s;
+        }
+        .modcore-dialog-content button:hover::after { opacity: 1; }
+        .modcore-dialog-content button:active { transform: scale(0.97); }
+        .modcore-dialog-content button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-secondary {
+            background: var(--mc-btn-secondary-bg);
+            color: var(--mc-btn-secondary-text);
+        }
+        .btn-secondary:hover:not(:disabled) { background: var(--mc-surface-hover); }
+        .btn-primary { background: var(--mc-btn-primary); }
+        .btn-primary:hover:not(:disabled) { background: var(--mc-btn-primary-hover); }
+        .btn-success { background: var(--mc-btn-success); }
+        .btn-success:hover:not(:disabled) { background: var(--mc-btn-success-hover); }
 
-        /* Ensure the modal visuals override page-level styles where needed */
-        .modcore-dialog-content,
-        .modcore-dialog-content * {
+        /* Loading spinner on submit */
+        .btn-loading {
+            pointer-events: none;
+        }
+        .btn-loading-text::after {
+            content: " ⏳";
+        }
+
+        /* Smooth font rendering */
+        .modcore-dialog-content, .modcore-dialog-content * {
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
         }
     `;
 
-    // --- Modal Structure Elements ---
+    // ---- Overlay / wrapper ----
     const overlay = createElement('div', 'modcore-dialog-overlay', {
         role: 'dialog',
         'aria-modal': 'true',
-        'aria-labelledby': 'modcore-dialog-title'
+        'aria-labelledby': 'modcore-dialog-title',
+        'aria-describedby': 'step-status'
     });
-    // Security: Only close if the background overlay is clicked (not elements inside)
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) {
-            removeModal();
-        }
-    });
+    overlay.addEventListener('click', e => { if (e.target === overlay) removeModal(); });
+
+    // Trap focus inside the modal
+    overlay.addEventListener('keydown', trapFocus);
 
     const content = createElement('div', 'modcore-dialog-content', { 'aria-live': 'polite' });
 
+    // ---- Header ----
     const header = createElement('div', 'modcore-form-header', { id: 'modcore-dialog-title' });
     header.textContent = 'modcore Issue Reporter';
-
-    const stepStatus = createElement('span', 'modcore-form-step-status', { id: 'step-status' });
+    const stepStatus = createElement('span', 'modcore-form-step-status', { id: 'step-status', 'aria-live': 'polite' });
     stepStatus.textContent = `Step 1 of ${TOTAL_STEPS}`;
     header.appendChild(stepStatus);
 
+    // ---- Progress bar ----
+    const progressTrack = createElement('div', 'modcore-progress-bar-track', { role: 'progressbar', 'aria-valuemin': '1', 'aria-valuemax': String(TOTAL_STEPS), 'aria-valuenow': '1', 'aria-label': 'Form progress' });
+    const progressFill  = createElement('div', 'modcore-progress-bar-fill');
+    progressTrack.appendChild(progressFill);
+
     const form = createElement('form');
 
-    // --- Step 1: Conversational Issue Type Selection ---
+    // =========================================================
+    // Step 1 - Issue Type Selection
+    // =========================================================
     const step1 = createStepElement('step-1');
-    
+
     const typeHeading = createElement('label');
+    typeHeading.setAttribute('id', 'type-heading');
     typeHeading.textContent = '1. What kind of report are you submitting?';
 
-    const typeOptionsGroup = createElement('div', 'modcore-type-options-group', { role: 'radiogroup', 'aria-labelledby': typeHeading.id });
-    
-    // Create radio buttons for conversational selection
-    Object.keys(ISSUE_TEMPLATES).forEach(key => {
-        const template = ISSUE_TEMPLATES[key];
-        
-        const optionLabel = createElement('label', 'modcore-type-option');
-        optionLabel.setAttribute('for', `issue-type-${key}`);
-        optionLabel.setAttribute('tabindex', '0'); // Make label focusable
+    const typeOptionsGroup = createElement('div', 'modcore-type-options-group', {
+        role: 'radiogroup',
+        'aria-labelledby': 'type-heading'
+    });
 
+    Object.keys(ISSUE_TEMPLATES).forEach((key, idx) => {
+        const template = ISSUE_TEMPLATES[key];
+        const optionLabel = createElement('label', 'modcore-type-option', {
+            for: `issue-type-${key}`,
+            tabindex: '0'
+        });
         const radio = createElement('input', 'modcore-type-radio', {
             type: 'radio',
             id: `issue-type-${key}`,
@@ -458,25 +832,31 @@ function createReportDialog() {
             value: key,
             'aria-required': 'true'
         });
-        
         const optionText = createElement('span', 'modcore-type-option-text');
         optionText.textContent = template.name;
-        
+
         optionLabel.appendChild(radio);
         optionLabel.appendChild(optionText);
-        
-        // Handle selection state on click
+
         optionLabel.addEventListener('click', () => {
             document.querySelectorAll('.modcore-type-option').forEach(el => el.classList.remove('is-selected'));
             optionLabel.classList.add('is-selected');
             radio.checked = true;
-            updateStep2Template(key); // Update step 2 template immediately
+            updateStep2Template(key);
+        });
+
+        // Keyboard activation on label
+        optionLabel.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                optionLabel.click();
+            }
         });
 
         typeOptionsGroup.appendChild(optionLabel);
     });
-    
-    // Set initial selection and styling
+
+    // Default selection
     const initialType = Object.keys(ISSUE_TEMPLATES)[0];
     const initialRadio = typeOptionsGroup.querySelector(`input[value="${initialType}"]`);
     if (initialRadio) {
@@ -487,30 +867,39 @@ function createReportDialog() {
     step1.appendChild(typeHeading);
     step1.appendChild(typeOptionsGroup);
 
-
-    // --- Step 2: Details ---
+    // =========================================================
+    // Step 2 - Details
+    // =========================================================
     const step2 = createStepElement('step-2');
 
     const summaryLabel = createElement('label', '', { for: 'issue-summary' });
-    summaryLabel.textContent = '2. Short Summary/Title: (e.g., The button is gone)';
+    summaryLabel.textContent = '2. Short Summary / Title';
     const summaryInput = createElement('input', '', {
         type: 'text',
         id: 'issue-summary',
         name: 'issue-summary',
         required: 'true',
-        'aria-label': 'Short Summary/Title for the Issue'
+        'aria-required': 'true',
+        'aria-label': 'Short summary or title for the issue',
+        maxlength: '120',
+        autocomplete: 'off'
     });
-    
+
     const descriptionLabel = createElement('label', '', { for: 'issue-description' });
-    descriptionLabel.textContent = '3. Detailed Description:';
+    descriptionLabel.textContent = '3. Detailed Description';
     const descriptionTextarea = createElement('textarea', '', {
         id: 'issue-description',
         name: 'issue-description',
         required: 'true',
-        'aria-label': 'Detailed steps, description, or reasons'
+        'aria-required': 'true',
+        'aria-label': 'Detailed description of the issue',
+        maxlength: '2000'
     });
-    
-    const instructionsNote = createElement('div', 'modcore-modal-note', { id: 'instructions-note' });
+
+    const instructionsNote = createElement('div', 'modcore-modal-note', {
+        id: 'instructions-note',
+        role: 'note'
+    });
 
     step2.appendChild(summaryLabel);
     step2.appendChild(summaryInput);
@@ -518,267 +907,368 @@ function createReportDialog() {
     step2.appendChild(descriptionTextarea);
     step2.appendChild(instructionsNote);
 
-
-    // --- Step 3: Technical Info and Submit ---
+    // =========================================================
+    // Step 3 - Optional Attachments & Submit
+    // =========================================================
     const step3 = createStepElement('step-3');
 
-    const techInfoDiv = createElement('div', 'tech-info-checkbox');
-    techInfoDiv.style.display = 'flex';
-    techInfoDiv.style.alignItems = 'center';
-    
-    const techInfoCheckbox = createElement('input', '', {
-        type: 'checkbox',
+    // -- Checkbox helper --
+    function makeCheckboxRow({ id, label, description, badge, defaultChecked = false }) {
+        const row = createElement('div', 'mc-checkbox-row');
+        row.setAttribute('role', 'group');
+
+        const headerDiv = createElement('div', 'mc-checkbox-header');
+        const checkbox = createElement('input', '', {
+            type: 'checkbox',
+            id,
+            name: id,
+            'aria-describedby': `${id}-desc`
+        });
+        if (defaultChecked) checkbox.setAttribute('checked', 'true');
+
+        const lbl = createElement('label', '', { for: id });
+        lbl.textContent = label;
+
+        headerDiv.appendChild(checkbox);
+        headerDiv.appendChild(lbl);
+
+        if (badge) {
+            const badgeEl = createElement('span', 'mc-checkbox-badge');
+            badgeEl.textContent = badge;
+            headerDiv.appendChild(badgeEl);
+        }
+
+        const desc = createElement('div', 'mc-checkbox-desc', { id: `${id}-desc` });
+        desc.textContent = description;
+
+        row.appendChild(headerDiv);
+        row.appendChild(desc);
+
+        // Clicking the row also toggles the checkbox
+        row.addEventListener('click', e => {
+            if (e.target !== checkbox && e.target !== lbl) checkbox.checked = !checkbox.checked;
+        });
+
+        return { row, checkbox };
+    }
+
+    // 1 - Technical environment
+    const { row: techRow, checkbox: techInfoCheckbox } = makeCheckboxRow({
         id: 'include-tech-info',
-        name: 'include-tech-info',
-        checked: 'true',
-        'aria-describedby': 'tech-info-desc'
+        label: 'Include technical environment details',
+        description: 'Browser, OS, architecture, screen, network, performance timing, and more. Highly recommended for bug reports.',
+        badge: 'Recommended',
+        defaultChecked: true
     });
-    
-    const techInfoLabel = createElement('label', '', { for: 'include-tech-info' });
-    techInfoLabel.textContent = 'Include technical environment details (Recommended)';
-    techInfoLabel.style.fontWeight = '500';
-    techInfoLabel.style.marginBottom = '0';
+    techInfoCheckbox.setAttribute('checked', 'true');
+    techInfoCheckbox.checked = true;
 
-    const techInfoDesc = createElement('div', 'modcore-modal-note', { id: 'tech-info-desc' });
-    techInfoDesc.textContent = 'We collect accurate details (browser, OS, screen, extension version) to quickly reproduce and debug the issue. This information is submitted publicly with your report.';
-    
-    const privacyNote = createElement('div', 'modcore-privacy-note');
-    privacyNote.textContent = `PRIVACY NOTE: Your submission will be redirected to the public ${GITHUB_REPO_NAME} GitHub page. Ensure your summary and description do not contain sensitive personal information.`;
+    // 2 - Installed extensions list
+    const { row: extRow, checkbox: extListCheckbox } = makeCheckboxRow({
+        id: 'include-ext-list',
+        label: 'Include installed extensions list',
+        description: `Lists your other installed extensions (name, version, enabled/disabled). Useful for compatibility issues. Requires the management permission.`,
+        badge: 'Optional',
+        defaultChecked: false
+    });
 
+    // 3 - Console logs
+    const logCount = _capturedConsoleLogs.length;
+    const { row: consoleRow, checkbox: consoleLogsCheckbox } = makeCheckboxRow({
+        id: 'include-console-logs',
+        label: `Include recent console logs & errors`,
+        description: `Attaches up to ${MAX_CONSOLE_ENTRIES} captured console messages (log/warn/error) to help pinpoint runtime issues. ${logCount} entr${logCount === 1 ? 'y' : 'ies'} captured so far.`,
+        badge: logCount > 0 ? `${logCount} captured` : 'Optional',
+        defaultChecked: false
+    });
 
-    techInfoDiv.appendChild(techInfoCheckbox);
-    techInfoDiv.appendChild(techInfoLabel);
+    // Privacy note
+    const privacyNote = createElement('div', 'modcore-privacy-note', { role: 'note' });
+    privacyNote.innerHTML = `<strong>⚠ Privacy:</strong> Your report will open on the <em>public</em> ${GITHUB_REPO_NAME} GitHub page. Ensure your summary and description contain no personal or sensitive information.`;
 
-    step3.appendChild(techInfoDiv);
-    step3.appendChild(techInfoDesc);
+    step3.appendChild(techRow);
+    step3.appendChild(extRow);
+    step3.appendChild(consoleRow);
     step3.appendChild(privacyNote);
 
-    // --- Action Buttons (Global for all steps) ---
+    // =========================================================
+    // Action Buttons
+    // =========================================================
     const actionsDiv = createElement('div', 'modcore-form-actions');
+    const rightActions = createElement('div', 'mc-right-actions');
 
-    const cancelButton = createElement('button', 'btn-secondary', { type: 'button' });
+    const cancelButton = createElement('button', 'btn-secondary', { type: 'button', 'aria-label': 'Cancel and close' });
     cancelButton.textContent = 'Cancel';
     cancelButton.addEventListener('click', removeModal);
 
-    const backButton = createElement('button', 'btn-secondary', { type: 'button', id: 'back-button', disabled: 'true' });
-    backButton.textContent = 'Back';
+    const backButton = createElement('button', 'btn-secondary', {
+        type: 'button',
+        id: 'back-button',
+        disabled: 'true',
+        'aria-label': 'Go to previous step'
+    });
+    backButton.textContent = '← Back';
     backButton.style.visibility = 'hidden';
     backButton.addEventListener('click', () => navigateStep(-1));
 
-    const nextButton = createElement('button', 'btn-primary', { type: 'button', id: 'next-button' });
-    nextButton.textContent = 'Next';
+    const nextButton = createElement('button', 'btn-primary', {
+        type: 'button',
+        id: 'next-button',
+        'aria-label': 'Go to next step'
+    });
+    nextButton.textContent = 'Next →';
     nextButton.addEventListener('click', () => navigateStep(1));
 
-    // Assembly
+    rightActions.appendChild(backButton);
+    rightActions.appendChild(nextButton);
     actionsDiv.appendChild(cancelButton);
-    actionsDiv.appendChild(backButton);
-    actionsDiv.appendChild(nextButton);
+    actionsDiv.appendChild(rightActions);
 
+    // ---- Assemble form ----
     form.appendChild(step1);
     form.appendChild(step2);
     form.appendChild(step3);
     form.appendChild(actionsDiv);
 
     content.appendChild(header);
+    content.appendChild(progressTrack);
     content.appendChild(form);
 
     overlay.appendChild(style);
     overlay.appendChild(content);
 
-    // Initial setup
+    // ---- Initial state ----
     updateStep2Template(initialType);
     step1.classList.add('current');
 
     return overlay;
 
-    // --- Inner Helper Functions (Scope-contained) ---
+    // =========================================================
+    // Inner Helpers
+    // =========================================================
 
-    /** Creates a standard step container with ARIA attributes. */
     function createStepElement(id) {
-        const step = createElement('div', 'modcore-form-step', {
-            id: id,
+        return createElement('div', 'modcore-form-step', {
+            id,
             role: 'group',
             'aria-labelledby': 'modcore-dialog-title'
         });
-        return step;
     }
 
-    /** Updates the description field's placeholder and instructions based on the selected type. */
     function updateStep2Template(type) {
         const template = ISSUE_TEMPLATES[type] || ISSUE_TEMPLATES.BUG;
         summaryInput.placeholder = template.summaryPlaceholder;
         descriptionTextarea.placeholder = template.descriptionPlaceholder;
         instructionsNote.textContent = template.instructions;
     }
-    
-    /** Handles the step navigation logic. */
+
+    function updateProgress(stepIndex) {
+        const pct = ((stepIndex + 1) / TOTAL_STEPS) * 100;
+        progressFill.style.width = `${pct}%`;
+        progressTrack.setAttribute('aria-valuenow', String(stepIndex + 1));
+    }
+
     function navigateStep(direction) {
         const steps = [step1, step2, step3];
-        let currentStepIndex = steps.findIndex(s => s.classList.contains('current'));
-        let newStepIndex = currentStepIndex + direction;
+        const currentStepIndex = steps.findIndex(s => s.classList.contains('current'));
+        const newStepIndex = currentStepIndex + direction;
 
-        // Validation for Step 2 -> Step 3 transition
+        // Validation on Step 2 → 3 transition
         if (direction > 0 && currentStepIndex === 1) {
-            const isSummaryEmpty = !summaryInput.value.trim();
+            const isSummaryEmpty     = !summaryInput.value.trim();
             const isDescriptionEmpty = !descriptionTextarea.value.trim();
 
+            summaryInput.setAttribute('aria-invalid',     String(isSummaryEmpty));
+            descriptionTextarea.setAttribute('aria-invalid', String(isDescriptionEmpty));
+
             if (isSummaryEmpty || isDescriptionEmpty) {
-                // Apply/clear visual feedback
-                summaryInput.style.borderColor = isSummaryEmpty ? 'red' : '';
-                descriptionTextarea.style.borderColor = isDescriptionEmpty ? 'red' : '';
-                summaryInput.setAttribute('aria-invalid', isSummaryEmpty ? 'true' : 'false');
-                descriptionTextarea.setAttribute('aria-invalid', isDescriptionEmpty ? 'true' : 'false');
-                
-                // Show accessibility/visual error message
-                let errorDiv = document.getElementById('validation-error');
+                let errorDiv = form.querySelector('.modcore-error-note');
                 if (!errorDiv) {
-                    errorDiv = createElement('div', 'modcore-modal-note', { id: 'validation-error' });
-                    errorDiv.style.backgroundColor = 'rgba(255, 0, 0, 0.1)';
-                    errorDiv.style.color = 'darkred';
+                    errorDiv = createElement('div', 'modcore-error-note', {
+                        id: 'validation-error',
+                        role: 'alert'
+                    });
                     form.insertBefore(errorDiv, actionsDiv);
                 }
-                errorDiv.textContent = 'Please fill out all required fields before continuing.';
-                setTimeout(() => errorDiv.remove(), 4000); // Auto-dismiss error
-                
+                errorDiv.textContent = 'Please fill in all required fields before continuing.';
+                setTimeout(() => errorDiv?.remove(), 4500);
                 (isSummaryEmpty ? summaryInput : descriptionTextarea).focus();
                 return;
             }
-            // Clear validation on success
-            summaryInput.style.borderColor = '';
-            descriptionTextarea.style.borderColor = '';
+
             summaryInput.setAttribute('aria-invalid', 'false');
             descriptionTextarea.setAttribute('aria-invalid', 'false');
-            document.getElementById('validation-error')?.remove();
+            form.querySelector('.modcore-error-note')?.remove();
         }
 
         if (newStepIndex >= 0 && newStepIndex < steps.length) {
-            steps[currentStepIndex].classList.remove('current');
-            steps[newStepIndex].classList.add('current');
-            
-            // Update button visibility, state, and text
-            backButton.style.visibility = newStepIndex > 0 ? 'visible' : 'hidden';
-            backButton.disabled = newStepIndex === 0;
-            nextButton.textContent = newStepIndex === steps.length - 1 ? 'Send to GitHub' : 'Next';
-            nextButton.className = newStepIndex === steps.length - 1 ? 'btn-success' : 'btn-primary';
-            stepStatus.textContent = `Step ${newStepIndex + 1} of ${TOTAL_STEPS}`;
+            // Animate out
+            steps[currentStepIndex].classList.add(direction > 0 ? 'step-out' : 'step-out');
+            setTimeout(() => {
+                steps[currentStepIndex].classList.remove('current', 'step-out');
 
-            // Focus management
-            const firstFocusable = steps[newStepIndex].querySelector('input:not([type="hidden"]), select, textarea, button:not(#back-button), .modcore-type-option');
-            if (firstFocusable) {
-                firstFocusable.focus();
-            }
+                steps[newStepIndex].classList.add('current');
+                steps[newStepIndex].classList.add(direction > 0 ? '' : 'step-back-in');
+
+                // Button state
+                backButton.style.visibility = newStepIndex > 0 ? 'visible' : 'hidden';
+                backButton.disabled = newStepIndex === 0;
+                const isLast = newStepIndex === steps.length - 1;
+                nextButton.textContent = isLast ? '🚀 Send to GitHub' : 'Next →';
+                nextButton.className   = isLast ? 'btn-success' : 'btn-primary';
+                nextButton.setAttribute('aria-label', isLast ? 'Submit report to GitHub' : 'Go to next step');
+
+                stepStatus.textContent = `Step ${newStepIndex + 1} of ${TOTAL_STEPS}`;
+                updateProgress(newStepIndex);
+
+                // Focus first interactive element
+                const firstFocusable = steps[newStepIndex].querySelector(
+                    'input:not([type="hidden"]), select, textarea, button:not(#back-button), .modcore-type-option'
+                );
+                firstFocusable?.focus();
+            }, 160);
 
         } else if (newStepIndex === steps.length) {
-            // Final step: Submission
-            nextButton.disabled = true; 
+            nextButton.disabled = true;
+            nextButton.classList.add('btn-loading');
+            nextButton.innerHTML = '<span class="btn-loading-text">Opening GitHub</span>';
             handleFormSubmission(form);
+        }
+    }
+
+    /** Trap keyboard focus within the overlay for accessibility. */
+    function trapFocus(e) {
+        if (e.key !== 'Tab') return;
+        const focusable = Array.from(
+            overlay.querySelectorAll(
+                'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            )
+        ).filter(el => !el.closest('.modcore-form-step:not(.current)'));
+
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last  = focusable[focusable.length - 1];
+
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
         }
     }
 }
 
-/**
- * Displays the modal and handles focus management.
- */
+// ---------------------------------------------------------------------------
+// Modal lifecycle
+// ---------------------------------------------------------------------------
+
 function displayModal() {
     if (reportDialogElement) return;
-
     reportDialogElement = createReportDialog();
     document.body.appendChild(reportDialogElement);
 
-    setTimeout(() => {
-        reportDialogElement.classList.add('is-open');
-    }, 10);
-    
-    // Initial focus on the first conversational element
+    // Stagger: allow paint before adding open class
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            reportDialogElement?.classList.add('is-open');
+        });
+    });
+
     const firstFocusable = reportDialogElement.querySelector('.modcore-type-option');
-    if (firstFocusable) {
-        firstFocusable.focus();
-    }
+    firstFocusable?.focus();
 }
 
-/**
- * Removes the modal from the document body.
- */
 function removeModal() {
-    if (reportDialogElement) {
-        reportDialogElement.classList.remove('is-open');
-        
-        // Wait for animation, then remove
-        setTimeout(() => {
-            reportDialogElement?.remove();
-            reportDialogElement = null;
-        }, 300);
-    }
+    if (!reportDialogElement) return;
+    reportDialogElement.classList.remove('is-open');
+    const dying = reportDialogElement;
+    reportDialogElement = null;
+    setTimeout(() => dying.remove(), 320);
 }
 
+// ---------------------------------------------------------------------------
+// Form submission
+// ---------------------------------------------------------------------------
+
 /**
- * Handles form submission, constructs the GitHub issue URL, and redirects.
- * @param {HTMLFormElement} form The form element containing the user data.
+ * Assembles the GitHub issue URL and opens it, respecting the URL budget.
+ * @param {HTMLFormElement} form
  */
 async function handleFormSubmission(form) {
-    const typeKey = form.elements['issue-type'].value;
-    const summary = form.elements['issue-summary'].value.trim();
+    const typeKey   = form.elements['issue-type'].value;
+    const summary   = form.elements['issue-summary'].value.trim();
     const description = form.elements['issue-description'].value.trim();
-    const includeTechInfo = form.elements['include-tech-info'].checked;
+    const includeTech    = form.elements['include-tech-info'].checked;
+    const includeExtList = form.elements['include-ext-list'].checked;
+    const includeConsole = form.elements['include-console-logs'].checked;
 
-    const template = ISSUE_TEMPLATES[typeKey] || ISSUE_TEMPLATES.GENERAL;
-
+    const template   = ISSUE_TEMPLATES[typeKey] || ISSUE_TEMPLATES.GENERAL;
     const issueTitle = `${template.titlePrefix} ${summary}`;
 
-    let issueBody = `## Detailed Report\n\n${description}\n\n`;
+    // Build body sections, then trim if necessary to respect URL budget
+    let bodyParts = [`## Detailed Report\n\n${description}`];
 
-    if (includeTechInfo) {
-        issueBody += '\n---\n';
-        issueBody += await getAccurateTechnicalInfo();
-        issueBody += '\n---\n';
-        issueBody += '*Note: This section contains technical environment details (Browser, OS, Screen, Version) voluntarily provided by the user to aid in debugging this public issue.*';
+    if (includeTech) {
+        const techInfo = await getAccurateTechnicalInfo();
+        bodyParts.push(`\n---\n${techInfo}`);
     }
 
+    if (includeExtList) {
+        const extInfo = await getInstalledExtensionsInfo();
+        bodyParts.push(`\n---\n${extInfo}`);
+    }
 
-    // --- Construct and Encode the Final URL ---
+    if (includeConsole) {
+        const consoleLogs = getConsoleLogs();
+        bodyParts.push(`\n---\n${consoleLogs}`);
+    }
+
+    bodyParts.push(`\n---\n*Technical details included voluntarily by the user to aid debugging.*`);
+
+    // Join and enforce budget
+    let issueBody = bodyParts.join('\n');
+    if (issueBody.length > MAX_BODY_CHARS) {
+        issueBody = issueBody.slice(0, MAX_BODY_CHARS) +
+            '\n\n_…(report truncated to stay within URL limits)_';
+    }
+
     const params = new URLSearchParams();
-    params.append('title', issueTitle);
-    params.append('body', issueBody);
+    params.append('title',  issueTitle);
+    params.append('body',   issueBody);
     params.append('labels', template.label);
 
-    const finalUrl = `${GITHUB_BASE_URL}?${params.toString()}`;
-
-    // Redirect the user to the generated GitHub Issue page
-    window.open(finalUrl, '_blank');
-
-    // Close the modal after redirection
+    window.open(`${GITHUB_BASE_URL}?${params.toString()}`, '_blank');
     removeModal();
 }
 
-/**
- * Global keyboard listener to trigger the modal ('E' key) and manage 'Escape'.
- * @param {KeyboardEvent} event The keyboard event.
- */
+// ---------------------------------------------------------------------------
+// Global keyboard listener
+// ---------------------------------------------------------------------------
+
 function handleKeydown(event) {
-    const hasModifier = event.ctrlKey || event.altKey || event.shiftKey || event.metaKey;
+    const hasModifier   = event.ctrlKey || event.altKey || event.shiftKey || event.metaKey;
     const activeElement = document.activeElement;
-    
-    // Robust check if the user is currently typing in an input field
-    const isTyping = activeElement && (
-        activeElement.tagName === 'INPUT' && activeElement.type !== 'checkbox' && activeElement.type !== 'submit' ||
+    const isTyping      = activeElement && (
+        (activeElement.tagName === 'INPUT' &&
+            activeElement.type !== 'checkbox' &&
+            activeElement.type !== 'radio' &&
+            activeElement.type !== 'submit') ||
         activeElement.tagName === 'TEXTAREA' ||
         activeElement.isContentEditable ||
         activeElement.tagName === 'SELECT'
     );
 
-    // Trigger on 'E' key, no modifiers, and not currently typing
     if (event.key === 'e' && !hasModifier && !isTyping) {
         event.preventDefault();
         displayModal();
         return;
     }
 
-    // Allow 'Escape' key to close the modal if it's open
     if (event.key === 'Escape' && reportDialogElement) {
         event.preventDefault();
         removeModal();
     }
 }
 
-// Initialize the listener when the content script loads
 document.addEventListener('keydown', handleKeydown);
