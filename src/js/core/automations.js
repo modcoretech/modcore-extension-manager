@@ -1,7 +1,4 @@
 document.addEventListener('DOMContentLoaded', async () => {
-    // --- Constants (copied from popup.js for consistency) ---
-    const PREFERENCES_STORAGE_KEY = 'extensionManagerPreferences_v4';
-    const GROUPS_STORAGE_KEY = 'extensionManagerGroups_v4'; // Incremented for shortcutAction
     const PROFILES_STORAGE_KEY = 'extensionManagerProfiles_v2';
     const DEFAULT_ICON_PLACEHOLDER = '../../public/icons/svg/updatelogo.svg';
 
@@ -9,7 +6,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     let allRules = [];
     let allExtensions = [];
     let allProfiles = []; // New state for profiles
-    let allGroups = {}; // New state for groups
     let currentActivePanelId = 'rules-list-panel';
     let selectedRuleIds = new Set();
     let currentViewMode = 'list';
@@ -131,13 +127,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else if (rule.targetType === 'profile') {
             actionIconClass = 'icon-profiles'; // Placeholder icon for apply profile
             actionText = `Action: Apply Profile`;
-        } else if (rule.targetType === 'group') {
-             actionIconClass = 'icon-groups'; // Placeholder icon for groups
-             if (rule.action === 'toggle') {
-                actionText = `Action: Toggle Group`;
-            } else {
-                actionText = `Action: ${rule.action.charAt(0).toUpperCase() + rule.action.slice(1)}`;
-            }
         }
         conditionsGrid.appendChild(createConditionElement(actionIconClass, actionText, true));
 
@@ -162,11 +151,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             const profile = allProfiles.find(p => p.id === rule.targetIds[0]); // Profiles only target one
             targetsText = `Targets Profile: ${profile ? sanitizeText(profile.name) : 'Unknown Profile'}`;
             targetsIconClass = 'icon-profiles'; // SVG for profiles icon
-        } else if (rule.targetType === 'group') {
-            // Group IDs are their names in the data structure
-            const groupNames = rule.targetIds.map(id => allGroups[id]?.name || id); 
-            targetsText = `Targets Groups: ${groupNames.map(name => sanitizeText(name)).join(', ') || 'None'}`;
-            targetsIconClass = 'icon-groups'; // SVG for groups icon
         }
         const targetsCondition = createConditionElement(targetsIconClass, targetsText, false);
         targetsCondition.title = targetsText; // Use full text for tooltip
@@ -246,10 +230,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 items = allProfiles; // This is an array of profile objects
                 labelText = 'Select Profile (One only)';
                 break;
-            case 'group':
-                items = Object.values(allGroups); // This converts the allGroups object into an array of group objects
-                labelText = 'Select Groups';
-                break;
         }
 
         console.log(`Rules.js: Populating target selector for type: ${targetType}. Items to render:`, items); // DEBUG LOG
@@ -263,8 +243,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         items.forEach(item => {
-            // Use item.id for profiles, item.name for groups (as per data structure)
-            const id = item.id || item.name; 
+            const id = item.id
             const name = item.name;
             const itemImgSrc = item.icons && item.icons.length > 0 && item.icons[item.icons.length - 1].url
                                ? item.icons[item.icons.length - 1].url
@@ -307,9 +286,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 { value: 'enable', text: 'Enable' },
                 { value: 'disable', text: 'Disable' }
             ];
-            if (targetType === 'group') {
-                options.push({ value: 'toggle', text: 'Toggle (Enable/Disable)' }); // Add toggle for groups
-            }
         } else if (targetType === 'profile') {
             options = [
                 { value: 'apply', text: 'Apply Profile' }
@@ -411,19 +387,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 allExtensions = extensions.filter(ext => ext.type === 'extension' && ext.id !== self.id);
             }
             
-            // Fetch profiles and groups
+            // Fetch profiles
             console.log(`Rules.js: Fetching profiles using key: '${PROFILES_STORAGE_KEY}'`);
             const profilesData = await chrome.storage.local.get(PROFILES_STORAGE_KEY);
             console.log("Rules.js: Raw data from PROFILES_STORAGE_KEY:", profilesData);
             allProfiles = Object.values(profilesData[PROFILES_STORAGE_KEY] || {});
             allProfiles.sort((a,b) => (a.name || '').localeCompare(b.name || '')); // Ensure sorting
             console.log("Rules.js: Processed allProfiles array:", allProfiles); // DEBUG LOG
-
-            console.log(`Rules.js: Fetching groups using key: '${GROUPS_STORAGE_KEY}'`);
-            const groupsData = await chrome.storage.local.get(GROUPS_STORAGE_KEY);
-            console.log("Rules.js: Raw data from GROUPS_STORAGE_KEY:", groupsData);
-            allGroups = groupsData[GROUPS_STORAGE_KEY] || {}; // Keep as object for easy lookup
-            console.log("Rules.js: Processed allGroups object:", allGroups); // DEBUG LOG
 
 
             const data = await chrome.storage.local.get('rules');
@@ -432,7 +402,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             applyFiltersAndRender();
             updateBulkActionBarVisibility();
             updateSelectAllCheckboxState();
-            // Also re-populate filter dropdown for target type, in case new profiles/groups were added
+            // Also re-populate filter dropdown for target type, in case new profiles were added
             populateTargetTypeFilterDropdown(); 
         } catch (error) {
             console.error("Rules.js: Error initializing the page:", error);
@@ -453,7 +423,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             { value: "all", text: "All Targets" },
             { value: "extension", text: "Extensions" },
             { value: "profile", text: "Profiles" },
-            { value: "group", text: "Groups" }
         ];
 
         optionsData.forEach(optionData => {
@@ -579,9 +548,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else if (selectedTargetType === 'extension' && !['enable', 'disable'].includes(selectedAction)) { // Extensions only enable/disable
              showValidationError(ruleActionError, 'For extensions, action must be "Enable" or "Disable".');
              isValid = false;
-        } else if (selectedTargetType === 'group' && !['enable', 'disable', 'toggle'].includes(selectedAction)) { // Groups can toggle
-             showValidationError(ruleActionError, 'For groups, action must be "Enable", "Disable", or "Toggle".');
-             isValid = false;
         }
 
 
@@ -604,14 +570,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         return isValid;
     };
 
-    /**
-     * ENHANCED: More robust conflict checking for URLs and new target types.
-     * Conflicts defined as: two ENABLED rules targeting the SAME item(s) with OPPOSITE actions and OVERLAPPING triggers.
-     * For profiles/groups, we primarily check for direct conflicts on the profile/group itself.
-     * Cross-target conflicts (e.g., profile X enables extension A, but a separate rule disables extension A)
-     * are extremely complex to manage at the rule-creation stage without significant performance impact
-     * and a deeper state tracking, so for now, we focus on direct target conflicts.
-     */
     const checkRuleConflicts = (newRule) => {
         const relevantRules = allRules.filter(r => r.enabled && r.id !== newRule.id);
 
@@ -646,16 +604,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                             hasDirectConflict = true;
                         }
                     } else if (newRule.targetType === 'profile') {
-                        // Two "apply profile" actions on the same profile conflict if triggered at the same time,
-                        // but technically they'd just apply the same profile.
-                        // Conflict here is more about two different profiles being applied to the *same* profile target
-                        // which isn't possible with current UI (only one profile can be selected).
-                        // If they both target the same profile, they implicitly conflict if trying to set different states.
-                        // Simplification: if two rules target the *same profile* they are considered conflicting IF their actions are different, which they can't be (only 'apply').
-                        // So, the most direct conflict is trying to apply the *same* profile with different actions, which won't happen.
-                        // The primary conflict is two *different* profiles being applied, but the UI limits to one target.
-                        // A more nuanced conflict: Rule A applies Profile X, Rule B applies Profile Y, and both rules trigger.
-                        // For simplicity now, we only check if the target profile ID is the same, which means they would be redundant or directly conflicting if multiple selection was allowed.
                          if (newRule.action === 'apply' && existingRule.action === 'apply') {
                             hasDirectConflict = true; // Two apply rules for the same profile is a conflict
                          }
@@ -685,7 +633,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     .map(id => {
                         if (newRule.targetType === 'extension') return allExtensions.find(ext => ext.id === id)?.name;
                         if (newRule.targetType === 'profile') return allProfiles.find(p => p.id === id)?.name;
-                        if (newRule.targetType === 'group') return allGroups[id]?.name || id; // Groups use name as ID
                         return id;
                     })
                     .filter(name => name)
@@ -1056,8 +1003,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     rule.action = rule.action || 'enable'; // Default to 'enable'
                     if (rule.targetType === 'profile' && rule.action !== 'apply') {
                         rule.action = 'apply'; // Force 'apply' for profiles if imported incorrectly
-                    } else if (rule.targetType === 'group' && !['enable', 'disable', 'toggle'].includes(rule.action)) {
-                        rule.action = 'toggle'; // Default to toggle for groups if unknown action
                     } else if (rule.targetType === 'extension' && !['enable', 'disable'].includes(rule.action)) {
                         rule.action = 'enable'; // Default to enable for extensions if unknown action
                     }
