@@ -2,10 +2,11 @@
   "manifest_version": 3,
   "name": "__MSG_extensionName__",
   "short_name": "__MSG_extensionShortName__",
-  "version": "2.3.9",
+  "version": "2.4.0",
   "description": "__MSG_extensionDescription__",
   "homepage_url": "https://github.com/modcoretech/modcore-extension-manager",
   "author": "modcore",
+  "offline_enabled": true,
   "permissions": [
     "storage",
     "management",
@@ -14,10 +15,12 @@
     "tabs",
     "downloads",
     "contextMenus",
-    "sidePanel"
+    "sidePanel",
+    "notifications"
   ],
   "background": {
-    "service_worker": "src/js/core/background.js"
+    "service_worker": "src/js/core/service-worker.js",
+    "type": "module"
   },
   "host_permissions": [
     "https://chrome.google.com/webstore/detail/",
@@ -61,5 +64,13 @@
   "default_locale": "en",
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "commands": {
+    "download-crx": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+D"
+      },
+      "description": "__MSG_command_download_crx__"
+    }
   }
 }
