@@ -1,253 +1,293 @@
-document.addEventListener('DOMContentLoaded', initializeSyncPage);
+/**
+ * @file cloud.js
+ * modcore Cloud - UI logic for the cloud sync page.
+ */
 
-// --- Constants & Global State ---
+'use strict';
+
+// ==========================================================================
+// Constants
+// ==========================================================================
+
 const SYNC_QUOTA_BYTES = 102400; // 100 KB
-const SYNC_DATA_KEY = 'fullSyncData'; // A single key to hold versioned data
+const SYNC_DATA_KEY    = 'fullSyncData';
 const SYNC_SETTINGS_KEY = 'cloudSyncSettings';
-const MAX_LOG_ENTRIES = 100; // Default for log retention, but can be overridden by settings
-const MAX_VERSIONS = 10; // Default for history retention, but can be overridden by settings
 
-// Data categories that can be synced
+// Hard maximums - enforced regardless of user retention policy setting.
+const HARD_MAX_VERSIONS   = 25;
+const HARD_MAX_LOG_ENTRIES = 500;
+
+// Default soft limits (overridden by user settings).
+const DEFAULT_MAX_VERSIONS    = 10;
+const DEFAULT_MAX_LOG_ENTRIES = 100;
+
+const DEBOUNCE_DELAY = 320; // ms
+
 const DATA_KEYS_TO_SYNC = {
-    rules: 'Automation Rules',
-    extensionManagerGroups_v4: 'Groups',
+    rules:                       'Automation Rules',
     extensionManagerProfiles_v2: 'Profiles',
-    extensionManagerPrefs: 'Preferences'
+    extensionManagerPrefs:       'Preferences',
 };
 
-let ui; // Object to hold all UI element references
-let allLogEntries = []; // Store all log entries for filtering
-let allHistoryEntries = []; // Store all history entries for filtering
+// ==========================================================================
+// Module-level state
+// ==========================================================================
 
-let historySearchTimeout;
-let logSearchTimeout;
-const DEBOUNCE_DELAY = 300; // milliseconds
+let ui = {};
+let allLogEntries     = [];
+let allHistoryEntries = [];
+let activeRecordsTab  = 'history'; // 'history' | 'log'
+let _searchDebounceTimer = null;
 
-/**
- * Main initialization function.
- */
-function initializeSyncPage() {
-    console.log("Initializing Cloud Sync v2.0 Page");
+// ==========================================================================
+// Initialization
+// ==========================================================================
+
+document.addEventListener('DOMContentLoaded', initializeSyncPage);
+
+async function initializeSyncPage() {
     mapUI();
     bindEventListeners();
-    loadAndApplySettings();
-    updateSyncStatus();
-    setupTooltips(); // Initialize tooltips
-    applyRetentionPolicies(); // Apply on startup
+    await loadAndApplySettings();
+    await updateSyncStatus();
 }
 
-/**
- * Maps all DOM elements to the `ui` object for easy access.
- */
+// ==========================================================================
+// UI Mapping
+// ==========================================================================
+
 function mapUI() {
     ui = {
-        // Panels & Navigation
-        sidebarButtons: document.querySelectorAll('.sidebar-button'),
-        contentPanels: document.querySelectorAll('.content-panel'),
-        
-        // Status Panel
-        chromeSyncStatus: document.getElementById('chromeSyncStatus'),
-        extensionSyncStatus: document.getElementById('extensionSyncStatus'),
-        lastSyncTimestamp: document.getElementById('lastSyncTimestamp'),
-        syncProgressBarContainer: document.getElementById('syncProgressBarContainer'),
-        syncProgress: document.getElementById('syncProgress'),
-        syncProgressText: document.getElementById('syncProgressText'),
-        totalBytesUsed: document.getElementById('totalBytesUsed'),
-        statusMessage: document.getElementById('statusMessage'),
-        quotaBreakdown: document.getElementById('quotaBreakdown'),
+        // Navigation
+        sidebarButtons:  document.querySelectorAll('.sidebar-button'),
+        contentPanels:   document.querySelectorAll('.content-panel'),
 
-        // Options Panel
-        selectiveSyncOptions: document.getElementById('selectiveSyncOptions'),
-        enableAutoSync: document.getElementById('enableAutoSync'),
-        syncOnStartup: document.getElementById('syncOnStartup'),
-        syncInterval: document.getElementById('syncInterval'),
-        historyRetentionPolicy: document.getElementById('historyRetentionPolicy'), // Moved to options
-        logRetentionPolicy: document.getElementById('logRetentionPolicy'),     // Moved to options
-        exportHistoryBtn: document.getElementById('exportHistoryBtn'),     // Moved to options
-        exportLogBtn: document.getElementById('exportLogBtn'),         // Moved to options
+        // Status
+        chromeSyncStatus:         document.getElementById('chromeSyncStatus'),
+        extensionSyncStatus:      document.getElementById('extensionSyncStatus'),
+        lastSyncTimestamp:        document.getElementById('lastSyncTimestamp'),
+        syncProgressBar:          document.getElementById('syncProgressBar'),
+        syncProgress:             document.getElementById('syncProgress'),
+        syncProgressText:         document.getElementById('syncProgressText'),
+        totalBytesUsed:           document.getElementById('totalBytesUsed'),
+        statusMessage:            document.getElementById('statusMessage'),
+        quotaBreakdown:           document.getElementById('quotaBreakdown'),
 
-        // Actions Panel
-        syncNowBtn: document.getElementById('syncNowBtn'),
-        restoreBtn: document.getElementById('restoreBtn'),
-        clearSyncBtn: document.getElementById('clearSyncBtn'),
+        // Options
+        selectiveSyncOptions:     document.getElementById('selectiveSyncOptions'),
+        enableAutoSync:           document.getElementById('enableAutoSync'),
+        syncInterval:             document.getElementById('syncInterval'),
+        historyRetentionPolicy:   document.getElementById('historyRetentionPolicy'),
+        logRetentionPolicy:       document.getElementById('logRetentionPolicy'),
+        exportHistoryBtn:         document.getElementById('exportHistoryBtn'),
+        exportLogBtn:             document.getElementById('exportLogBtn'),
 
-        // History Panel
-        versionHistory: document.getElementById('versionHistory'),
-        historySearchInput: document.getElementById('historySearchInput'),
-        historyDateRange: document.getElementById('historyDateRange'),
-        historyCustomDateRange: document.getElementById('historyCustomDateRange'),
-        historyStartDate: document.getElementById('historyStartDate'),
-        historyEndDate: document.getElementById('historyEndDate'),
+        // Actions
+        syncNowBtn:    document.getElementById('syncNowBtn'),
+        restoreBtn:    document.getElementById('restoreBtn'),
+        clearSyncBtn:  document.getElementById('clearSyncBtn'),
 
-        // Log Panel
-        syncLog: document.getElementById('syncLog'),
-        logSearchInput: document.getElementById('logSearchInput'),
-        logDateRange: document.getElementById('logDateRange'),
-        logCustomDateRange: document.getElementById('logCustomDateRange'),
-        logStartDate: document.getElementById('logStartDate'),
-        logEndDate: document.getElementById('logEndDate'),
+        // Records panel (unified)
+        recordsTabs:             document.querySelectorAll('.records-tab'),
+        historyPane:             document.getElementById('records-history-pane'),
+        logPane:                 document.getElementById('records-log-pane'),
+        versionHistory:          document.getElementById('versionHistory'),
+        syncLog:                 document.getElementById('syncLog'),
 
-        // Modals
+        // Shared filter controls
+        recordsSearchInput:      document.getElementById('recordsSearchInput'),
+        recordsDateRange:        document.getElementById('recordsDateRange'),
+        recordsCustomDateRange:  document.getElementById('recordsCustomDateRange'),
+        recordsStartDate:        document.getElementById('recordsStartDate'),
+        recordsEndDate:          document.getElementById('recordsEndDate'),
+
+        // Dialogs
         confirmDialog: {
-            overlay: document.getElementById('confirmDialogOverlay'),
-            title: document.getElementById('confirmDialogTitle'),
-            message: document.getElementById('confirmDialogMessage'),
-            okBtn: document.getElementById('confirmOkBtn'),
+            overlay:   document.getElementById('confirmDialogOverlay'),
+            title:     document.getElementById('confirmDialogTitle'),
+            message:   document.getElementById('confirmDialogMessage'),
+            okBtn:     document.getElementById('confirmOkBtn'),
             cancelBtn: document.getElementById('confirmCancelBtn'),
         },
         conflictDialog: {
-            overlay: document.getElementById('conflictDialogOverlay'),
-            keepLocalBtn: document.getElementById('conflictKeepLocalBtn'),
-            keepCloudBtn: document.getElementById('conflictKeepCloudBtn'),
+            overlay:       document.getElementById('conflictDialogOverlay'),
+            keepLocalBtn:  document.getElementById('conflictKeepLocalBtn'),
+            keepCloudBtn:  document.getElementById('conflictKeepCloudBtn'),
         },
-        
-        // Toast
+
         toastContainer: document.getElementById('toast-container'),
-        
-        // Tooltips
-        chromeSyncTooltip: document.getElementById('chromeSyncTooltip'),
-        autoSyncTooltip: document.getElementById('autoSyncTooltip'),
     };
+
     populateSelectiveSyncOptions();
 }
 
-/**
- * Populates the selective sync checkbox area.
- */
 function populateSelectiveSyncOptions() {
-    while (ui.selectiveSyncOptions.firstChild) {
-        ui.selectiveSyncOptions.removeChild(ui.selectiveSyncOptions.firstChild);
-    }
-    for (const key in DATA_KEYS_TO_SYNC) {
-        const name = DATA_KEYS_TO_SYNC[key];
-        const item = document.createElement('div');
+    const container = ui.selectiveSyncOptions;
+    clearChildren(container);
+
+    for (const [key, name] of Object.entries(DATA_KEYS_TO_SYNC)) {
+        const item  = document.createElement('div');
         item.className = 'option-item';
 
         const label = document.createElement('label');
         label.setAttribute('for', `sync-${key}`);
 
         const input = document.createElement('input');
-        input.type = 'checkbox';
-        input.id = `sync-${key}`;
-        input.dataset.key = key;
+        input.type         = 'checkbox';
+        input.id           = `sync-${key}`;
+        input.dataset.key  = key;
+        input.checked      = true; // default; overridden by loadAndApplySettings
 
         label.appendChild(input);
         label.appendChild(document.createTextNode(` ${name}`));
-
         item.appendChild(label);
-        ui.selectiveSyncOptions.appendChild(item);
+        container.appendChild(item);
     }
 }
 
+// ==========================================================================
+// Event Binding
+// ==========================================================================
 
-/**
- * Binds all event listeners for the page.
- */
 function bindEventListeners() {
-    // Panel Navigation
+    // Sidebar navigation
     ui.sidebarButtons.forEach(button => {
         button.addEventListener('click', () => {
-            switchPanel(button.dataset.panel);
-            // Load content automatically when panel is switched
-            if (button.dataset.panel === 'history-panel') {
-                displayVersionHistory(true);
-            } else if (button.dataset.panel === 'log-panel') {
-                updateSyncLog(true);
+            const panelId = button.dataset.panel;
+            switchPanel(panelId);
+            if (panelId === 'records-panel') {
+                refreshActiveRecordsTab(true);
             }
         });
     });
 
     // Options
     ui.enableAutoSync.addEventListener('change', saveSyncSettings);
-    ui.syncOnStartup.addEventListener('change', saveSyncSettings);
     ui.syncInterval.addEventListener('change', saveSyncSettings);
-    ui.selectiveSyncOptions.addEventListener('change', saveSyncSettings);
     ui.historyRetentionPolicy.addEventListener('change', saveSyncSettings);
     ui.logRetentionPolicy.addEventListener('change', saveSyncSettings);
-    ui.exportHistoryBtn.addEventListener('click', () => exportDataToCSV(allHistoryEntries, 'sync_history'));
-    ui.exportLogBtn.addEventListener('click', () => exportDataToCSV(allLogEntries, 'sync_log'));
+    ui.selectiveSyncOptions.addEventListener('change', saveSyncSettings);
 
+    ui.exportHistoryBtn.addEventListener('click', () => exportDataAsJSON(allHistoryEntries, 'sync_history'));
+    ui.exportLogBtn.addEventListener('click',     () => exportDataAsJSON(allLogEntries,     'sync_log'));
 
     // Actions
-    ui.syncNowBtn.addEventListener('click', () => syncToCloud(false));
-    ui.restoreBtn.addEventListener('click', () => restoreFromCloud(null)); // null means latest
+    ui.syncNowBtn.addEventListener('click',   () => syncToCloud(false));
+    ui.restoreBtn.addEventListener('click',   () => restoreFromCloud(null));
     ui.clearSyncBtn.addEventListener('click', confirmClearCloudData);
-    
-    // History Filters (automatic on change with debounce)
-    ui.historySearchInput.addEventListener('input', debounce(() => displayVersionHistory(true), DEBOUNCE_DELAY));
-    ui.historyDateRange.addEventListener('change', () => {
-        ui.historyCustomDateRange.style.display = ui.historyDateRange.value === 'custom' ? 'flex' : 'none';
-        displayVersionHistory(true);
+
+    // Records tab switching
+    ui.recordsTabs.forEach(tab => {
+        tab.addEventListener('click', () => switchRecordsTab(tab.dataset.tab));
+        tab.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                switchRecordsTab(tab.dataset.tab);
+            }
+        });
     });
-    ui.historyStartDate.addEventListener('change', debounce(() => displayVersionHistory(true), DEBOUNCE_DELAY));
-    ui.historyEndDate.addEventListener('change', debounce(() => displayVersionHistory(true), DEBOUNCE_DELAY));
 
-
-    // Log Filters (automatic on change with debounce)
-    ui.logSearchInput.addEventListener('input', debounce(() => updateSyncLog(true), DEBOUNCE_DELAY));
-    ui.logDateRange.addEventListener('change', () => {
-        ui.logCustomDateRange.style.display = ui.logDateRange.value === 'custom' ? 'flex' : 'none';
-        updateSyncLog(true);
+    // Shared filter controls - debounced search, immediate date
+    ui.recordsSearchInput.addEventListener('input', () => {
+        clearTimeout(_searchDebounceTimer);
+        _searchDebounceTimer = setTimeout(() => refreshActiveRecordsTab(false), DEBOUNCE_DELAY);
     });
-    ui.logStartDate.addEventListener('change', debounce(() => updateSyncLog(true), DEBOUNCE_DELAY));
-    ui.logEndDate.addEventListener('change', debounce(() => updateSyncLog(true), DEBOUNCE_DELAY));
 
+    ui.recordsDateRange.addEventListener('change', () => {
+        const isCustom = ui.recordsDateRange.value === 'custom';
+        ui.recordsCustomDateRange.hidden = !isCustom;
+        refreshActiveRecordsTab(false);
+    });
 
-    // Storage Changes
+    ui.recordsStartDate.addEventListener('change', () => refreshActiveRecordsTab(false));
+    ui.recordsEndDate.addEventListener('change',   () => refreshActiveRecordsTab(false));
+
+    // React to storage changes from other contexts
     chrome.storage.onChanged.addListener(handleStorageChange);
 }
 
-/**
- * Switches the visible content panel.
- * @param {string} panelId The ID of the panel to show.
- */
+// ==========================================================================
+// Panel & Tab Navigation
+// ==========================================================================
+
 function switchPanel(panelId) {
-    ui.sidebarButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.panel === panelId));
-    ui.contentPanels.forEach(panel => panel.classList.toggle('active', panel.id === panelId));
+    ui.sidebarButtons.forEach(btn => {
+        const isActive = btn.dataset.panel === panelId;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-current', isActive ? 'page' : 'false');
+    });
+    ui.contentPanels.forEach(panel => {
+        panel.classList.toggle('active', panel.id === panelId);
+    });
 }
 
-/**
- * Loads settings from storage and updates the UI accordingly.
- */
-async function loadAndApplySettings() {
-    try {
-        const { [SYNC_SETTINGS_KEY]: settings } = await chrome.storage.local.get(SYNC_SETTINGS_KEY);
-        const defaults = {
-            autoSyncEnabled: false,
-            syncOnStartup: false,
-            syncInterval: 60,
-            selectiveSync: Object.keys(DATA_KEYS_TO_SYNC).reduce((acc, key) => ({ ...acc, [key]: true }), {}),
-            lastSyncTimestamp: null,
-            logRetentionPolicy: '100', // Default: keep last 100 entries
-            historyRetentionPolicy: '10' // Default: keep last 10 versions
-        };
-        const currentSettings = { ...defaults, ...settings };
+function switchRecordsTab(tabName) {
+    activeRecordsTab = tabName;
 
-        ui.enableAutoSync.checked = currentSettings.autoSyncEnabled;
-        ui.syncOnStartup.checked = currentSettings.syncOnStartup;
-        ui.syncInterval.value = currentSettings.syncInterval;
-        ui.lastSyncTimestamp.textContent = currentSettings.lastSyncTimestamp ? new Date(currentSettings.lastSyncTimestamp).toLocaleString() : 'Never';
-        ui.extensionSyncStatus.textContent = currentSettings.autoSyncEnabled ? 'Enabled' : 'Disabled';
-        ui.extensionSyncStatus.className = `detail-value status-indicator ${currentSettings.autoSyncEnabled ? 'success' : 'error'}`;
-        ui.logRetentionPolicy.value = currentSettings.logRetentionPolicy;
-        ui.historyRetentionPolicy.value = currentSettings.historyRetentionPolicy;
+    ui.recordsTabs.forEach(tab => {
+        const isActive = tab.dataset.tab === tabName;
+        tab.classList.toggle('active', isActive);
+        tab.setAttribute('aria-selected', String(isActive));
+    });
 
+    const showHistory = tabName === 'history';
+    ui.historyPane.hidden = !showHistory;
+    ui.logPane.hidden     = showHistory;
 
-        for (const key in currentSettings.selectiveSync) {
-            const checkbox = document.getElementById(`sync-${key}`);
-            if (checkbox) {
-                checkbox.checked = currentSettings.selectiveSync[key];
-            }
-        }
-    } catch (error) {
-        console.error("Error loading settings:", error);
-        showToast("Could not load sync settings.", "error");
+    refreshActiveRecordsTab(true);
+}
+
+function refreshActiveRecordsTab(fetchFresh) {
+    if (activeRecordsTab === 'history') {
+        displayVersionHistory(fetchFresh);
+    } else {
+        displaySyncLog(fetchFresh);
     }
 }
 
-/**
- * Saves all current sync settings to local storage.
- */
+// ==========================================================================
+// Settings
+// ==========================================================================
+
+async function loadAndApplySettings() {
+    try {
+        const stored = await chromeStorageGet('local', SYNC_SETTINGS_KEY);
+        const settings = stored[SYNC_SETTINGS_KEY] || {};
+
+        const defaults = {
+            autoSyncEnabled:        false,
+            syncInterval:           60,
+            selectiveSync:          Object.keys(DATA_KEYS_TO_SYNC).reduce((acc, k) => ({ ...acc, [k]: true }), {}),
+            lastSyncTimestamp:      null,
+            logRetentionPolicy:     String(DEFAULT_MAX_LOG_ENTRIES),
+            historyRetentionPolicy: String(DEFAULT_MAX_VERSIONS),
+        };
+
+        const s = { ...defaults, ...settings };
+
+        ui.enableAutoSync.checked = s.autoSyncEnabled;
+        ui.syncInterval.value     = String(s.syncInterval);
+
+        ui.lastSyncTimestamp.textContent = s.lastSyncTimestamp
+            ? new Date(s.lastSyncTimestamp).toLocaleString()
+            : 'Never';
+
+        ui.extensionSyncStatus.textContent = s.autoSyncEnabled ? 'Enabled' : 'Disabled';
+        ui.extensionSyncStatus.className   = `detail-value status-indicator ${s.autoSyncEnabled ? 'success' : 'error'}`;
+
+        setSelectValue(ui.logRetentionPolicy,     s.logRetentionPolicy);
+        setSelectValue(ui.historyRetentionPolicy, s.historyRetentionPolicy);
+
+        for (const [key, enabled] of Object.entries(s.selectiveSync)) {
+            const cb = document.getElementById(`sync-${key}`);
+            if (cb) cb.checked = enabled;
+        }
+    } catch (err) {
+        console.error('loadAndApplySettings:', err);
+        showToast('Could not load sync settings.', 'error');
+    }
+}
+
 async function saveSyncSettings() {
     try {
         const selectiveSync = {};
@@ -256,856 +296,834 @@ async function saveSyncSettings() {
         });
 
         const settings = {
-            autoSyncEnabled: ui.enableAutoSync.checked,
-            syncOnStartup: ui.syncOnStartup.checked,
-            syncInterval: parseInt(ui.syncInterval.value, 10),
-            selectiveSync: selectiveSync,
-            logRetentionPolicy: ui.logRetentionPolicy.value,
-            historyRetentionPolicy: ui.historyRetentionPolicy.value
+            autoSyncEnabled:        ui.enableAutoSync.checked,
+            syncInterval:           parseInt(ui.syncInterval.value, 10) || 60,
+            selectiveSync,
+            logRetentionPolicy:     ui.logRetentionPolicy.value,
+            historyRetentionPolicy: ui.historyRetentionPolicy.value,
         };
-        
-        await chrome.storage.local.set({ [SYNC_SETTINGS_KEY]: settings });
-        
-        // Update background script with new alarm schedule
-        chrome.runtime.sendMessage({ type: 'UPDATE_SYNC_ALARM' });
-        
-        showToast("Settings saved.", "success");
-        loadAndApplySettings(); // Refresh UI state
-        applyRetentionPolicies(); // Apply immediately after saving
-    } catch (error) {
-        console.error("Error saving settings:", error);
-        showToast("Failed to save settings.", "error");
+
+        // Preserve lastSyncTimestamp
+        const stored = await chromeStorageGet('local', SYNC_SETTINGS_KEY);
+        const existing = stored[SYNC_SETTINGS_KEY] || {};
+        settings.lastSyncTimestamp = existing.lastSyncTimestamp || null;
+
+        await chromeStorageSet('local', { [SYNC_SETTINGS_KEY]: settings });
+
+        // Notify service worker to reschedule alarm
+        try {
+            chrome.runtime.sendMessage({ type: 'UPDATE_SYNC_ALARM' });
+        } catch (_) { /* non-critical */ }
+
+        showToast('Settings saved.', 'success');
+        await loadAndApplySettings();
+        await applyRetentionPolicies();
+    } catch (err) {
+        console.error('saveSyncSettings:', err);
+        showToast('Failed to save settings.', 'error');
     }
 }
 
-// --- Core Sync & Status Functions ---
+// ==========================================================================
+// Sync Status
+// ==========================================================================
 
-/**
- * Checks Chrome sync status and updates the UI and progress bar.
- */
 async function updateSyncStatus() {
-    setUIState(true, "Checking sync status..."); // Set loading state for status
+    setStatusLoading(true, 'Checking sync status…');
     try {
-        // Check if sync is enabled in Chrome itself (heuristic)
-        const syncData = await chrome.storage.sync.get(SYNC_DATA_KEY);
-        const hasData = syncData && syncData[SYNC_DATA_KEY] && syncData[SYNC_DATA_KEY].versions && syncData[SYNC_DATA_KEY].versions.length > 0;
-        
-        // For Chrome Sync Status, check chrome.identity or chrome.storage.sync.QUOTA_BYTES_PER_ITEM for a more accurate status
-        // A direct API for "is Chrome Sync enabled for extension data" isn't readily available, so we infer.
-        // If getBytesInUse returns data, it implies sync is active.
+        // Heuristic: try a small test write to detect if Chrome Sync is active
         let chromeSyncActive = false;
         try {
-             const testData = { 'testSync': 'test' };
-             await chrome.storage.sync.set(testData); // Attempt a small write to check if sync is active
-             await chrome.storage.sync.remove('testSync');
-             chromeSyncActive = true;
-        } catch (e) {
-            console.warn("Chrome Sync might be inactive or restricted:", e);
+            await chrome.storage.sync.set({ _mcTest: 1 });
+            await chrome.storage.sync.remove('_mcTest');
+            chromeSyncActive = true;
+        } catch (_) {
             chromeSyncActive = false;
         }
 
         ui.chromeSyncStatus.textContent = chromeSyncActive ? 'Active' : 'Inactive';
-        ui.chromeSyncStatus.className = `detail-value status-indicator ${chromeSyncActive ? 'success' : 'warning'}`;
+        ui.chromeSyncStatus.className   = `detail-value status-indicator ${chromeSyncActive ? 'success' : 'warning'}`;
 
-
-        // Update progress bar using getBytesInUse for accuracy
         const bytesInUse = await chrome.storage.sync.getBytesInUse(null);
-        const percentage = (bytesInUse / SYNC_QUOTA_BYTES) * 100;
+        const percentage = Math.min((bytesInUse / SYNC_QUOTA_BYTES) * 100, 100);
 
-        ui.syncProgress.style.width = `${Math.min(percentage, 100)}%`;
-        ui.syncProgressText.textContent = `${(bytesInUse / 1024).toFixed(2)} KB / 100 KB`;
+        ui.syncProgress.style.width = `${percentage}%`;
+        ui.syncProgressText.textContent = `${(bytesInUse / 1024).toFixed(1)} KB / 100 KB`;
         ui.totalBytesUsed.textContent = bytesInUse.toLocaleString();
+        ui.syncProgressBar.setAttribute('aria-valuenow', bytesInUse);
 
         ui.syncProgress.classList.remove('warning', 'error');
         if (percentage > 90) {
             ui.syncProgress.classList.add('error');
-            updateStatusMessage('Error: Sync quota critically high! Clear data or disable sync.', 'error');
+            setStatusMessage('Sync quota critically high. Clear data or reduce synced items.', 'error');
         } else if (percentage > 75) {
             ui.syncProgress.classList.add('warning');
-            updateStatusMessage('Warning: You are approaching the sync quota limit.', 'warning');
+            setStatusMessage('Approaching sync quota limit.', 'warning');
         } else {
-            updateStatusMessage('Sync usage is healthy.', 'success');
+            setStatusMessage('Sync storage usage is healthy.', 'success');
         }
-        
-        // Update quota breakdown
-        // Use the actual data from syncStorage if available, otherwise assume latest is version 0
-        updateQuotaBreakdown(syncData[SYNC_DATA_KEY]?.versions[0]?.data);
 
-    } catch (error) {
-        console.error("Error getting sync status:", error);
-        updateStatusMessage(`Error: Could not retrieve sync status. ${error.message}`, 'error');
+        const syncRaw = await chromeStorageGet('sync', SYNC_DATA_KEY);
+        const latestData = syncRaw[SYNC_DATA_KEY]?.versions?.[0]?.data ?? null;
+        renderQuotaBreakdown(latestData);
+
+    } catch (err) {
+        console.error('updateSyncStatus:', err);
+        setStatusMessage(`Could not retrieve sync status: ${err.message}`, 'error');
     } finally {
-        setUIState(false); // Remove loading state for status
+        setStatusLoading(false);
     }
 }
 
-/**
- * Updates the detailed quota breakdown display.
- * @param {object} latestData The latest synced data object.
- */
-function updateQuotaBreakdown(latestData) {
-    while (ui.quotaBreakdown.firstChild) {
-        ui.quotaBreakdown.removeChild(ui.quotaBreakdown.firstChild);
-    }
+function renderQuotaBreakdown(latestData) {
+    clearChildren(ui.quotaBreakdown);
+
     if (!latestData) {
-        const placeholder = document.createElement('p');
-        placeholder.className = 'placeholder-text';
-        placeholder.textContent = 'No data synced yet.';
-        ui.quotaBreakdown.appendChild(placeholder);
+        ui.quotaBreakdown.appendChild(makePlaceholder('No data synced yet.'));
         return;
     }
 
-    const breakdown = [];
-    for (const key in latestData) {
-        // Ensure data exists for the key before trying to stringify
-        if (latestData[key] !== undefined) {
-            const size = new TextEncoder().encode(JSON.stringify(latestData[key])).length;
-            breakdown.push({ name: DATA_KEYS_TO_SYNC[key] || key, size });
-        }
-    }
+    const items = Object.entries(latestData)
+        .filter(([, v]) => v !== undefined)
+        .map(([key, value]) => ({
+            name: DATA_KEYS_TO_SYNC[key] || key,
+            size: new TextEncoder().encode(JSON.stringify(value)).length,
+        }))
+        .sort((a, b) => b.size - a.size);
 
-    if (breakdown.length === 0) {
-        const placeholder = document.createElement('p');
-        placeholder.className = 'placeholder-text';
-        placeholder.textContent = 'No data selected for syncing.';
-        ui.quotaBreakdown.appendChild(placeholder);
+    if (items.length === 0) {
+        ui.quotaBreakdown.appendChild(makePlaceholder('No data selected for syncing.'));
         return;
     }
 
-    breakdown.sort((a, b) => b.size - a.size).forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'quota-item';
+    items.forEach(({ name, size }) => {
+        const row = document.createElement('div');
+        row.className = 'quota-item';
 
         const nameSpan = document.createElement('span');
         nameSpan.className = 'quota-item-name';
-        nameSpan.textContent = item.name;
-        
+        nameSpan.textContent = name;
+
         const sizeSpan = document.createElement('span');
         sizeSpan.className = 'quota-item-size';
-        sizeSpan.textContent = `${(item.size / 1024).toFixed(2)} KB`;
+        sizeSpan.textContent = `${(size / 1024).toFixed(2)} KB`;
 
-        div.appendChild(nameSpan);
-        div.appendChild(sizeSpan);
-
-        ui.quotaBreakdown.appendChild(div);
+        row.appendChild(nameSpan);
+        row.appendChild(sizeSpan);
+        ui.quotaBreakdown.appendChild(row);
     });
 }
 
-/**
- * Gathers selected local data, versions it, and saves to chrome.storage.sync.
- * @param {boolean} isAutomatic - Flag to indicate if sync was triggered by user or alarm.
- */
-async function syncToCloud(isAutomatic = false) {
-    setUIState(true, "Syncing data to cloud...");
-    try {
-        const { [SYNC_SETTINGS_KEY]: settings } = await chrome.storage.local.get(SYNC_SETTINGS_KEY);
-        const keysToSync = Object.keys(settings.selectiveSync).filter(key => settings.selectiveSync[key]);
+// ==========================================================================
+// Sync to Cloud
+// ==========================================================================
 
-        if (keysToSync.length === 0) {
-            throw new Error("No data categories selected for syncing.");
+async function syncToCloud(isAutomatic = false) {
+    setActionLoading(true, 'Syncing data to cloud…');
+    try {
+        const settingsRaw = await chromeStorageGet('local', SYNC_SETTINGS_KEY);
+        const settings = settingsRaw[SYNC_SETTINGS_KEY];
+
+        if (!settings?.selectiveSync) {
+            throw new Error('Sync settings not configured. Please check Options.');
         }
 
-        const localData = await chrome.storage.local.get(keysToSync);
+        const keysToSync = Object.keys(settings.selectiveSync).filter(k => settings.selectiveSync[k]);
+        if (keysToSync.length === 0) {
+            throw new Error('No data categories selected for syncing.');
+        }
+
+        const localData = await chromeStorageGet('local', ...keysToSync);
         const newVersion = {
             timestamp: Date.now(),
-            data: localData,
-            source: isAutomatic ? 'Automatic' : 'Manual'
+            data:      localData,
+            source:    isAutomatic ? 'Automatic' : 'Manual',
         };
 
-        const syncStorage = await chrome.storage.sync.get(SYNC_DATA_KEY);
-        const syncData = syncStorage[SYNC_DATA_KEY] || { versions: [] };
-        
-        syncData.versions.unshift(newVersion); // Add new version to the front
-        
-        // Apply history retention immediately after adding a new version
-        const historyRetention = settings.historyRetentionPolicy || MAX_VERSIONS.toString(); // Use setting or default
-        if (historyRetention.endsWith('d')) {
-            const days = parseInt(historyRetention.replace('d', ''), 10);
-            const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
-            syncData.versions = syncData.versions.filter(v => v.timestamp >= cutoff);
-        } else {
-            // Numeric (e.g., '10') means keep last N entries
-            const numEntries = parseInt(historyRetention, 10);
-            if (!isNaN(numEntries) && syncData.versions.length > numEntries) {
-                syncData.versions.length = numEntries; // Trim old versions
-            }
-        }
+        const syncRaw  = await chromeStorageGet('sync', SYNC_DATA_KEY);
+        const syncData = syncRaw[SYNC_DATA_KEY] || { versions: [] };
 
+        syncData.versions.unshift(newVersion);
+        syncData.versions = applyHistoryRetention(syncData.versions, settings.historyRetentionPolicy);
+
+        // Estimate size before writing to guard against quota
+        const estimatedSize = new TextEncoder().encode(JSON.stringify({ [SYNC_DATA_KEY]: syncData })).length;
+        if (estimatedSize > SYNC_QUOTA_BYTES) {
+            // Auto-trim more aggressively
+            while (syncData.versions.length > 1) {
+                syncData.versions.pop();
+                const sz = new TextEncoder().encode(JSON.stringify({ [SYNC_DATA_KEY]: syncData })).length;
+                if (sz <= SYNC_QUOTA_BYTES * 0.95) break;
+            }
+            showToast('History was trimmed to fit quota.', 'warning');
+        }
 
         await chrome.storage.sync.set({ [SYNC_DATA_KEY]: syncData });
-        await chrome.storage.local.set({ [SYNC_SETTINGS_KEY]: { ...settings, lastSyncTimestamp: Date.now() } });
+        await chromeStorageSet('local', {
+            [SYNC_SETTINGS_KEY]: { ...settings, lastSyncTimestamp: Date.now() },
+        });
 
         await addLogEntry('Sync to cloud successful.', 'success');
-        showToast('Sync Complete!', 'success');
-        
-    } catch (error) {
-        console.error('Sync to cloud failed:', error);
-        await addLogEntry(`Sync failed: ${error.message}`, 'error');
-        showToast(`Sync Error: ${error.message}`, 'error');
+        showToast('Sync complete!', 'success');
+
+    } catch (err) {
+        console.error('syncToCloud:', err);
+        const msg = friendlyStorageError(err);
+        await addLogEntry(`Sync failed: ${msg}`, 'error');
+        showToast(`Sync failed: ${msg}`, 'error');
     } finally {
-        setUIState(false);
-        await updateSyncStatus(); // Always update status after sync attempt
-        await loadAndApplySettings(); // Refresh timestamp
-        await displayVersionHistory(true); // Refresh history
+        setActionLoading(false);
+        await updateSyncStatus();
+        await loadAndApplySettings();
+        if (activeRecordsTab === 'history') displayVersionHistory(true);
     }
 }
 
-/**
- * Restores data from the cloud to local storage.
- * @param {number|null} versionTimestamp - The timestamp of the version to restore. Null for latest.
- */
-async function restoreFromCloud(versionTimestamp) {
-    const performRestore = async () => {
-        setUIState(true, "Restoring data from cloud...");
-        try {
-            const { [SYNC_DATA_KEY]: syncData } = await chrome.storage.sync.get(SYNC_DATA_KEY);
-            if (!syncData || syncData.versions.length === 0) {
-                throw new Error("No data found in the cloud to restore.");
-            }
-            
-            let versionToRestore;
-            if (versionTimestamp) {
-                versionToRestore = syncData.versions.find(v => v.timestamp === versionTimestamp);
-            } else {
-                versionToRestore = syncData.versions[0]; // Latest
-            }
+// ==========================================================================
+// Restore from Cloud
+// ==========================================================================
 
-            if (!versionToRestore) {
-                throw new Error("Specified version not found.");
-            }
-            
-            // Conflict Resolution Check for latest version restore
-            if (!versionTimestamp) {
-                const { [SYNC_SETTINGS_KEY]: settings } = await chrome.storage.local.get(SYNC_SETTINGS_KEY);
-                if (settings.lastSyncTimestamp && versionToRestore.timestamp < settings.lastSyncTimestamp) {
-                    const userChoice = await showConflictDialog();
-                    if (userChoice === 'local') {
-                        showToast("Restore cancelled. Local data kept.", "info");
-                        setUIState(false);
-                        return;
-                    }
+async function restoreFromCloud(versionTimestamp) {
+    const confirmed = await showConfirmDialog(
+        'Restore from Cloud?',
+        'This will overwrite your current local data with the selected cloud version. This action cannot be undone.'
+    );
+    if (!confirmed) return;
+
+    setActionLoading(true, 'Restoring from cloud…');
+    try {
+        const syncRaw = await chromeStorageGet('sync', SYNC_DATA_KEY);
+        const syncData = syncRaw[SYNC_DATA_KEY];
+
+        if (!syncData?.versions?.length) {
+            throw new Error('No data found in the cloud to restore.');
+        }
+
+        let versionToRestore;
+        if (versionTimestamp != null) {
+            versionToRestore = syncData.versions.find(v => v.timestamp === versionTimestamp);
+        } else {
+            versionToRestore = syncData.versions[0];
+        }
+
+        if (!versionToRestore) {
+            throw new Error('Specified version not found.');
+        }
+
+        // Conflict check: if we're restoring the latest and local has been updated since
+        if (versionTimestamp == null) {
+            const settingsRaw = await chromeStorageGet('local', SYNC_SETTINGS_KEY);
+            const settings    = settingsRaw[SYNC_SETTINGS_KEY];
+            if (settings?.lastSyncTimestamp && versionToRestore.timestamp < settings.lastSyncTimestamp) {
+                const choice = await showConflictDialog();
+                if (choice === 'local') {
+                    showToast('Restore cancelled. Local data kept.', 'info');
+                    return;
                 }
             }
-
-            await chrome.storage.local.set(versionToRestore.data);
-            
-            // Also update local settings with the restored data's selective sync config if it exists
-            const restoredSettings = versionToRestore.data[SYNC_SETTINGS_KEY];
-            if (restoredSettings) {
-                 await chrome.storage.local.set({ [SYNC_SETTINGS_KEY]: restoredSettings });
-            }
-
-            await addLogEntry(`Restored from version: ${new Date(versionToRestore.timestamp).toLocaleString()}`, 'success');
-            showToast('Restore Complete!', 'success');
-            
-            // Reload settings to reflect restored state
-            await loadAndApplySettings();
-
-        } catch (error) {
-            console.error('Restore from cloud failed:', error);
-            await addLogEntry(`Restore failed: ${error.message}`, 'error');
-            showToast(`Restore Error: ${error.message}`, 'error');
-        } finally {
-            setUIState(false);
-            await updateSyncStatus(); // Always update status after restore attempt
         }
-    };
-    
-    // Show confirmation dialog before restoring
-    const confirmed = await showConfirmDialog(
-        'Restore Data?',
-        `This will overwrite your local data with the selected cloud version. This action cannot be undone.`
-    );
-    if (confirmed) {
-        performRestore();
+
+        await chromeStorageSet('local', versionToRestore.data);
+        await addLogEntry(`Restored from version: ${new Date(versionToRestore.timestamp).toLocaleString()}`, 'success');
+        showToast('Restore complete!', 'success');
+        await loadAndApplySettings();
+
+    } catch (err) {
+        console.error('restoreFromCloud:', err);
+        await addLogEntry(`Restore failed: ${err.message}`, 'error');
+        showToast(`Restore failed: ${err.message}`, 'error');
+    } finally {
+        setActionLoading(false);
+        await updateSyncStatus();
     }
 }
 
+// ==========================================================================
+// Clear Cloud Data
+// ==========================================================================
 
-/**
- * Confirms and then clears all extension data from sync storage.
- */
 async function confirmClearCloudData() {
     const confirmed = await showConfirmDialog(
         '⚠️ Clear All Cloud Data?',
         'This will permanently delete ALL synced extension data from your Google account. This cannot be undone.',
         'Clear Data'
     );
-    if (confirmed) {
-        setUIState(true, "Clearing all cloud data...");
-        try {
-            await chrome.storage.sync.remove(SYNC_DATA_KEY);
-            await addLogEntry('All cloud data was permanently cleared.', 'success');
-            showToast('Cloud data cleared.', 'success');
-        } catch (error) {
-            console.error('Clear cloud data failed:', error);
-            await addLogEntry(`Clearing failed: ${error.message}`, 'error');
-            showToast(`Clear Error: ${error.message}`, 'error');
-        } finally {
-            setUIState(false);
-            await updateSyncStatus(); // Always update status after clear attempt
-            await displayVersionHistory(true); // Refresh history view
-        }
+    if (!confirmed) return;
+
+    setActionLoading(true, 'Clearing cloud data…');
+    try {
+        await chrome.storage.sync.remove(SYNC_DATA_KEY);
+        await addLogEntry('All cloud data permanently cleared.', 'success');
+        showToast('Cloud data cleared.', 'success');
+    } catch (err) {
+        console.error('confirmClearCloudData:', err);
+        await addLogEntry(`Clear failed: ${err.message}`, 'error');
+        showToast(`Clear failed: ${err.message}`, 'error');
+    } finally {
+        setActionLoading(false);
+        await updateSyncStatus();
+        displayVersionHistory(true);
     }
 }
 
-// --- Version History ---
+// ==========================================================================
+// Version History
+// ==========================================================================
 
-async function displayVersionHistory(applyFilters = false) {
-    // Only show loading if actively filtering/loading
-    if (applyFilters) {
-        setUIState(true, 'Loading version history...');
-    }
-    const loadingPlaceholder = document.createElement('p');
-    loadingPlaceholder.className = 'placeholder-text';
-    loadingPlaceholder.textContent = 'Loading history...';
-    while (ui.versionHistory.firstChild) {
-        ui.versionHistory.removeChild(ui.versionHistory.firstChild);
-    }
-    ui.versionHistory.appendChild(loadingPlaceholder);
+async function displayVersionHistory(fetchFresh) {
+    setPlaceholder(ui.versionHistory, 'Loading history…');
 
     try {
-        const { [SYNC_DATA_KEY]: syncData } = await chrome.storage.sync.get(SYNC_DATA_KEY);
-        allHistoryEntries = syncData && syncData.versions ? syncData.versions : [];
+        if (fetchFresh) {
+            const raw = await chromeStorageGet('sync', SYNC_DATA_KEY);
+            allHistoryEntries = raw[SYNC_DATA_KEY]?.versions ?? [];
+        }
+
+        const filtered = applyFilters(allHistoryEntries, (entry) => {
+            return JSON.stringify(entry.data).toLowerCase() + ' ' + (entry.source || '').toLowerCase();
+        });
+
+        if (filtered === null) return; // waiting for custom date inputs
+
+        clearChildren(ui.versionHistory);
 
         if (allHistoryEntries.length === 0) {
-            const noHistoryPlaceholder = document.createElement('p');
-            noHistoryPlaceholder.className = 'placeholder-text';
-            noHistoryPlaceholder.textContent = 'No version history found in the cloud.';
-            while (ui.versionHistory.firstChild) {
-                ui.versionHistory.removeChild(ui.versionHistory.firstChild);
-            }
-            ui.versionHistory.appendChild(noHistoryPlaceholder);
+            ui.versionHistory.appendChild(makePlaceholder('No version history found in the cloud.'));
             return;
         }
 
-        let filteredEntries = [...allHistoryEntries];
-
-        const searchTerm = ui.historySearchInput.value.toLowerCase();
-        const dateRange = ui.historyDateRange.value;
-        let startDate = null;
-        let endDate = null;
-
-        if (dateRange === 'custom') {
-            startDate = ui.historyStartDate.value ? new Date(ui.historyStartDate.value).getTime() : null;
-            endDate = ui.historyEndDate.value ? new Date(ui.historyEndDate.value).setHours(23, 59, 59, 999) : null; // End of day
-        } else if (dateRange !== 'all') {
-            const now = Date.now();
-            if (dateRange === '24h') startDate = now - (24 * 60 * 60 * 1000);
-            if (dateRange === '7d') startDate = now - (7 * 24 * 60 * 60 * 1000);
-            if (dateRange === '30d') startDate = now - (30 * 24 * 60 * 60 * 1000);
-        }
-
-        filteredEntries = filteredEntries.filter(version => {
-            const messageContent = JSON.stringify(version.data).toLowerCase() + version.source.toLowerCase();
-            const matchesSearch = searchTerm ? messageContent.includes(searchTerm) : true;
-
-            const entryTimestamp = version.timestamp;
-            const matchesDate = (startDate ? entryTimestamp >= startDate : true) &&
-                                (endDate ? entryTimestamp <= endDate : true);
-
-            return matchesSearch && matchesDate;
-        });
-
-        if (filteredEntries.length === 0) {
-            const noMatchPlaceholder = document.createElement('p');
-            noMatchPlaceholder.className = 'placeholder-text';
-            noMatchPlaceholder.textContent = 'No matching history entries found.';
-            while (ui.versionHistory.firstChild) {
-                ui.versionHistory.removeChild(ui.versionHistory.firstChild);
-            }
-            ui.versionHistory.appendChild(noMatchPlaceholder);
+        if (filtered.length === 0) {
+            ui.versionHistory.appendChild(makePlaceholder('No matching history entries.'));
             return;
         }
 
-        while (ui.versionHistory.firstChild) {
-            ui.versionHistory.removeChild(ui.versionHistory.firstChild);
-        }
-        filteredEntries.forEach(version => {
-            const item = document.createElement('div');
-            item.className = 'history-item';
-            const dataSummary = Object.keys(version.data)
-                .map(key => DATA_KEYS_TO_SYNC[key] || key)
-                .join(', ');
-
-            const headerDiv = document.createElement('div');
-            headerDiv.className = 'history-item-header';
-
-            const timestampSpan = document.createElement('span');
-            timestampSpan.className = 'history-timestamp';
-            timestampSpan.textContent = new Date(version.timestamp).toLocaleString();
-
-            const restoreBtn = document.createElement('button');
-            restoreBtn.className = 'btn secondary restore-version-btn';
-            restoreBtn.dataset.timestamp = version.timestamp;
-            restoreBtn.textContent = 'Restore';
-
-            headerDiv.appendChild(timestampSpan);
-            headerDiv.appendChild(restoreBtn);
-
-            const bodyDiv = document.createElement('div');
-            bodyDiv.className = 'history-item-body';
-
-            const sourceStrong = document.createElement('strong');
-            sourceStrong.textContent = 'Source:';
-            bodyDiv.appendChild(sourceStrong);
-            bodyDiv.appendChild(document.createTextNode(` ${version.source} `));
-            
-            const br = document.createElement('br');
-            bodyDiv.appendChild(br);
-
-            const containsStrong = document.createElement('strong');
-            containsStrong.textContent = 'Contains:';
-            bodyDiv.appendChild(containsStrong);
-            bodyDiv.appendChild(document.createTextNode(` ${dataSummary || 'No data'}`));
-
-
-            item.appendChild(headerDiv);
-            item.appendChild(bodyDiv);
-            ui.versionHistory.appendChild(item);
+        const fragment = document.createDocumentFragment();
+        filtered.forEach(version => {
+            fragment.appendChild(buildHistoryItem(version));
         });
-        
-        document.querySelectorAll('.restore-version-btn').forEach(button => {
-            button.addEventListener('click', (e) => {
-                const timestamp = parseInt(e.target.dataset.timestamp, 10);
-                restoreFromCloud(timestamp);
-            });
-        });
+        ui.versionHistory.appendChild(fragment);
 
-    } catch (error) {
-        console.error('Failed to display version history:', error);
-        const errorPlaceholder = document.createElement('p');
-        errorPlaceholder.className = 'placeholder-text error';
-        errorPlaceholder.textContent = 'Could not load version history.';
-        while (ui.versionHistory.firstChild) {
-            ui.versionHistory.removeChild(ui.versionHistory.firstChild);
-        }
-        ui.versionHistory.appendChild(errorPlaceholder);
+    } catch (err) {
+        console.error('displayVersionHistory:', err);
+        clearChildren(ui.versionHistory);
+        const p = makePlaceholder('Could not load version history.');
+        p.classList.add('error-text');
+        ui.versionHistory.appendChild(p);
         showToast('Failed to load history.', 'error');
-    } finally {
-        if (applyFilters) {
-            setUIState(false);
-        }
     }
 }
 
-/**
- * Applies retention policies for both log and history.
- */
-async function applyRetentionPolicies() {
-    // FIX: Added a robust settings check to prevent TypeError
-    const defaults = {
-        logRetentionPolicy: MAX_LOG_ENTRIES.toString(),
-        historyRetentionPolicy: MAX_VERSIONS.toString()
-    };
-    const { [SYNC_SETTINGS_KEY]: settings } = await chrome.storage.local.get(SYNC_SETTINGS_KEY);
-    const currentSettings = { ...defaults, ...settings };
+function buildHistoryItem(version) {
+    const dataSummary = Object.keys(version.data || {})
+        .map(k => DATA_KEYS_TO_SYNC[k] || k)
+        .join(', ') || 'No data';
 
-    const logRetention = currentSettings.logRetentionPolicy;
-    const historyRetention = currentSettings.historyRetentionPolicy;
+    const item = document.createElement('div');
+    item.className = 'history-item';
 
-    // Apply log retention
-    const { syncLog: currentLog = [] } = await chrome.storage.local.get('syncLog');
-    let newLog = [...currentLog];
-    if (logRetention === 'never') {
-        // Do nothing, keep all
-    } else if (logRetention.endsWith('d')) {
-        const days = parseInt(logRetention.replace('d', ''), 10);
-        const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
-        newLog = newLog.filter(entry => entry.timestamp >= cutoff);
-    } else { // Numeric, keep last N entries
-        const numEntries = parseInt(logRetention, 10);
-        if (!isNaN(numEntries) && newLog.length > numEntries) {
-            newLog = newLog.slice(0, numEntries);
-        }
-    }
-    if (JSON.stringify(newLog) !== JSON.stringify(currentLog)) { // Only save if changed
-        await chrome.storage.local.set({ syncLog: newLog });
-        await updateSyncLog(); // Refresh UI
-    }
+    // Header row
+    const header = document.createElement('div');
+    header.className = 'history-item-header';
 
-    // Apply history retention (already applied in syncToCloud, but good to have a general cleanup)
-    const { [SYNC_DATA_KEY]: syncData } = await chrome.storage.sync.get(SYNC_DATA_KEY);
-    if (syncData && syncData.versions) {
-        let newVersions = [...syncData.versions];
-        if (historyRetention === 'never') {
-            // Do nothing, keep all
-        } else if (historyRetention.endsWith('d')) {
-            const days = parseInt(historyRetention.replace('d', ''), 10);
-            const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
-            newVersions = newVersions.filter(v => v.timestamp >= cutoff);
-        } else { // Numeric, keep last N entries
-            const numEntries = parseInt(historyRetention, 10);
-            if (!isNaN(numEntries) && newVersions.length > numEntries) {
-                newVersions = newVersions.slice(0, numEntries);
-            }
-        }
-        if (JSON.stringify(newVersions) !== JSON.stringify(syncData.versions)) {
-            await chrome.storage.sync.set({ [SYNC_DATA_KEY]: { ...syncData, versions: newVersions } });
-            await displayVersionHistory(); // Refresh UI
-        }
-    }
+    const ts = document.createElement('span');
+    ts.className = 'history-timestamp';
+    ts.textContent = new Date(version.timestamp).toLocaleString();
+    header.appendChild(ts);
+
+    const restoreBtn = document.createElement('button');
+    restoreBtn.className = 'btn secondary';
+    restoreBtn.style.padding = '6px 12px';
+    restoreBtn.style.fontSize = 'var(--body-small)';
+    restoreBtn.textContent = 'Restore this version';
+    restoreBtn.addEventListener('click', () => restoreFromCloud(version.timestamp));
+    header.appendChild(restoreBtn);
+
+    item.appendChild(header);
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'history-item-body';
+
+    const sourceLine = document.createElement('span');
+    sourceLine.appendChild(makeStrong('Source: '));
+    sourceLine.appendChild(document.createTextNode(version.source || 'Unknown'));
+
+    const containsLine = document.createElement('span');
+    containsLine.appendChild(makeStrong('  ·  Contains: '));
+    containsLine.appendChild(document.createTextNode(dataSummary));
+
+    body.appendChild(sourceLine);
+    body.appendChild(containsLine);
+    item.appendChild(body);
+
+    return item;
 }
 
+// ==========================================================================
+// Sync Log
+// ==========================================================================
 
-// --- Logging ---
-
-async function updateSyncLog(applyFilters = false) {
-    // Only show loading if actively filtering/loading
-    if (applyFilters) {
-        setUIState(true, 'Loading sync log...');
-    }
-
-    const loadingPlaceholder = document.createElement('p');
-    loadingPlaceholder.className = 'placeholder-text';
-    loadingPlaceholder.textContent = 'Loading log...';
-    while (ui.syncLog.firstChild) {
-        ui.syncLog.removeChild(ui.syncLog.firstChild);
-    }
-    ui.syncLog.appendChild(loadingPlaceholder);
+async function displaySyncLog(fetchFresh) {
+    setPlaceholder(ui.syncLog, 'Loading log…');
 
     try {
-        const { syncLog } = await chrome.storage.local.get('syncLog');
-        allLogEntries = syncLog || [];
+        if (fetchFresh) {
+            const raw = await chromeStorageGet('local', 'syncLog');
+            allLogEntries = raw.syncLog ?? [];
+        }
 
-        if (!allLogEntries || allLogEntries.length === 0) {
-            const noLogsPlaceholder = document.createElement('p');
-            noLogsPlaceholder.className = 'placeholder-text';
-            noLogsPlaceholder.textContent = 'No sync events recorded yet.';
-            while (ui.syncLog.firstChild) {
-                ui.syncLog.removeChild(ui.syncLog.firstChild);
-            }
-            ui.syncLog.appendChild(noLogsPlaceholder);
+        const filtered = applyFilters(allLogEntries, (entry) => {
+            return (entry.message || '').toLowerCase() + ' ' + (entry.type || '').toLowerCase();
+        });
+
+        if (filtered === null) return;
+
+        clearChildren(ui.syncLog);
+
+        if (allLogEntries.length === 0) {
+            ui.syncLog.appendChild(makePlaceholder('No sync events recorded yet.'));
             return;
         }
 
-        let filteredLogs = [...allLogEntries];
-
-        const searchTerm = ui.logSearchInput.value.toLowerCase();
-        const dateRange = ui.logDateRange.value;
-        let startDate = null;
-        let endDate = null;
-
-        if (dateRange === 'custom') {
-            startDate = ui.logStartDate.value ? new Date(ui.logStartDate.value).getTime() : null;
-            endDate = ui.logEndDate.value ? new Date(ui.logEndDate.value).setHours(23, 59, 59, 999) : null; // End of day
-        } else if (dateRange !== 'all') {
-            const now = Date.now();
-            if (dateRange === '24h') startDate = now - (24 * 60 * 60 * 1000);
-            if (dateRange === '7d') startDate = now - (7 * 24 * 60 * 60 * 1000);
-            if (dateRange === '30d') startDate = now - (30 * 24 * 60 * 60 * 1000);
-        }
-
-        filteredLogs = filteredLogs.filter(entry => {
-            const messageContent = entry.message.toLowerCase() + entry.type.toLowerCase();
-            const matchesSearch = searchTerm ? messageContent.includes(searchTerm) : true;
-
-            const entryTimestamp = entry.timestamp;
-            const matchesDate = (startDate ? entryTimestamp >= startDate : true) &&
-                                (endDate ? entryTimestamp <= endDate : true);
-
-            return matchesSearch && matchesDate;
-        });
-        
-        if (filteredLogs.length === 0) {
-            const noMatchPlaceholder = document.createElement('p');
-            noMatchPlaceholder.className = 'placeholder-text';
-            noMatchPlaceholder.textContent = 'No matching log entries found.';
-            while (ui.syncLog.firstChild) {
-                ui.syncLog.removeChild(ui.syncLog.firstChild);
-            }
-            ui.syncLog.appendChild(noMatchPlaceholder);
+        if (filtered.length === 0) {
+            ui.syncLog.appendChild(makePlaceholder('No matching log entries.'));
             return;
         }
-        
-        while (ui.syncLog.firstChild) {
-            ui.syncLog.removeChild(ui.syncLog.firstChild);
-        }
-        filteredLogs.forEach(entry => {
-            const logDiv = document.createElement('div');
-            logDiv.className = 'log-entry';
 
-            const headerDiv = document.createElement('div');
-            headerDiv.className = 'log-header';
-
-            const timestampSpan = document.createElement('span');
-            timestampSpan.className = 'log-timestamp';
-            timestampSpan.textContent = new Date(entry.timestamp).toLocaleString();
-
-            const statusIndicatorSpan = document.createElement('span');
-            statusIndicatorSpan.className = `status-indicator ${entry.type}`;
-            statusIndicatorSpan.textContent = entry.type;
-
-            headerDiv.appendChild(timestampSpan);
-            headerDiv.appendChild(statusIndicatorSpan);
-            logDiv.appendChild(headerDiv);
-
-            const messageParagraph = document.createElement('p');
-            messageParagraph.className = `log-message ${entry.type}`;
-            messageParagraph.textContent = entry.message;
-            logDiv.appendChild(messageParagraph);
-
-            if (entry.details) {
-                logDiv.classList.add('has-details');
-                const toggleButton = document.createElement('button');
-                toggleButton.className = 'toggle-details-btn';
-                toggleButton.textContent = 'Show Details';
-                logDiv.appendChild(toggleButton);
-
-                const detailsDiv = document.createElement('div');
-                detailsDiv.className = 'log-message-details';
-                detailsDiv.textContent = entry.details;
-                logDiv.appendChild(detailsDiv);
-
-                toggleButton.addEventListener('click', function() {
-                    logDiv.classList.toggle('expanded');
-                    this.textContent = logDiv.classList.contains('expanded') ? 'Hide Details' : 'Show Details';
-                });
-            }
-            ui.syncLog.prepend(logDiv);
+        const fragment = document.createDocumentFragment();
+        filtered.forEach(entry => {
+            fragment.appendChild(buildLogEntry(entry));
         });
-    } catch (error) {
-        console.error("Could not update sync log:", error);
-    } finally {
-        if (applyFilters) {
-            setUIState(false);
-        }
+        ui.syncLog.appendChild(fragment);
+
+    } catch (err) {
+        console.error('displaySyncLog:', err);
+        clearChildren(ui.syncLog);
+        const p = makePlaceholder('Could not load sync log.');
+        p.classList.add('error-text');
+        ui.syncLog.appendChild(p);
     }
 }
+
+function buildLogEntry(entry) {
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+
+    const header = document.createElement('div');
+    header.className = 'log-header';
+
+    const ts = document.createElement('span');
+    ts.className = 'log-timestamp';
+    ts.textContent = new Date(entry.timestamp).toLocaleString();
+    header.appendChild(ts);
+
+    const badge = document.createElement('span');
+    badge.className = `status-indicator ${entry.type || 'info'}`;
+    badge.textContent = entry.type || 'info';
+    header.appendChild(badge);
+
+    div.appendChild(header);
+
+    const msg = document.createElement('p');
+    msg.className = `log-message ${entry.type || ''}`;
+    msg.textContent = entry.message || '';
+    div.appendChild(msg);
+
+    if (entry.details) {
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'toggle-details-btn';
+        toggleBtn.textContent = 'Show details';
+        toggleBtn.setAttribute('aria-expanded', 'false');
+        div.appendChild(toggleBtn);
+
+        const detailsDiv = document.createElement('div');
+        detailsDiv.className = 'log-message-details';
+        detailsDiv.textContent = entry.details;
+        detailsDiv.id = `log-detail-${entry.timestamp}`;
+        div.appendChild(detailsDiv);
+
+        toggleBtn.setAttribute('aria-controls', detailsDiv.id);
+        toggleBtn.addEventListener('click', () => {
+            const expanded = div.classList.toggle('expanded');
+            toggleBtn.textContent = expanded ? 'Hide details' : 'Show details';
+            toggleBtn.setAttribute('aria-expanded', String(expanded));
+        });
+    }
+
+    return div;
+}
+
+// ==========================================================================
+// Add Log Entry
+// ==========================================================================
 
 async function addLogEntry(message, type = 'info', details = '') {
     try {
-        const { syncLog: currentLog = [] } = await chrome.storage.local.get('syncLog');
-        const newEntry = { timestamp: Date.now(), message, type, details };
+        const raw = await chromeStorageGet('local', 'syncLog');
+        const currentLog = raw.syncLog ?? [];
+
+        const newEntry = { timestamp: Date.now(), message, type, ...(details ? { details } : {}) };
         let newLog = [newEntry, ...currentLog];
 
-        // Apply log retention after adding new entry
-        const { [SYNC_SETTINGS_KEY]: settings } = await chrome.storage.local.get(SYNC_SETTINGS_KEY);
-        const logRetention = settings?.logRetentionPolicy || MAX_LOG_ENTRIES.toString(); // Use optional chaining for safety
+        const settingsRaw = await chromeStorageGet('local', SYNC_SETTINGS_KEY);
+        const retention   = settingsRaw[SYNC_SETTINGS_KEY]?.logRetentionPolicy ?? String(DEFAULT_MAX_LOG_ENTRIES);
+        newLog = applyLogRetention(newLog, retention);
 
-        if (logRetention === 'never') {
-            // Do nothing, keep all
-        } else if (logRetention.endsWith('d')) {
-            const days = parseInt(logRetention.replace('d', ''), 10);
-            const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
-            newLog = newLog.filter(entry => entry.timestamp >= cutoff);
-        } else { // Numeric (e.g., '100') means keep last N entries
-            const numEntries = parseInt(logRetention, 10);
-            if (!isNaN(numEntries) && newLog.length > numEntries) {
-                newLog = newLog.slice(0, numEntries);
-            }
+        await chromeStorageSet('local', { syncLog: newLog });
+        allLogEntries = newLog;
+
+        if (activeRecordsTab === 'log') {
+            displaySyncLog(false);
+        }
+    } catch (err) {
+        console.error('addLogEntry:', err);
+    }
+}
+
+// ==========================================================================
+// Retention Helpers
+// ==========================================================================
+
+function applyHistoryRetention(versions, policy) {
+    let result = [...versions];
+    policy = policy || String(DEFAULT_MAX_VERSIONS);
+
+    if (policy.endsWith('d')) {
+        const days   = parseInt(policy, 10);
+        const cutoff = Date.now() - days * 864e5;
+        result = result.filter(v => v.timestamp >= cutoff);
+    } else {
+        const n = parseInt(policy, 10) || DEFAULT_MAX_VERSIONS;
+        result = result.slice(0, n);
+    }
+
+    // Enforce hard max regardless of policy
+    return result.slice(0, HARD_MAX_VERSIONS);
+}
+
+function applyLogRetention(entries, policy) {
+    let result = [...entries];
+    policy = policy || String(DEFAULT_MAX_LOG_ENTRIES);
+
+    if (policy.endsWith('d')) {
+        const days   = parseInt(policy, 10);
+        const cutoff = Date.now() - days * 864e5;
+        result = result.filter(e => e.timestamp >= cutoff);
+    } else {
+        const n = parseInt(policy, 10) || DEFAULT_MAX_LOG_ENTRIES;
+        result = result.slice(0, n);
+    }
+
+    return result.slice(0, HARD_MAX_LOG_ENTRIES);
+}
+
+async function applyRetentionPolicies() {
+    try {
+        const settingsRaw = await chromeStorageGet('local', SYNC_SETTINGS_KEY);
+        const settings    = settingsRaw[SYNC_SETTINGS_KEY] || {};
+        const logPolicy   = settings.logRetentionPolicy     || String(DEFAULT_MAX_LOG_ENTRIES);
+        const histPolicy  = settings.historyRetentionPolicy || String(DEFAULT_MAX_VERSIONS);
+
+        // Log
+        const logRaw = await chromeStorageGet('local', 'syncLog');
+        const currentLog = logRaw.syncLog ?? [];
+        const trimmedLog = applyLogRetention(currentLog, logPolicy);
+        if (trimmedLog.length !== currentLog.length) {
+            await chromeStorageSet('local', { syncLog: trimmedLog });
+            allLogEntries = trimmedLog;
         }
 
-        await chrome.storage.local.set({ syncLog: newLog });
-        await updateSyncLog(true); // Always refresh log UI after adding/cleaning
-    } catch (error) {
-        console.error('Failed to add log entry:', error);
+        // History
+        const syncRaw = await chromeStorageGet('sync', SYNC_DATA_KEY);
+        const syncData = syncRaw[SYNC_DATA_KEY];
+        if (syncData?.versions) {
+            const trimmedVersions = applyHistoryRetention(syncData.versions, histPolicy);
+            if (trimmedVersions.length !== syncData.versions.length) {
+                await chrome.storage.sync.set({ [SYNC_DATA_KEY]: { ...syncData, versions: trimmedVersions } });
+                allHistoryEntries = trimmedVersions;
+            }
+        }
+    } catch (err) {
+        console.error('applyRetentionPolicies:', err);
     }
 }
 
-
-// --- UI Helpers (Modals, Toasts, State, Tooltips, Debounce) ---
+// ==========================================================================
+// Shared Filtering
+// ==========================================================================
 
 /**
- * Debounce function to limit how often a function is called.
- * @param {Function} func The function to debounce.
- * @param {number} delay The delay in milliseconds.
- * @returns {Function} A new function that will be debounced.
+ * Filters an array of entries using the shared search/date controls.
+ * Returns `null` if we're in custom date mode but dates aren't filled.
+ * @param {Array} entries
+ * @param {(entry: any) => string} textFn - Returns searchable text for entry.
+ * @returns {Array|null}
  */
-function debounce(func, delay) {
-    let timeout;
-    return function(...args) {
-        const context = this;
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(context, args), delay);
-    };
+function applyFilters(entries, textFn) {
+    const search    = ui.recordsSearchInput.value.trim().toLowerCase();
+    const dateRange = ui.recordsDateRange.value;
+
+    let startTs = null;
+    let endTs   = null;
+
+    if (dateRange === 'custom') {
+        if (ui.recordsStartDate.value) startTs = new Date(ui.recordsStartDate.value).getTime();
+        if (ui.recordsEndDate.value)   endTs   = new Date(ui.recordsEndDate.value).setHours(23, 59, 59, 999);
+    } else if (dateRange !== 'all') {
+        const now = Date.now();
+        const map = { '24h': 864e5, '7d': 7 * 864e5, '30d': 30 * 864e5 };
+        startTs = now - (map[dateRange] || 0);
+    }
+
+    return entries.filter(entry => {
+        const text       = textFn(entry);
+        const matchText  = !search || text.includes(search);
+        const ts         = entry.timestamp;
+        const matchStart = startTs == null || ts >= startTs;
+        const matchEnd   = endTs   == null || ts <= endTs;
+        return matchText && matchStart && matchEnd;
+    });
 }
 
-function setUIState(isLoading, message = '') {
-    const buttons = [ui.syncNowBtn, ui.restoreBtn, ui.clearSyncBtn, ui.exportHistoryBtn, ui.exportLogBtn]; // Updated buttons
-    buttons.forEach(btn => btn.disabled = isLoading);
-    
-    // Disable/enable filter inputs
-    const filterInputs = [
-        ui.historySearchInput, ui.historyDateRange, ui.historyStartDate, ui.historyEndDate,
-        ui.logSearchInput, ui.logDateRange, ui.logStartDate, ui.logEndDate,
-        ui.logRetentionPolicy, ui.historyRetentionPolicy, // Also disable retention policy selectors during loading
-        ui.enableAutoSync, ui.syncOnStartup, ui.syncInterval, // Options panel inputs
-        ...document.querySelectorAll('#selectiveSyncOptions input[type="checkbox"]') // Selective sync checkboxes
-    ];
-    filterInputs.forEach(input => input.disabled = isLoading);
+// ==========================================================================
+// Storage Change Handler
+// ==========================================================================
 
+function handleStorageChange(changes, areaName) {
+    if (areaName === 'sync' && changes[SYNC_DATA_KEY]) {
+        showToast('Sync data updated externally.', 'info');
+        updateSyncStatus();
+        if (activeRecordsTab === 'history' && isRecordsPanelActive()) {
+            displayVersionHistory(true);
+        }
+    }
+    if (areaName === 'local') {
+        if (changes.syncLog && activeRecordsTab === 'log' && isRecordsPanelActive()) {
+            const newLog = changes.syncLog.newValue ?? [];
+            allLogEntries = newLog;
+            displaySyncLog(false);
+        }
+        if (changes[SYNC_SETTINGS_KEY]) {
+            loadAndApplySettings();
+        }
+    }
+}
+
+function isRecordsPanelActive() {
+    return document.getElementById('records-panel')?.classList.contains('active');
+}
+
+// ==========================================================================
+// Export (JSON)
+// ==========================================================================
+
+function exportDataAsJSON(data, filename) {
+    if (!data || data.length === 0) {
+        showToast('No data to export.', 'info');
+        return;
+    }
+
+    const json  = JSON.stringify(data, null, 2);
+    const blob  = new Blob([json], { type: 'application/json' });
+    const url   = URL.createObjectURL(blob);
+    const a     = document.createElement('a');
+    const date  = new Date().toISOString().slice(0, 10);
+
+    a.href     = url;
+    a.download = `${filename}_${date}.json`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast(`Exported ${data.length} entries to ${filename}.json`, 'success');
+}
+
+// ==========================================================================
+// UI State Helpers
+// ==========================================================================
+
+function setStatusLoading(isLoading, msg) {
+    if (isLoading && msg) setStatusMessage(msg, 'info');
+}
+
+function setActionLoading(isLoading, msg) {
+    const buttons = [ui.syncNowBtn, ui.restoreBtn, ui.clearSyncBtn, ui.exportHistoryBtn, ui.exportLogBtn];
+    buttons.forEach(btn => { btn.disabled = isLoading; });
 
     if (isLoading) {
-        const actionableButtons = [ui.syncNowBtn, ui.restoreBtn, ui.clearSyncBtn];
-        actionableButtons.forEach(activeBtn => {
-             if(activeBtn) {
-                activeBtn.dataset.originalText = activeBtn.textContent;
-                const loadingIcon = document.createElement('span');
-                loadingIcon.className = 'icon loading';
-                activeBtn.textContent = ''; // Clear text
-                activeBtn.appendChild(loadingIcon);
-                activeBtn.appendChild(document.createTextNode(activeBtn.dataset.originalText));
-            }
+        [ui.syncNowBtn, ui.restoreBtn, ui.clearSyncBtn].forEach(btn => {
+            if (!btn) return;
+            btn.dataset.originalText = btn.textContent.trim();
+            clearChildren(btn);
+            const spin = document.createElement('span');
+            spin.className = 'icon loading';
+            spin.setAttribute('aria-hidden', 'true');
+            btn.appendChild(spin);
+            btn.appendChild(document.createTextNode(' ' + (btn.dataset.originalText || '…')));
         });
-
-        if (message) updateStatusMessage(message, 'info');
+        if (msg) setStatusMessage(msg, 'info');
     } else {
-        const actionableButtons = [ui.syncNowBtn, ui.restoreBtn, ui.clearSyncBtn];
-        actionableButtons.forEach(btn => {
-            if (btn.dataset.originalText) {
-                while (btn.firstChild) {
-                    btn.removeChild(btn.firstChild);
-                }
-                btn.textContent = btn.dataset.originalText;
-                delete btn.dataset.originalText;
-            }
+        [ui.syncNowBtn, ui.restoreBtn, ui.clearSyncBtn].forEach(btn => {
+            if (!btn || !btn.dataset.originalText) return;
+            btn.textContent = btn.dataset.originalText;
+            delete btn.dataset.originalText;
         });
     }
 }
 
-function updateStatusMessage(message, type) {
+function setStatusMessage(message, type) {
     ui.statusMessage.textContent = message;
-    ui.statusMessage.className = `status-message ${type}`;
+    ui.statusMessage.className   = `status-message ${type}`;
 }
 
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    const iconSpan = document.createElement('span');
-    iconSpan.className = `icon icon-${type === 'error' ? 'error' : type === 'success' ? 'check' : 'info'}`;
-    const messageText = document.createTextNode(` ${message}`);
-    toast.appendChild(iconSpan);
-    toast.appendChild(messageText);
-    ui.toastContainer.appendChild(toast);
-
-    setTimeout(() => toast.classList.add('show'), 10);
-    setTimeout(() => {
-        toast.classList.remove('show');
-        toast.addEventListener('transitionend', () => toast.remove());
-    }, 4000);
+function setPlaceholder(container, text) {
+    clearChildren(container);
+    container.appendChild(makePlaceholder(text));
 }
 
-function showConfirmDialog(title, message, okText = 'OK') {
+// ==========================================================================
+// Modals
+// ==========================================================================
+
+function showConfirmDialog(title, message, okText = 'Confirm') {
     return new Promise(resolve => {
-        const dialog = ui.confirmDialog;
-        dialog.title.textContent = title;
-        dialog.message.textContent = message;
-        dialog.okBtn.textContent = okText;
-        dialog.okBtn.className = okText === 'Clear Data' ? 'btn danger' : 'btn primary';
+        const d = ui.confirmDialog;
+        d.title.textContent  = title;
+        d.message.textContent = message;
+        d.okBtn.textContent  = okText;
+        d.okBtn.className    = okText === 'Clear Data' ? 'btn danger' : 'btn primary';
 
-        dialog.overlay.classList.add('active');
+        d.overlay.classList.add('active');
+        d.overlay.setAttribute('aria-hidden', 'false');
+        d.okBtn.focus();
 
         const close = (value) => {
-            dialog.overlay.classList.remove('active');
-            dialog.okBtn.onclick = null;
-            dialog.cancelBtn.onclick = null;
+            d.overlay.classList.remove('active');
+            d.overlay.setAttribute('aria-hidden', 'true');
+            d.okBtn.onclick     = null;
+            d.cancelBtn.onclick = null;
             resolve(value);
         };
 
-        dialog.okBtn.onclick = () => close(true);
-        dialog.cancelBtn.onclick = () => close(false);
+        d.okBtn.onclick     = () => close(true);
+        d.cancelBtn.onclick = () => close(false);
     });
 }
 
 function showConflictDialog() {
     return new Promise(resolve => {
-        const dialog = ui.conflictDialog;
-        dialog.overlay.classList.add('active');
-        
+        const d = ui.conflictDialog;
+        d.overlay.classList.add('active');
+        d.overlay.setAttribute('aria-hidden', 'false');
+        d.keepCloudBtn.focus();
+
         const close = (value) => {
-            dialog.overlay.classList.remove('active');
-            dialog.keepLocalBtn.onclick = null;
-            dialog.keepCloudBtn.onclick = null;
+            d.overlay.classList.remove('active');
+            d.overlay.setAttribute('aria-hidden', 'true');
+            d.keepLocalBtn.onclick = null;
+            d.keepCloudBtn.onclick = null;
             resolve(value);
         };
 
-        dialog.keepLocalBtn.onclick = () => close('local');
-        dialog.keepCloudBtn.onclick = () => close('cloud');
+        d.keepLocalBtn.onclick = () => close('local');
+        d.keepCloudBtn.onclick = () => close('cloud');
     });
 }
 
-function handleStorageChange(changes, areaName) {
-    if (areaName === 'sync' && changes[SYNC_DATA_KEY]) {
-        console.log("Sync data changed in another context. Updating status.");
-        showToast("Sync data was updated in the background.", "info");
-        updateSyncStatus();
-        // If the active panel is history, refresh it
-        if (document.getElementById('history-panel').classList.contains('active')) {
-            displayVersionHistory(true);
-        }
-    }
-    if (areaName === 'local' && (changes.syncLog || changes[SYNC_SETTINGS_KEY])) {
-        console.log("Local log or settings changed. Updating UI.");
-        if (changes.syncLog) {
-            // If the active panel is log, refresh it
-            if (document.getElementById('log-panel').classList.contains('active')) {
-                updateSyncLog(true);
-            }
-        }
-        if (changes[SYNC_SETTINGS_KEY]) {
-            loadAndApplySettings();
-            applyRetentionPolicies(); // Re-apply retention if settings change
-        }
-    }
-}
+// ==========================================================================
+// Toast Notifications
+// ==========================================================================
 
-/**
- * Sets up dynamic tooltips for elements with `data-tooltip-id`.
- */
-function setupTooltips() {
-    const tooltipElements = document.querySelectorAll('[data-tooltip-id]');
-    tooltipElements.forEach(element => {
-        const tooltipId = element.dataset.tooltipId;
-        const tooltip = document.getElementById(tooltipId);
-        if (tooltip) {
-            // Position the tooltip relative to the detail-item parent
-            const parentDetailItem = element.closest('.detail-item');
-            if (parentDetailItem) {
-                parentDetailItem.style.position = 'relative'; // Ensure parent is positioned
-                parentDetailItem.appendChild(tooltip); // Move tooltip inside parent for positioning context
-            }
-        }
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.setAttribute('role', 'alert');
+
+    const iconMap = { success: 'check', error: 'error', warning: 'error', info: 'info-badge' };
+    const icon = document.createElement('span');
+    icon.className = `icon icon-${iconMap[type] || 'info-badge'}`;
+    icon.setAttribute('aria-hidden', 'true');
+
+    const text = document.createTextNode(message);
+
+    toast.appendChild(icon);
+    toast.appendChild(text);
+    ui.toastContainer.appendChild(toast);
+
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => toast.classList.add('show'));
     });
+
+    setTimeout(() => {
+        toast.classList.remove('show');
+        toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+    }, 4000);
 }
 
+// ==========================================================================
+// DOM Utilities
+// ==========================================================================
+
+function clearChildren(el) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+}
+
+function makePlaceholder(text) {
+    const p = document.createElement('p');
+    p.className   = 'placeholder-text';
+    p.textContent = text;
+    return p;
+}
+
+function makeStrong(text) {
+    const s = document.createElement('strong');
+    s.textContent = text;
+    return s;
+}
+
+function setSelectValue(selectEl, value) {
+    // Only set if the option exists; fallback to first option otherwise
+    const exists = [...selectEl.options].some(o => o.value === String(value));
+    selectEl.value = exists ? String(value) : selectEl.options[0]?.value ?? '';
+}
+
+// ==========================================================================
+// Storage Wrappers
+// ==========================================================================
 
 /**
- * Exports data to a CSV file.
- * @param {Array<Object>} data - The array of objects to export.
- * @param {string} filename - The desired filename (without extension).
+ * Wraps chrome.storage.local.get or chrome.storage.sync.get in a Promise.
+ * @param {'local'|'sync'} area
+ * @param {...string} keys
  */
-function exportDataToCSV(data, filename) {
-    if (data.length === 0) {
-        showToast("No data to export.", "info");
-        return;
-    }
-
-    // Prepare CSV header
-    const headers = Object.keys(data[0]);
-    const csvRows = [];
-    csvRows.push(headers.map(header => `"${header}"`).join(','));
-
-    // Prepare CSV rows
-    for (const row of data) {
-        const values = headers.map(header => {
-            const value = row[header];
-            // Handle objects/arrays by stringifying them
-            if (typeof value === 'object' && value !== null) {
-                return `"${JSON.stringify(value).replace(/"/g, '""')}"`;
-            }
-            return `"${String(value).replace(/"/g, '""')}"`; // Escape double quotes
+function chromeStorageGet(area, ...keys) {
+    return new Promise((resolve, reject) => {
+        const k = keys.length === 1 ? keys[0] : keys;
+        chrome.storage[area].get(k, result => {
+            if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+            else resolve(result);
         });
-        csvRows.push(values.join(','));
-    }
+    });
+}
 
-    const csvString = csvRows.join('\n');
-    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${filename}_${new Date().toISOString().slice(0,10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast(`Exported ${data.length} entries to ${filename}.csv`, "success");
+function chromeStorageSet(area, data) {
+    return new Promise((resolve, reject) => {
+        chrome.storage[area].set(data, () => {
+            if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+            else resolve();
+        });
+    });
+}
+
+/**
+ * Returns a message for storage errors.
+ */
+function friendlyStorageError(err) {
+    const msg = err?.message || String(err);
+    if (msg.includes('QUOTA_BYTES_PER_ITEM') || msg.includes('quota')) {
+        return 'Storage quota exceeded. Try clearing cloud data or reducing synced items.';
+    }
+    return msg;
 }
