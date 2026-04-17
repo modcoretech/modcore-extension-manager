@@ -11,98 +11,11 @@
     "message": "Gestisci facilmente le estensioni del browser con funzionalità avanzate di raggruppamento, profilazione e controllo.",
     "description": "Descrizione dell'estensione."
   },
-
   
-  "offlineBannerMessage": {
-    "message": "Sembra che tu sia offline o che stia riscontrando problemi di connessione."
-  },
-  "offlineHelpIconTitle": {
-    "message": "Maggiori informazioni sui problemi di connessione"
-  },
-  "offlineDismissButton": {
-    "message": "Chiudi"
-  },
-  "modalTitle": {
-    "message": "Risoluzione dei problemi di connessione"
-  },
-  "modalIntroText": {
-    "message": "Questo messaggio indica un potenziale problema con la tua connessione Internet. Ecco alcuni passaggi comuni da provare:"
-  },
-  "modalCloseButton": {
-    "message": "Capito!"
-  },
-  "step1": {
-    "message": "Controlla la Tua Connessione: Assicurati di essere connesso alla rete Wi-Fi corretta o che il cavo Ethernet sia inserito."
-  },
-  "step2": {
-    "message": "Riavvia i Dispositivi: Spegni il router e il modem per 30 secondi, quindi riaccendili."
-  },
-  "step3": {
-    "message": "Ricarica la Pagina: Un semplice aggiornamento può risolvere problemi temporanei. Premi F5 o Cmd+R."
-  },
-  "step4": {
-    "message": "Prova Altri Siti: Vedi se riesci ad accedere ad altri siti web come google.com."
-  },
-  "step5": {
-    "message": "Disabilita VPN/Proxy: Disattiva temporaneamente qualsiasi servizio VPN o proxy che stai utilizzando."
-  },
-  "step6": {
-    "message": "Firewall/Antivirus: Controlla il tuo software di sicurezza per assicurarti che non stia bloccando il tuo browser."
-  },
-  "step7": {
-    "message": "Riavvia il Computer: Un riavvio completo del sistema può risolvere molti problemi sottostanti."
-  },
-  "temporaryOnlineMessage": {
-    "message": "Sei di nuovo online!"
-  },
-
-
-
   
-    "contributions_title": { "message": "Contributi e Crediti - modcore" },
-    "sidebar_core_team": { "message": "Team Principale" },
-    "sidebar_authors": { "message": "Autori" },
-    "sidebar_contributors": { "message": "Collaboratori" },
-    "sidebar_credits": { "message": "Crediti del Progetto" },
-    "sidebar_tools_services": { "message": "Strumenti e Servizi" },
-    "sidebar_legal_policies": { "message": "Legale e Politiche" },
-    "sidebar_documents": { "message": "Documenti Importanti" },
-    "authors_title": { "message": "Autori" },
-    "authors_description": { "message": "Il team principale dietro lo sviluppo e il design di modcore Extension Manager." },
-    "canvrs_role": { "message": "Responsabile del Progetto e Sviluppatore" },
-    "canvrs_description": { "message": "Guida lo sviluppo del progetto e il design architettonico, gestendo ogni aspetto, dal codice alla pianificazione dell'interfaccia utente." },
-    "aliana_role": { "message": "Co-Fondatrice e Sviluppatrice" },
-    "aliana_description": { "message": "Una sviluppatrice chiave e co-fondatrice coinvolta in tutti gli aspetti del progetto, garantendo un'esperienza fluida e funzionale." },
-    "contributors_title": { "message": "Collaboratori" },
-    "contributors_description": { "message": "Siamo grati per tutti i contributi della comunità. Questa sezione li metterà in evidenza presto." },
-    "contributors_coming_soon": { "message": "Presto disponibile, bloccato" },
-    "credits_title": { "message": "Strumenti e Servizi" },
-    "credits_description": { "message": "modcore Extension Manager è costruito e mantenuto con l'aiuto di questi incredibili strumenti." },
-    "canva_description": { "message": "Utilizzato per creare il logo distintivo del progetto e i materiali di branding." },
-    "github_description": { "message": "La base del nostro progetto. Utilizzato per il controllo della versione, la collaborazione, le richieste API e il recupero dei dati." },
-    "inter_description": { "message": "Il carattere tipografico pulito e professionale che definisce l'aspetto e la sensazione dell'interfaccia utente dell'estensione." },
-    "mynaui_description": { "message": "Una libreria di icone SVG splendidamente progettate che migliorano l'attrattiva visiva e l'usabilità dell'estensione." },
-    "google_services_description": { "message": "La spina dorsale della funzionalità dell'estensione, inclusi chrome.storage.sync per la sincronizzazione dei dati, Google Forms per raccogliere feedback degli utenti e la robusta piattaforma Chromium stessa." },
-    "policies_title": { "message": "Documenti Importanti" },
-    "policies_description": { "message": "Una raccolta di politiche ufficiali, linee guida e documenti legali per il progetto modcore Extension Manager." },
-    "creator_program_title": { "message": "Linee Guida del Programma Creatore modcore" },
-    "creator_program_description": { "message": "Informazioni per i creatori sul marketplace dell'estensione." },
-    "sponsor_title": { "message": "Sponsorizza modcore Extension Manager" },
-    "sponsor_description": { "message": "Scopri come puoi supportare finanziariamente il progetto." },
-    "privacy_title": { "message": "Informativa sulla Privacy" },
-    "privacy_description": { "message": "Dettagli su come i dati degli utenti sono gestiti e protetti." },
-    "license_title": { "message": "Contratto di Licenza" },
-    "license_description": { "message": "La licenza open-source che regola l'uso e la distribuzione di questo progetto." },
-    "security_title": { "message": "Politica di Sicurezza" },
-    "security_description": { "message": "La nostra politica per la segnalazione delle vulnerabilità di sicurezza." },
-    "contributing_title": { "message": "Linee Guida per la Contribuzione" },
-    "contributing_description": { "message": "Una guida per gli sviluppatori che desiderano contribuire al codice." },
-    "code_of_conduct_title": { "message": "Codice di Condotta" },
-    "code_of_conduct_description": { "message": "I nostri standard comunitari per un ambiente sicuro e accogliente." },
-    "readme_title": { "message": "README del Progetto" },
-    "readme_description": { "message": "La panoramica principale del progetto su GitHub." },
-    "localization_title": { "message": "Avviso di Supporto alla Localizzazione" },
-    "localization_description": { "message": "Informazioni su come aggiungere e mantenere il supporto linguistico." },
-
-    "get_crx_menu": { "message": "Ottieni il CRX di questa estensione" }
+  
+  
+  "get_crx_menu": { "message": "Ottieni il CRX di questa estensione" },
+  "donate_menu": { "message": "Supporta modcore su Patreon" },
+  "command_download_crx": { "message": "Scarica il CRX dell'estensione attuale" }
 }
