@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Core Variables & Theming
+   modcore Timeline
    ========================================================================== */
 :root {
     /* Typography */
@@ -72,25 +72,25 @@
     :root {
         --primary-color: #0a84ff;
         --primary-container-color: rgba(10, 132, 255, 0.2);
-        --background-color: #111112;
+        --background-color: #111115;
         --on-background-color: #ffffff;
-        --surface-color: #111112;
+        --surface-color: #111115;
         --on-surface-color: #ffffff;
-        --surface-variant-color: #1a1a1a;
+        --surface-variant-color: #222225;
         --on-surface-variant-color: #a0a0a0;
         --outline-color: #2a2a2a;
         --outline-variant-color: #3a3a3a;
         --error-color: #ff453a;
         --error-container-color: rgba(255, 69, 58, 0.2);
         --focus-ring-color: rgba(10, 132, 255, 0.6);
-        --surface-container-low: #111112;
-        --surface-container: #111112;
+        --surface-container-low: #111115;
+        --surface-container: #111115;
         --surface-container-high: #2c2c2c;
     }
 }
 
 /* ==========================================================================
-   Global Styles, Reset & Layout (Inherited from details.css)
+   Global Styles, Reset & Layout
    ========================================================================== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
