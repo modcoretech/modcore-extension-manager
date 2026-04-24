@@ -1,13 +1,13 @@
 /**
- * Extension Notes - for modcore Extension Manager
+ * Extension Notes - Note Management for modcore Extension Manager
  */
 
 // ============================================
 // CONSTANTS & CONFIGURATION
 // ============================================
 
-const STORAGE_KEY = 'modcore_extension_notes_v3_secure';
-const MASTER_KEY_STORAGE = 'modcore_master_key_salt';
+const STORAGE_KEY = 'modcore_extension_notes_v4_master';
+const MASTER_KEY_STORAGE = 'modcore_master_key_salt_v4';
 const THEME_KEY = 'modcore_notes_theme';
 const SECURITY_ITERATIONS = 600000;
 
@@ -40,9 +40,6 @@ const ICONS = {
 // UTILITY FUNCTIONS
 // ============================================
 
-/**
- * Safely escape HTML to prevent XSS
- */
 function escapeHtml(text) {
     if (typeof text !== 'string') return '';
     const div = document.createElement('div');
@@ -51,20 +48,38 @@ function escapeHtml(text) {
 }
 
 /**
- * Safely create DOM element with text content
+ * Secure DOM element builder - replaces innerHTML patterns
  */
-function createElement(tag, className, textContent) {
+function h(tag, props = {}, ...children) {
     const el = document.createElement(tag);
-    if (className) el.className = className;
-    if (textContent !== undefined && textContent !== null) {
-        el.textContent = textContent;
+    
+    if (props.className) el.className = props.className;
+    if (props.id) el.id = props.id;
+    if (props.text !== undefined) el.textContent = props.text;
+    if (props.attrs) {
+        Object.entries(props.attrs).forEach(([k, v]) => el.setAttribute(k, v));
     }
+    if (props.style) {
+        Object.entries(props.style).forEach(([k, v]) => el.style[k] = v);
+    }
+    if (props.on) {
+        Object.entries(props.on).forEach(([event, handler]) => {
+            el.addEventListener(event, handler);
+        });
+    }
+    
+    children.forEach(child => {
+        if (child == null) return;
+        if (typeof child === 'string' || typeof child === 'number') {
+            el.appendChild(document.createTextNode(String(child)));
+        } else if (child instanceof Node) {
+            el.appendChild(child);
+        }
+    });
+    
     return el;
 }
 
-/**
- * Convert ArrayBuffer to Base64
- */
 function bufferToBase64(buffer) {
     const bytes = new Uint8Array(buffer);
     let binary = '';
@@ -74,9 +89,6 @@ function bufferToBase64(buffer) {
     return btoa(binary);
 }
 
-/**
- * Convert Base64 to ArrayBuffer
- */
 function base64ToBuffer(base64) {
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
@@ -90,9 +102,6 @@ function base64ToBuffer(base64) {
 // CRYPTOGRAPHIC FUNCTIONS
 // ============================================
 
-/**
- * Derive a key from password using PBKDF2
- */
 async function deriveKey(password, salt, iterations = SECURITY_ITERATIONS) {
     const encoder = new TextEncoder();
     const keyMaterial = await crypto.subtle.importKey(
@@ -117,9 +126,6 @@ async function deriveKey(password, salt, iterations = SECURITY_ITERATIONS) {
     );
 }
 
-/**
- * Encrypt data with AES-GCM
- */
 async function encryptData(data, password) {
     const encoder = new TextEncoder();
     const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -132,7 +138,6 @@ async function encryptData(data, password) {
         encoder.encode(data)
     );
     
-    // Combine salt + iv + ciphertext
     const result = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
     result.set(salt, 0);
     result.set(iv, salt.length);
@@ -141,9 +146,6 @@ async function encryptData(data, password) {
     return bufferToBase64(result);
 }
 
-/**
- * Decrypt data with AES-GCM
- */
 async function decryptData(encryptedData, password) {
     try {
         const data = base64ToBuffer(encryptedData);
@@ -151,7 +153,7 @@ async function decryptData(encryptedData, password) {
         const iv = data.slice(16, 28);
         const ciphertext = data.slice(28);
         
-        const key = await deriveKey(password, salt);
+        const key = await deriveKey(password, new Uint8Array(salt));
         const decrypted = await crypto.subtle.decrypt(
             { name: 'AES-GCM', iv: new Uint8Array(iv) },
             key,
@@ -165,9 +167,6 @@ async function decryptData(encryptedData, password) {
     }
 }
 
-/**
- * Create a secure hash for password verification (not for encryption)
- */
 async function hashPassword(password, salt = null) {
     const encoder = new TextEncoder();
     const useSalt = salt || crypto.getRandomValues(new Uint8Array(16));
@@ -197,9 +196,6 @@ async function hashPassword(password, salt = null) {
     };
 }
 
-/**
- * Verify a password against stored hash
- */
 async function verifyPassword(storedHash, storedSalt, password) {
     const result = await hashPassword(password, base64ToBuffer(storedSalt));
     return result.hash === storedHash;
@@ -221,22 +217,160 @@ class NotesState {
         this.activeTagFilters = new Set();
         this.editingNote = null;
         this.theme = 'auto';
-        this.unlockedSecureNotes = new Map(); // Session-only unlocked notes with decrypted content
-        this.masterPassword = null; // Session-only master password
+        this.masterPassword = null;
         this.masterKeySalt = null;
-        this.eventListenersBound = false;
+        this.isAuthenticated = false;
+        this.editorTags = [];
+        this.dom = {};
+        this._debouncers = {};
     }
 
+    // ============================================
+    // DOM CACHING
+    // ============================================
+
+    cacheDom() {
+        const ids = [
+            'app', 'extensionsList', 'emptySidebar', 'extensionSearch', 'clearExtSearch',
+            'filterChips', 'mainContent', 'welcomeState', 'extensionNotesView',
+            'selectedExtIcon', 'selectedExtName', 'extNoteCount', 'manageExtBtn',
+            'newNoteBtn', 'notesSearch', 'clearNotesSearch', 'tagsFilter', 'notesContainer',
+            'emptyNotes', 'createFirstNoteBtn', 'noteEditorModal', 'editorTitle',
+            'noteTitle', 'noteContent', 'notePinned', 'noteSecure', 'securityPanel',
+            'tagsInputContainer', 'editorTagsList', 'noteTags', 'existingTags',
+            'tagSuggestions', 'saveNote', 'cancelNote', 'closeEditor', 'toastContainer',
+            'confirmModal', 'confirmTitle', 'confirmMessage', 'confirmAction', 'confirmCancel',
+            'lockScreen', 'lockScreenTitle', 'lockScreenText', 'lockScreenPass',
+            'lockScreenConfirm', 'lockScreenBtn', 'masterPassBtn', 'exportBtn', 'importBtn',
+            'importFileInput', 'keyboardShortcutsBtn', 'shortcutsModal', 'closeShortcuts',
+            'globalSearchModal', 'closeGlobalSearch', 'globalSearchInput', 'searchResults',
+            'searchTitles', 'searchContent', 'searchTags', 'noteViewerModal', 'viewerTitle',
+            'viewerMeta', 'viewerContent', 'viewerClose', 'viewerCloseBtn', 'viewerEditBtn',
+            'clearFiltersBtn'
+        ];
+        
+        ids.forEach(id => {
+            this.dom[id] = document.getElementById(id);
+        });
+    }
+
+    // ============================================
+    // INITIALIZATION
+    // ============================================
+
     async init() {
+        this.cacheDom();
         await this.loadTheme();
+        await this.loadMasterKeySalt();
+        this.setupEventListeners();
+        
+        if (!this.hasMasterPassword()) {
+            this.showLockScreen('setup');
+        } else if (!this.isAuthenticated) {
+            this.showLockScreen('unlock');
+        } else {
+            await this._bootstrap();
+        }
+    }
+
+    async _bootstrap() {
         await this.loadExtensions();
         await this.loadNotes();
-        await this.loadMasterKeySalt();
-        if (!this.eventListenersBound) {
-            this.setupEventListeners();
-            this.eventListenersBound = true;
-        }
+        this.applyTheme();
         this.render();
+    }
+
+    // ============================================
+    // LOCK SCREEN
+    // ============================================
+
+    showLockScreen(mode) {
+        const screen = this.dom.lockScreen;
+        const title = this.dom.lockScreenTitle;
+        const text = this.dom.lockScreenText;
+        const pass = this.dom.lockScreenPass;
+        const confirm = this.dom.lockScreenConfirm;
+        const btn = this.dom.lockScreenBtn;
+        
+        if (!screen) return;
+        
+        pass.value = '';
+        confirm.value = '';
+        
+        if (mode === 'setup') {
+            title.textContent = 'Welcome to Extension Notes';
+            text.textContent = 'Set up a Master Password to encrypt and protect your notes.';
+            confirm.style.display = 'block';
+            btn.textContent = 'Set Password';
+        } else {
+            title.textContent = 'Unlock Extension Notes';
+            text.textContent = 'Enter your Master Password to continue.';
+            confirm.style.display = 'none';
+            btn.textContent = 'Unlock';
+        }
+        
+        const handler = async () => {
+            const password = pass.value.trim();
+            
+            if (!password || password.length < 6) {
+                this.showToast('Password must be at least 6 characters', 'error');
+                return;
+            }
+            
+            if (mode === 'setup') {
+                const confirmPass = confirm.value.trim();
+                if (password !== confirmPass) {
+                    this.showToast('Passwords do not match', 'error');
+                    return;
+                }
+                await this.setMasterPassword(password);
+                this.masterPassword = password;
+                this.isAuthenticated = true;
+                this.hideLockScreen();
+                await this._bootstrap();
+                this.showToast('Master Password set successfully', 'success');
+            } else {
+                const isValid = await this.authenticateMasterPassword(password);
+                if (isValid) {
+                    const decrypted = await this.decryptNotesWithMaster(password);
+                    if (decrypted) {
+                        this.isAuthenticated = true;
+                        this.hideLockScreen();
+                        await this._bootstrap();
+                        this.showToast('Welcome back', 'success');
+                    } else {
+                        this.showToast('Failed to decrypt notes', 'error');
+                    }
+                } else {
+                    this.showToast('Incorrect Master Password', 'error');
+                    pass.value = '';
+                    pass.focus();
+                }
+            }
+        };
+        
+        btn.onclick = handler;
+        pass.onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                if (mode === 'setup' && confirm.style.display !== 'none') {
+                    confirm.focus();
+                } else {
+                    handler();
+                }
+            }
+        };
+        confirm.onkeydown = (e) => {
+            if (e.key === 'Enter') handler();
+        };
+        
+        screen.classList.add('open');
+        setTimeout(() => pass.focus(), 100);
+    }
+
+    hideLockScreen() {
+        if (this.dom.lockScreen) {
+            this.dom.lockScreen.classList.remove('open');
+        }
     }
 
     // ============================================
@@ -264,10 +398,6 @@ class NotesState {
         return !!this.masterKeySalt;
     }
 
-    isMasterPasswordSet() {
-        return this.masterPassword !== null;
-    }
-
     async setMasterPassword(password) {
         const salt = crypto.getRandomValues(new Uint8Array(16));
         const hashResult = await hashPassword(password, salt);
@@ -275,7 +405,6 @@ class NotesState {
             hash: hashResult.hash,
             salt: hashResult.salt
         });
-        this.masterPassword = password;
         return true;
     }
 
@@ -292,8 +421,15 @@ class NotesState {
         return isValid;
     }
 
-    clearMasterPassword() {
+    lockApp() {
         this.masterPassword = null;
+        this.isAuthenticated = false;
+        this.notes = {};
+        this.extensions = [];
+        this.selectedExtensionId = null;
+        this.searchQuery = '';
+        this.notesSearchQuery = '';
+        this.showLockScreen('unlock');
     }
 
     // ============================================
@@ -304,11 +440,19 @@ class NotesState {
         return new Promise((resolve) => {
             chrome.storage.local.get([STORAGE_KEY], async (result) => {
                 const stored = result[STORAGE_KEY];
-                if (stored && stored.encrypted) {
-                    // Data is encrypted, need master password to decrypt
-                    this.notes = { _encrypted: true, data: stored.data };
+                if (stored && stored.encrypted && this.masterPassword) {
+                    const decrypted = await decryptData(stored.data, this.masterPassword);
+                    if (decrypted) {
+                        try {
+                            this.notes = JSON.parse(decrypted);
+                        } catch (e) {
+                            this.notes = {};
+                        }
+                    } else {
+                        this.notes = {};
+                    }
                 } else {
-                    this.notes = stored || {};
+                    this.notes = {};
                 }
                 resolve();
             });
@@ -317,29 +461,17 @@ class NotesState {
 
     async saveNotes() {
         return new Promise((resolve) => {
-            const dataToSave = this.masterPassword ? 
-                { encrypted: true, data: this.notes } : 
-                this.notes;
-            
-            chrome.storage.local.set({ [STORAGE_KEY]: dataToSave }, () => {
-                this.showToast('Changes saved', 'success');
+            if (!this.masterPassword) {
                 resolve();
-            });
-        });
-    }
-
-    async encryptAndSaveNotes() {
-        if (!this.masterPassword) {
-            await this.saveNotes();
-            return;
-        }
-
-        // Encrypt all notes with master password
-        const encrypted = await encryptData(JSON.stringify(this.notes), this.masterPassword);
-        return new Promise((resolve) => {
-            chrome.storage.local.set({ [STORAGE_KEY]: { encrypted: true, data: encrypted } }, () => {
-                this.showToast('Changes saved securely', 'success');
-                resolve();
+                return;
+            }
+            encryptData(JSON.stringify(this.notes), this.masterPassword).then(encrypted => {
+                chrome.storage.local.set({
+                    [STORAGE_KEY]: { encrypted: true, data: encrypted }
+                }, () => {
+                    this.showToast('Changes saved securely', 'success');
+                    resolve();
+                });
             });
         });
     }
@@ -368,7 +500,6 @@ class NotesState {
     async loadTheme() {
         const result = await chrome.storage.local.get([THEME_KEY]);
         this.theme = result[THEME_KEY] || 'auto';
-        this.applyTheme();
     }
 
     async saveTheme() {
@@ -437,7 +568,7 @@ class NotesState {
             const query = this.notesSearchQuery.toLowerCase();
             notes = notes.filter(note => {
                 const titleMatch = note.title && note.title.toLowerCase().includes(query);
-                const contentMatch = note.content && note.content.toLowerCase().includes(query);
+                const contentMatch = !note.isSecure && note.content && note.content.toLowerCase().includes(query);
                 const tagMatch = note.tags && note.tags.some(tag => tag.toLowerCase().includes(query));
                 return titleMatch || contentMatch || tagMatch;
             });
@@ -458,17 +589,11 @@ class NotesState {
 
     async createNote(extId, noteData) {
         const notes = this.getExtensionNotes(extId);
-        
-        // Encrypt content if secure
-        let secureContent = null;
-        let secureHash = null;
         let displayContent = noteData.content;
-        
-        if (noteData.isSecure && noteData.password) {
-            secureContent = await encryptData(noteData.content, noteData.password);
-            const hashResult = await hashPassword(noteData.password);
-            secureHash = hashResult.hash;
-            secureSalt = hashResult.salt;
+        let secureContent = null;
+
+        if (noteData.isSecure && this.masterPassword) {
+            secureContent = await encryptData(noteData.content, this.masterPassword);
             displayContent = '[SECURED]';
         }
 
@@ -479,24 +604,14 @@ class NotesState {
             tags: noteData.tags || [],
             isPinned: noteData.isPinned || false,
             isSecure: noteData.isSecure || false,
-            secureHash: secureHash,
-            secureSalt: secureSalt || null,
             secureContent: secureContent,
-            allowMasterAccess: noteData.allowMasterAccess !== false, // Default true
-            allowMasterReset: noteData.allowMasterReset !== false, // Default true
             createdAt: Date.now(),
             updatedAt: Date.now()
         };
 
         notes.push(newNote);
         this.notes[extId] = notes;
-        
-        if (this.masterPassword) {
-            await this.encryptAndSaveNotes();
-        } else {
-            await this.saveNotes();
-        }
-        
+        await this.saveNotes();
         return newNote;
     }
 
@@ -509,43 +624,29 @@ class NotesState {
         const note = notes[noteIndex];
         const isSecureChanging = updates.isSecure !== undefined && updates.isSecure !== note.isSecure;
         
-        // Handle security changes
         if (isSecureChanging) {
             if (updates.isSecure && !note.isSecure) {
-                // Converting to secure - encrypt content
-                if (updates.password) {
-                    updates.secureContent = await encryptData(updates.content, updates.password);
-                    const hashResult = await hashPassword(updates.password);
-                    updates.secureHash = hashResult.hash;
-                    updates.secureSalt = hashResult.salt;
+                // Converting to secure
+                if (this.masterPassword && updates.content) {
+                    updates.secureContent = await encryptData(updates.content, this.masterPassword);
                     updates.content = '[SECURED]';
                 }
             } else if (!updates.isSecure && note.isSecure) {
-                // Converting from secure - decrypt if we have password
-                if (updates.password) {
-                    const decrypted = await this.decryptNoteContent(note, updates.password);
+                // Converting from secure
+                if (note.secureContent && this.masterPassword) {
+                    const decrypted = await decryptData(note.secureContent, this.masterPassword);
                     if (decrypted) {
                         updates.content = decrypted;
                         updates.secureContent = null;
-                        updates.secureHash = null;
-                        updates.secureSalt = null;
                     } else {
-                        this.showToast('Incorrect password - cannot remove security', 'error');
+                        this.showToast('Failed to decrypt note', 'error');
                         return null;
                     }
                 }
             }
-        } else if (note.isSecure && updates.content && updates.password) {
+        } else if (note.isSecure && updates.content && this.masterPassword) {
             // Updating secure note content
-            updates.secureContent = await encryptData(updates.content, updates.password);
-        }
-
-        // Handle master password permission updates
-        if (updates.allowMasterAccess !== undefined) {
-            note.allowMasterAccess = updates.allowMasterAccess;
-        }
-        if (updates.allowMasterReset !== undefined) {
-            note.allowMasterReset = updates.allowMasterReset;
+            updates.secureContent = await encryptData(updates.content, this.masterPassword);
         }
 
         notes[noteIndex] = {
@@ -555,13 +656,7 @@ class NotesState {
         };
 
         this.notes[extId] = notes;
-        
-        if (this.masterPassword) {
-            await this.encryptAndSaveNotes();
-        } else {
-            await this.saveNotes();
-        }
-        
+        await this.saveNotes();
         return notes[noteIndex];
     }
 
@@ -571,17 +666,13 @@ class NotesState {
         
         if (filtered.length === notes.length) return false;
 
-        this.notes[extId] = filtered;
         if (filtered.length === 0) {
             delete this.notes[extId];
-        }
-        
-        if (this.masterPassword) {
-            await this.encryptAndSaveNotes();
         } else {
-            await this.saveNotes();
+            this.notes[extId] = filtered;
         }
         
+        await this.saveNotes();
         return true;
     }
 
@@ -591,104 +682,33 @@ class NotesState {
         if (note) {
             note.isPinned = !note.isPinned;
             note.updatedAt = Date.now();
-            
-            if (this.masterPassword) {
-                await this.encryptAndSaveNotes();
-            } else {
-                await this.saveNotes();
-            }
-            
+            await this.saveNotes();
             return note.isPinned;
         }
         return null;
     }
 
-    async decryptNoteContent(note, password, useMaster = false) {
-        if (!note.isSecure || !note.secureContent) return note.content;
-        
-        // Try direct password first
-        if (password) {
-            const isValid = await verifyPassword(note.secureHash, note.secureSalt, password);
-            if (isValid) {
-                return await decryptData(note.secureContent, password);
-            }
+    async decryptNoteContent(note) {
+        if (!note.isSecure || !note.secureContent || !this.masterPassword) {
+            return note.content;
         }
-        
-        // Try master password if allowed
-        if (useMaster && this.masterPassword && note.allowMasterAccess) {
-            return await decryptData(note.secureContent, this.masterPassword);
-        }
-        
-        return null;
-    }
-
-    async resetNotePassword(extId, noteId, newPassword) {
-        const notes = this.getExtensionNotes(extId);
-        const note = notes.find(n => n.id === noteId);
-        
-        if (!note || !note.isSecure) return false;
-        
-        // Decrypt with master password
-        const decrypted = await this.decryptNoteContent(note, null, true);
-        if (!decrypted) return false;
-        
-        // Re-encrypt with new password
-        const newSecureContent = await encryptData(decrypted, newPassword);
-        const hashResult = await hashPassword(newPassword);
-        
-        note.secureContent = newSecureContent;
-        note.secureHash = hashResult.hash;
-        note.secureSalt = hashResult.salt;
-        note.updatedAt = Date.now();
-        
-        if (this.masterPassword) {
-            await this.encryptAndSaveNotes();
-        } else {
-            await this.saveNotes();
-        }
-        
-        return true;
-    }
-
-    unlockSecureNote(noteId, decryptedContent) {
-        this.unlockedSecureNotes.set(noteId, decryptedContent);
-    }
-
-    isNoteUnlocked(noteId) {
-        return this.unlockedSecureNotes.has(noteId);
-    }
-
-    getUnlockedContent(noteId) {
-        return this.unlockedSecureNotes.get(noteId);
+        return await decryptData(note.secureContent, this.masterPassword);
     }
 
     // ============================================
-    // EXPORT/IMPORT WITH MASTER PASSWORD
+    // EXPORT/IMPORT
     // ============================================
 
     async exportNotes() {
         if (!this.masterPassword) {
-            const setup = await this.showConfirm(
-                'Export Security',
-                'To export notes securely, you need to set up a Master Password first. This protects your exported data. Would you like to set one up now?'
-            );
-            if (setup) {
-                this.openMasterPasswordModal(() => this.exportNotes());
-                return;
-            } else {
-                // Allow unencrypted export with warning
-                const confirmUnsafe = await this.showConfirm(
-                    'Warning: Unencrypted Export',
-                    'Exporting without a Master Password will expose all your notes and passwords in plain text. Are you sure?'
-                );
-                if (!confirmUnsafe) return;
-            }
+            this.showToast('Master Password required to export', 'error');
+            return;
         }
 
         const exportData = {
-            version: 3,
+            version: 4,
             exportedAt: new Date().toISOString(),
-            encrypted: !!this.masterPassword,
+            encrypted: true,
             notes: null,
             stats: {
                 totalExtensions: Object.keys(this.notes).length,
@@ -696,13 +716,8 @@ class NotesState {
             }
         };
 
-        if (this.masterPassword) {
-            // Encrypt entire export with master password
-            const jsonStr = JSON.stringify(this.notes);
-            exportData.notes = await encryptData(jsonStr, this.masterPassword);
-        } else {
-            exportData.notes = this.notes;
-        }
+        const jsonStr = JSON.stringify(this.notes);
+        exportData.notes = await encryptData(jsonStr, this.masterPassword);
 
         const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -715,7 +730,7 @@ class NotesState {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
-        this.showToast(this.masterPassword ? 'Notes exported securely' : 'Notes exported (unencrypted)', 'success');
+        this.showToast('Notes exported securely', 'success');
     }
 
     async importNotes(file) {
@@ -730,11 +745,8 @@ class NotesState {
                     }
 
                     let importedNotes;
-                    let needsDecryption = false;
 
                     if (data.encrypted) {
-                        needsDecryption = true;
-                        // Need master password to decrypt
                         const password = await this.promptForPassword('Enter Master Password to decrypt import');
                         if (!password) {
                             resolve(false);
@@ -748,11 +760,6 @@ class NotesState {
                             return;
                         }
                         importedNotes = JSON.parse(decrypted);
-                        
-                        // Set this as master password if not already set
-                        if (!this.hasMasterPassword()) {
-                            await this.setMasterPassword(password);
-                        }
                     } else {
                         importedNotes = data.notes;
                     }
@@ -786,12 +793,7 @@ class NotesState {
                         this.notes = importedNotes;
                     }
 
-                    if (this.masterPassword) {
-                        await this.encryptAndSaveNotes();
-                    } else {
-                        await this.saveNotes();
-                    }
-                    
+                    await this.saveNotes();
                     this.showToast(`Imported ${importCount} notes successfully`, 'success');
                     resolve(true);
                 } catch (err) {
@@ -823,7 +825,7 @@ class NotesState {
                 if (options.titles && note.title && note.title.toLowerCase().includes(lowerQuery)) {
                     match = true;
                     matchType.push('title');
-                    preview = this.highlightText(note.title, lowerQuery);
+                    preview = note.title;
                 }
 
                 if (options.content && note.content && !note.isSecure && note.content.toLowerCase().includes(lowerQuery)) {
@@ -834,7 +836,6 @@ class NotesState {
                         const start = Math.max(0, idx - 50);
                         const end = Math.min(note.content.length, idx + query.length + 50);
                         preview = '...' + note.content.slice(start, end) + '...';
-                        preview = this.highlightText(preview, lowerQuery);
                     }
                 }
 
@@ -859,13 +860,6 @@ class NotesState {
             if (!a.matchType.includes('title') && b.matchType.includes('title')) return 1;
             return (b.note.updatedAt || 0) - (a.note.updatedAt || 0);
         });
-    }
-
-    highlightText(text, query) {
-        if (!text || !query) return text;
-        const safeQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`(${safeQuery})`, 'gi');
-        return text.replace(regex, '<mark>$1</mark>');
     }
 
     // ============================================
@@ -901,31 +895,16 @@ class NotesState {
         const isDark = this.theme === 'dark' || (this.theme === 'auto' && prefersDark);
         
         document.body.classList.toggle('dark-mode', isDark);
-        
-        const themeIcon = document.getElementById('themeIcon');
-        if (themeIcon) {
-            themeIcon.src = isDark ? ICONS.sun : ICONS.moon;
-            themeIcon.alt = isDark ? 'Light mode' : 'Dark mode';
-        }
     }
 
     showToast(message, type = 'info', duration = 3000) {
-        const container = document.getElementById('toastContainer');
+        const container = this.dom.toastContainer;
         if (!container) return;
         
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        
-        const iconImg = document.createElement('img');
-        iconImg.className = 'toast-icon';
-        iconImg.alt = '';
-        iconImg.src = ICONS[type === 'success' ? 'check' : type === 'error' ? 'warning' : 'info'];
-        
-        const messageSpan = document.createElement('span');
-        messageSpan.textContent = message;
-        
-        toast.appendChild(iconImg);
-        toast.appendChild(messageSpan);
+        const toast = h('div', { className: `toast ${type}` },
+            h('img', { className: 'toast-icon', attrs: { src: ICONS[type === 'success' ? 'check' : type === 'error' ? 'warning' : 'info'], alt: '' } }),
+            h('span', { text: message })
+        );
         
         container.appendChild(toast);
         
@@ -938,16 +917,16 @@ class NotesState {
 
     showConfirm(title, message) {
         return new Promise((resolve) => {
-            const modal = document.getElementById('confirmModal');
+            const modal = this.dom.confirmModal;
             if (!modal) {
                 resolve(false);
                 return;
             }
             
-            const titleEl = document.getElementById('confirmTitle');
-            const messageEl = document.getElementById('confirmMessage');
-            const confirmBtn = document.getElementById('confirmAction');
-            const cancelBtn = document.getElementById('confirmCancel');
+            const titleEl = this.dom.confirmTitle;
+            const messageEl = this.dom.confirmMessage;
+            const confirmBtn = this.dom.confirmAction;
+            const cancelBtn = this.dom.confirmCancel;
 
             titleEl.textContent = title;
             messageEl.textContent = message;
@@ -974,40 +953,25 @@ class NotesState {
 
     async promptForPassword(message) {
         return new Promise((resolve) => {
-            // Create a simple prompt modal
-            const modal = document.createElement('div');
-            modal.className = 'modal-overlay open';
-            modal.innerHTML = `
-                <div class="modal-content unlock-modal">
-                    <h2>${escapeHtml(message)}</h2>
-                    <div class="form-group">
-                        <input type="password" id="promptPassword" placeholder="Enter password..." autofocus>
-                    </div>
-                    <div class="modal-footer">
-                        <button class="modcore-btn modcore-btn-text" id="promptCancel">Cancel</button>
-                        <button class="modcore-btn modcore-btn-primary" id="promptConfirm">Confirm</button>
-                    </div>
-                </div>
-            `;
+            const modal = h('div', { className: 'modal-overlay open', attrs: { 'aria-modal': 'true', role: 'dialog' } },
+                h('div', { className: 'modal-content unlock-modal' },
+                    h('h2', { text: message }),
+                    h('div', { className: 'form-group' },
+                        h('input', { attrs: { type: 'password', placeholder: 'Enter password...', autofocus: 'true' }, id: 'promptPasswordInput' })
+                    ),
+                    h('div', { className: 'modal-footer' },
+                        h('button', { className: 'modcore-btn modcore-btn-text', on: { click: () => { cleanup(); resolve(null); } } }, 'Cancel'),
+                        h('button', { className: 'modcore-btn modcore-btn-primary', on: { click: () => { cleanup(); resolve(input.value); } } }, 'Confirm')
+                    )
+                )
+            );
             
             document.body.appendChild(modal);
-            
-            const input = modal.querySelector('#promptPassword');
-            const confirmBtn = modal.querySelector('#promptConfirm');
-            const cancelBtn = modal.querySelector('#promptCancel');
+            const input = modal.querySelector('#promptPasswordInput');
+            input.focus();
             
             const cleanup = () => {
                 if (modal.parentNode) modal.remove();
-            };
-            
-            confirmBtn.onclick = () => {
-                cleanup();
-                resolve(input.value);
-            };
-            
-            cancelBtn.onclick = () => {
-                cleanup();
-                resolve(null);
             };
             
             input.onkeydown = (e) => {
@@ -1027,157 +991,41 @@ class NotesState {
     }
 
     // ============================================
-    // MASTER PASSWORD MODAL
-    // ============================================
-
-    openMasterPasswordModal(onSuccess = null) {
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay open';
-        modal.id = 'masterPasswordModal';
-        
-        const hasExisting = this.hasMasterPassword();
-        
-        modal.innerHTML = `
-            <div class="modal-content note-editor">
-                <div class="modal-header">
-                    <h2>${hasExisting ? 'Enter Master Password' : 'Set Up Master Password'}</h2>
-                    <button class="close-btn" id="closeMasterModal">
-                        <img src="${ICONS.close}" alt="Close">
-                    </button>
-                </div>
-                <div class="modal-body">
-                    ${!hasExisting ? `
-                        <div class="security-banner">
-                            <img src="${ICONS.shield}" alt="Security">
-                            <div>
-                                <strong>Protect Your Notes</strong>
-                                <p>A Master Password encrypts all your notes and secures exports. You can also use it to access notes when you forget specific passwords.</p>
-                            </div>
-                        </div>
-                    ` : ''}
-                    <div class="form-group">
-                        <label for="masterPassInput">${hasExisting ? 'Master Password' : 'Create Master Password'}</label>
-                        <input type="password" id="masterPassInput" placeholder="${hasExisting ? 'Enter password...' : 'Create a strong password...'}" minlength="6">
-                    </div>
-                    ${!hasExisting ? `
-                        <div class="form-group">
-                            <label for="masterPassConfirm">Confirm Master Password</label>
-                            <input type="password" id="masterPassConfirm" placeholder="Confirm password...">
-                        </div>
-                    ` : ''}
-                </div>
-                <div class="modal-footer">
-                    <button class="modcore-btn modcore-btn-text" id="cancelMaster">Cancel</button>
-                    <button class="modcore-btn modcore-btn-primary" id="saveMaster">${hasExisting ? 'Unlock' : 'Set Password'}</button>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(modal);
-        
-        const closeBtn = modal.querySelector('#closeMasterModal');
-        const cancelBtn = modal.querySelector('#cancelMaster');
-        const saveBtn = modal.querySelector('#saveMaster');
-        const passInput = modal.querySelector('#masterPassInput');
-        const confirmInput = modal.querySelector('#masterPassConfirm');
-        
-        const cleanup = () => {
-            if (modal.parentNode) modal.remove();
-        };
-        
-        closeBtn.onclick = cleanup;
-        cancelBtn.onclick = cleanup;
-        
-        saveBtn.onclick = async () => {
-            const password = passInput.value;
-            
-            if (!password || password.length < 6) {
-                this.showToast('Password must be at least 6 characters', 'error');
-                return;
-            }
-            
-            if (!hasExisting) {
-                if (password !== confirmInput.value) {
-                    this.showToast('Passwords do not match', 'error');
-                    return;
-                }
-                await this.setMasterPassword(password);
-                this.showToast('Master Password set successfully', 'success');
-                cleanup();
-                if (onSuccess) onSuccess();
-                this.render();
-            } else {
-                const isValid = await this.authenticateMasterPassword(password);
-                if (isValid) {
-                    // Decrypt notes
-                    const decrypted = await this.decryptNotesWithMaster(password);
-                    if (decrypted) {
-                        this.showToast('Master Password accepted', 'success');
-                        cleanup();
-                        if (onSuccess) onSuccess();
-                        this.render();
-                    } else {
-                        this.showToast('Failed to decrypt notes', 'error');
-                    }
-                } else {
-                    this.showToast('Incorrect Master Password', 'error');
-                }
-            }
-        };
-        
-        passInput.onkeydown = (e) => {
-            if (e.key === 'Enter') {
-                if (!hasExisting && confirmInput) {
-                    confirmInput.focus();
-                } else {
-                    saveBtn.click();
-                }
-            }
-        };
-        
-        if (confirmInput) {
-            confirmInput.onkeydown = (e) => {
-                if (e.key === 'Enter') saveBtn.click();
-            };
-        }
-        
-        modal.onclick = (e) => {
-            if (e.target === modal) cleanup();
-        };
-        
-        passInput.focus();
-    }
-
-    // ============================================
     // EVENT HANDLERS
     // ============================================
 
     setupEventListeners() {
+        // Debounced search helpers
+        const debounce = (key, fn, ms = 150) => {
+            clearTimeout(this._debouncers[key]);
+            this._debouncers[key] = setTimeout(fn, ms);
+        };
+
         // Extension search
-        const extSearch = document.getElementById('extensionSearch');
-        const clearExtSearch = document.getElementById('clearExtSearch');
-        
-        if (extSearch) {
-            extSearch.addEventListener('input', (e) => {
+        if (this.dom.extensionSearch) {
+            this.dom.extensionSearch.addEventListener('input', (e) => {
                 this.searchQuery = e.target.value;
-                this.renderSidebar();
+                debounce('extSearch', () => this.renderSidebar());
             });
         }
 
-        if (clearExtSearch) {
-            clearExtSearch.addEventListener('click', () => {
-                if (extSearch) {
-                    extSearch.value = '';
+        if (this.dom.clearExtSearch) {
+            this.dom.clearExtSearch.addEventListener('click', () => {
+                if (this.dom.extensionSearch) {
+                    this.dom.extensionSearch.value = '';
                     this.searchQuery = '';
                     this.renderSidebar();
-                    extSearch.focus();
+                    this.dom.extensionSearch.focus();
                 }
             });
         }
 
-        // Filter chips
-        document.querySelectorAll('.chip[data-filter]').forEach(chip => {
-            chip.addEventListener('click', () => {
+        // Filter chips - event delegation
+        if (this.dom.filterChips) {
+            this.dom.filterChips.addEventListener('click', (e) => {
+                const chip = e.target.closest('.chip[data-filter]');
+                if (!chip) return;
+                
                 const filter = chip.dataset.filter;
                 
                 if (filter === 'all') {
@@ -1198,58 +1046,51 @@ class NotesState {
                 this.updateFilterChips();
                 this.renderSidebar();
             });
-        });
+        }
 
         // Clear filters
-        const clearFiltersBtn = document.getElementById('clearFiltersBtn');
-        if (clearFiltersBtn) {
-            clearFiltersBtn.addEventListener('click', () => {
+        if (this.dom.clearFiltersBtn) {
+            this.dom.clearFiltersBtn.addEventListener('click', () => {
                 this.activeFilters.clear();
                 this.activeFilters.add('all');
                 this.searchQuery = '';
-                if (extSearch) extSearch.value = '';
+                if (this.dom.extensionSearch) this.dom.extensionSearch.value = '';
                 this.updateFilterChips();
                 this.renderSidebar();
             });
         }
 
         // Notes search
-        const notesSearch = document.getElementById('notesSearch');
-        const clearNotesSearch = document.getElementById('clearNotesSearch');
-        
-        if (notesSearch) {
-            notesSearch.addEventListener('input', (e) => {
+        if (this.dom.notesSearch) {
+            this.dom.notesSearch.addEventListener('input', (e) => {
                 this.notesSearchQuery = e.target.value;
-                this.renderNotes();
+                debounce('notesSearch', () => this.renderNotes());
             });
         }
 
-        if (clearNotesSearch) {
-            clearNotesSearch.addEventListener('click', () => {
-                if (notesSearch) {
-                    notesSearch.value = '';
+        if (this.dom.clearNotesSearch) {
+            this.dom.clearNotesSearch.addEventListener('click', () => {
+                if (this.dom.notesSearch) {
+                    this.dom.notesSearch.value = '';
                     this.notesSearchQuery = '';
                     this.renderNotes();
-                    notesSearch.focus();
+                    this.dom.notesSearch.focus();
                 }
             });
         }
 
-        // New note
-        const newNoteBtn = document.getElementById('newNoteBtn');
-        if (newNoteBtn) {
-            newNoteBtn.addEventListener('click', () => this.openNoteEditor());
+        // New note buttons
+        if (this.dom.newNoteBtn) {
+            this.dom.newNoteBtn.addEventListener('click', () => this.openNoteEditor());
         }
         
-        const createFirstNoteBtn = document.getElementById('createFirstNoteBtn');
-        if (createFirstNoteBtn) {
-            createFirstNoteBtn.addEventListener('click', () => this.openNoteEditor());
+        if (this.dom.createFirstNoteBtn) {
+            this.dom.createFirstNoteBtn.addEventListener('click', () => this.openNoteEditor());
         }
 
         // Manage extension
-        const manageExtBtn = document.getElementById('manageExtBtn');
-        if (manageExtBtn) {
-            manageExtBtn.addEventListener('click', () => {
+        if (this.dom.manageExtBtn) {
+            this.dom.manageExtBtn.addEventListener('click', () => {
                 const ext = this.getSelectedExtension();
                 if (ext) {
                     chrome.tabs.create({ url: `chrome://extensions/?id=${ext.id}` });
@@ -1258,20 +1099,16 @@ class NotesState {
         }
 
         // Export/Import
-        const exportBtn = document.getElementById('exportBtn');
-        if (exportBtn) {
-            exportBtn.addEventListener('click', () => this.exportNotes());
+        if (this.dom.exportBtn) {
+            this.dom.exportBtn.addEventListener('click', () => this.exportNotes());
         }
         
-        const importBtn = document.getElementById('importBtn');
-        const importFileInput = document.getElementById('importFileInput');
-        
-        if (importBtn && importFileInput) {
-            importBtn.addEventListener('click', () => {
-                importFileInput.click();
+        if (this.dom.importBtn && this.dom.importFileInput) {
+            this.dom.importBtn.addEventListener('click', () => {
+                this.dom.importFileInput.click();
             });
             
-            importFileInput.addEventListener('change', async (e) => {
+            this.dom.importFileInput.addEventListener('change', async (e) => {
                 const file = e.target.files[0];
                 if (file) {
                     await this.importNotes(file);
@@ -1281,32 +1118,21 @@ class NotesState {
             });
         }
 
-        // Master password button (add to header)
-        const headerActions = document.querySelector('.header-actions');
-        if (headerActions && !document.getElementById('masterPassBtn')) {
-            const masterBtn = document.createElement('button');
-            masterBtn.id = 'masterPassBtn';
-            masterBtn.className = 'icon-btn';
-            masterBtn.setAttribute('aria-label', 'Master Password');
-            masterBtn.innerHTML = `<img src="${ICONS.shield}" alt="Master Password">`;
-            masterBtn.addEventListener('click', () => this.openMasterPasswordModal());
-            headerActions.insertBefore(masterBtn, headerActions.firstChild);
+        // Master password button - lock app
+        if (this.dom.masterPassBtn) {
+            this.dom.masterPassBtn.addEventListener('click', () => this.lockApp());
         }
 
         // Keyboard shortcuts modal
-        const keyboardShortcutsBtn = document.getElementById('keyboardShortcutsBtn');
-        const closeShortcuts = document.getElementById('closeShortcuts');
-        const shortcutsModal = document.getElementById('shortcutsModal');
-        
-        if (keyboardShortcutsBtn && shortcutsModal) {
-            keyboardShortcutsBtn.addEventListener('click', () => {
-                shortcutsModal.classList.add('open');
+        if (this.dom.keyboardShortcutsBtn && this.dom.shortcutsModal) {
+            this.dom.keyboardShortcutsBtn.addEventListener('click', () => {
+                this.dom.shortcutsModal.classList.add('open');
             });
         }
         
-        if (closeShortcuts && shortcutsModal) {
-            closeShortcuts.addEventListener('click', () => {
-                shortcutsModal.classList.remove('open');
+        if (this.dom.closeShortcuts && this.dom.shortcutsModal) {
+            this.dom.closeShortcuts.addEventListener('click', () => {
+                this.dom.shortcutsModal.classList.remove('open');
             });
         }
 
@@ -1318,20 +1144,9 @@ class NotesState {
             }
         });
 
-        const closeGlobalSearch = document.getElementById('closeGlobalSearch');
-        const globalSearchModal = document.getElementById('globalSearchModal');
-        
-        if (closeGlobalSearch && globalSearchModal) {
-            closeGlobalSearch.addEventListener('click', () => {
-                globalSearchModal.classList.remove('open');
-            });
-        }
-
-        // Back button
-        const backBtn = document.getElementById('backBtn');
-        if (backBtn) {
-            backBtn.addEventListener('click', () => {
-                window.history.back();
+        if (this.dom.closeGlobalSearch && this.dom.globalSearchModal) {
+            this.dom.closeGlobalSearch.addEventListener('click', () => {
+                this.dom.globalSearchModal.classList.remove('open');
             });
         }
 
@@ -1339,16 +1154,33 @@ class NotesState {
         document.querySelectorAll('.modal-overlay').forEach(modal => {
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) {
-                    if (modal.id === 'unlockModal') {
-                        const unlockInput = document.getElementById('unlockPassword');
-                        if (unlockInput && document.activeElement === unlockInput) {
-                            return;
-                        }
-                    }
                     modal.classList.remove('open');
                 }
             });
         });
+
+        // Note container event delegation
+        if (this.dom.notesContainer) {
+            this.dom.notesContainer.addEventListener('click', (e) => {
+                const card = e.target.closest('.note-card');
+                if (!card) return;
+                
+                const noteId = card.dataset.noteId;
+                
+                if (e.target.closest('.pin-btn')) {
+                    e.stopPropagation();
+                    this.handlePinClick(noteId);
+                } else if (e.target.closest('.edit-btn')) {
+                    e.stopPropagation();
+                    this.handleEditClick(noteId);
+                } else if (e.target.closest('.delete-btn')) {
+                    e.stopPropagation();
+                    this.handleDeleteClick(noteId);
+                } else {
+                    this.handleNoteCardClick(noteId);
+                }
+            });
+        }
 
         // Keyboard shortcuts
         this.setupKeyboardShortcuts();
@@ -1361,20 +1193,18 @@ class NotesState {
             switch(e.key) {
                 case '?':
                     e.preventDefault();
-                    const shortcutsModal = document.getElementById('shortcutsModal');
-                    if (shortcutsModal) shortcutsModal.classList.add('open');
+                    if (this.dom.shortcutsModal) this.dom.shortcutsModal.classList.add('open');
                     break;
                 case 'Escape':
                     document.querySelectorAll('.modal-overlay.open').forEach(m => {
-                        if (m.id !== 'unlockModal') m.classList.remove('open');
+                        m.classList.remove('open');
                     });
                     break;
                 case 'k':
                 case 'K':
                     if (e.ctrlKey) {
                         e.preventDefault();
-                        const extSearch = document.getElementById('extensionSearch');
-                        if (extSearch) extSearch.focus();
+                        if (this.dom.extensionSearch) this.dom.extensionSearch.focus();
                     }
                     break;
                 case 'n':
@@ -1396,7 +1226,7 @@ class NotesState {
     }
 
     // ============================================
-    // RENDERING (Fixed animation and empty states)
+    // RENDERING
     // ============================================
 
     render() {
@@ -1404,111 +1234,127 @@ class NotesState {
         this.renderMainContent();
     }
 
+    _createExtensionItem(ext) {
+        const extNotes = this.getExtensionNotes(ext.id);
+        const hasNotes = extNotes.length > 0;
+        const hasPinned = extNotes.some(n => n.isPinned);
+        
+        const item = h('div', {
+            className: `ext-item ${ext.id === this.selectedExtensionId ? 'active' : ''} ${hasNotes ? 'has-notes' : ''} ${hasPinned ? 'has-pinned' : ''}`,
+            attrs: {
+                'data-ext-id': ext.id,
+                role: 'listitem',
+                tabindex: '0',
+                'aria-selected': String(ext.id === this.selectedExtensionId)
+            },
+            on: {
+                click: () => this.selectExtension(ext.id),
+                keydown: (e) => {
+                    if (e.key === 'Enter') this.selectExtension(ext.id);
+                }
+            }
+        },
+            h('img', { className: 'ext-icon-small', attrs: { src: ext.icons?.[0]?.url || ICONS.default, alt: '' } }),
+            h('div', { className: 'ext-item-info' },
+                h('div', { className: 'ext-item-name', text: ext.name }),
+                h('div', { className: 'ext-item-meta', text: hasNotes ? `${extNotes.length} note${extNotes.length !== 1 ? 's' : ''}` : 'No notes' })
+            )
+        );
+        
+        return item;
+    }
+
+    _updateExtensionItem(el, ext) {
+        const extNotes = this.getExtensionNotes(ext.id);
+        const hasNotes = extNotes.length > 0;
+        const hasPinned = extNotes.some(n => n.isPinned);
+        const isActive = ext.id === this.selectedExtensionId;
+        
+        el.className = `ext-item ${isActive ? 'active' : ''} ${hasNotes ? 'has-notes' : ''} ${hasPinned ? 'has-pinned' : ''}`;
+        el.setAttribute('aria-selected', String(isActive));
+        
+        const nameEl = el.querySelector('.ext-item-name');
+        const metaEl = el.querySelector('.ext-item-meta');
+        const iconEl = el.querySelector('.ext-icon-small');
+        
+        if (nameEl) nameEl.textContent = ext.name;
+        if (metaEl) metaEl.textContent = hasNotes ? `${extNotes.length} note${extNotes.length !== 1 ? 's' : ''}` : 'No notes';
+        if (iconEl) iconEl.src = ext.icons?.[0]?.url || ICONS.default;
+    }
+
     renderSidebar() {
-        const list = document.getElementById('extensionsList');
-        const empty = document.getElementById('emptySidebar');
+        const list = this.dom.extensionsList;
+        const empty = this.dom.emptySidebar;
         const filtered = this.getFilteredExtensions();
 
         if (!list || !empty) return;
 
         if (filtered.length === 0) {
             list.style.display = 'none';
-            empty.style.display = 'flex';
+            empty.classList.add('open');
             return;
         }
 
         list.style.display = 'block';
-        empty.style.display = 'none';
+        empty.classList.remove('open');
         
-        // Clear and rebuild list (preserve animations by checking if items exist)
-        const existingItems = new Set();
-        list.querySelectorAll('.ext-item').forEach(item => {
-            existingItems.add(item.dataset.extId);
+        const currentMap = new Map();
+        list.querySelectorAll('.ext-item').forEach(el => {
+            currentMap.set(el.dataset.extId, el);
         });
         
-        const newIds = new Set(filtered.map(ext => ext.id));
+        const newIds = new Set(filtered.map(e => e.id));
         
-        // Remove items that shouldn't be there
-        list.querySelectorAll('.ext-item').forEach(item => {
-            if (!newIds.has(item.dataset.extId)) {
-                item.remove();
-            }
+        // Remove items no longer in filtered list
+        currentMap.forEach((el, id) => {
+            if (!newIds.has(id)) el.remove();
         });
         
         // Add or update items
-        filtered.forEach((ext) => {
-            let item = list.querySelector(`.ext-item[data-ext-id="${ext.id}"]`);
-            const extNotes = this.getExtensionNotes(ext.id);
-            const hasNotes = extNotes.length > 0;
-            const hasPinned = extNotes.some(n => n.isPinned);
+        filtered.forEach((ext, index) => {
+            let item = currentMap.get(ext.id);
             
             if (!item) {
-                item = document.createElement('div');
-                item.className = `ext-item ${ext.id === this.selectedExtensionId ? 'active' : ''} ${hasNotes ? 'has-notes' : ''} ${hasPinned ? 'has-pinned' : ''}`;
-                item.dataset.extId = ext.id;
-                item.setAttribute('role', 'listitem');
-                item.setAttribute('tabindex', '0');
-                item.setAttribute('aria-selected', ext.id === this.selectedExtensionId);
-                
-                item.innerHTML = `
-                    <img src="${escapeHtml(ext.icons?.[0]?.url || ICONS.default)}" alt="" class="ext-icon-small">
-                    <div class="ext-item-info">
-                        <div class="ext-item-name"></div>
-                        <div class="ext-item-meta"></div>
-                    </div>
-                `;
-                
-                item.addEventListener('click', () => this.selectExtension(ext.id));
-                item.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') this.selectExtension(ext.id);
-                });
-                
-                list.appendChild(item);
+                item = this._createExtensionItem(ext);
+                if (index < list.children.length) {
+                    list.insertBefore(item, list.children[index]);
+                } else {
+                    list.appendChild(item);
+                }
+            } else {
+                this._updateExtensionItem(item, ext);
+                if (list.children[index] !== item) {
+                    list.insertBefore(item, list.children[index] || null);
+                }
             }
-            
-            // Update content
-            item.className = `ext-item ${ext.id === this.selectedExtensionId ? 'active' : ''} ${hasNotes ? 'has-notes' : ''} ${hasPinned ? 'has-pinned' : ''}`;
-            item.setAttribute('aria-selected', ext.id === this.selectedExtensionId);
-            
-            const nameEl = item.querySelector('.ext-item-name');
-            const metaEl = item.querySelector('.ext-item-meta');
-            const iconEl = item.querySelector('.ext-icon-small');
-            
-            nameEl.textContent = ext.name;
-            metaEl.textContent = hasNotes ? `${extNotes.length} note${extNotes.length !== 1 ? 's' : ''}` : 'No notes';
-            iconEl.src = ext.icons?.[0]?.url || ICONS.default;
         });
     }
 
     renderMainContent() {
-        const welcome = document.getElementById('welcomeState');
-        const view = document.getElementById('extensionNotesView');
+        const welcome = this.dom.welcomeState;
+        const view = this.dom.extensionNotesView;
 
         if (!welcome || !view) return;
 
         if (!this.selectedExtensionId) {
-            welcome.style.display = 'flex';
-            view.style.display = 'none';
+            welcome.classList.add('open');
+            view.classList.remove('open');
             return;
         }
 
-        welcome.style.display = 'none';
-        view.style.display = 'block';
+        welcome.classList.remove('open');
+        view.classList.add('open');
 
         const ext = this.getSelectedExtension();
         if (!ext) return;
 
-        const selectedExtIcon = document.getElementById('selectedExtIcon');
-        const selectedExtName = document.getElementById('selectedExtName');
-        const extNoteCount = document.getElementById('extNoteCount');
-        
-        if (selectedExtIcon) selectedExtIcon.src = ext.icons?.[0]?.url || ICONS.default;
-        if (selectedExtIcon) selectedExtIcon.alt = ext.name;
-        if (selectedExtName) selectedExtName.textContent = ext.name;
+        if (this.dom.selectedExtIcon) this.dom.selectedExtIcon.src = ext.icons?.[0]?.url || ICONS.default;
+        if (this.dom.selectedExtIcon) this.dom.selectedExtIcon.alt = ext.name;
+        if (this.dom.selectedExtName) this.dom.selectedExtName.textContent = ext.name;
 
         const notes = this.getExtensionNotes(ext.id);
-        if (extNoteCount) {
-            extNoteCount.textContent = `${notes.length} note${notes.length !== 1 ? 's' : ''}`;
+        if (this.dom.extNoteCount) {
+            this.dom.extNoteCount.textContent = `${notes.length} note${notes.length !== 1 ? 's' : ''}`;
         }
 
         this.renderTagsFilter();
@@ -1516,7 +1362,7 @@ class NotesState {
     }
 
     renderTagsFilter() {
-        const container = document.getElementById('tagsFilter');
+        const container = this.dom.tagsFilter;
         if (!container) return;
         
         const allTags = new Set();
@@ -1530,49 +1376,48 @@ class NotesState {
             });
         }
 
-        container.innerHTML = '';
+        container.textContent = '';
+        
+        const fragment = document.createDocumentFragment();
         
         Array.from(allTags).sort().forEach(tag => {
-            const btn = document.createElement('button');
-            btn.className = `tag-filter ${this.activeTagFilters.has(tag) ? 'active' : ''}`;
-            
-            const tagText = document.createElement('span');
-            tagText.textContent = tag;
-            btn.appendChild(tagText);
-            
-            if (this.activeTagFilters.has(tag)) {
-                const removeSpan = document.createElement('span');
-                removeSpan.className = 'remove-tag';
-                removeSpan.textContent = '×';
-                btn.appendChild(removeSpan);
-            }
-            
-            btn.addEventListener('click', () => {
-                if (this.activeTagFilters.has(tag)) {
-                    this.activeTagFilters.delete(tag);
-                } else {
-                    this.activeTagFilters.add(tag);
-                }
-                this.renderTagsFilter();
-                this.renderNotes();
+            const isActive = this.activeTagFilters.has(tag);
+            const btn = h('button', {
+                className: `tag-filter ${isActive ? 'active' : ''}`,
+                on: { click: () => {
+                    if (this.activeTagFilters.has(tag)) {
+                        this.activeTagFilters.delete(tag);
+                    } else {
+                        this.activeTagFilters.add(tag);
+                    }
+                    this.renderTagsFilter();
+                    this.renderNotes();
+                }}
             });
             
-            container.appendChild(btn);
+            btn.appendChild(document.createTextNode(tag));
+            
+            if (isActive) {
+                btn.appendChild(h('span', { className: 'remove-tag', text: '×' }));
+            }
+            
+            fragment.appendChild(btn);
         });
+        
+        container.appendChild(fragment);
     }
 
     renderNotes() {
-        const container = document.getElementById('notesContainer');
-        const empty = document.getElementById('emptyNotes');
+        const container = this.dom.notesContainer;
+        const empty = this.dom.emptyNotes;
         const notes = this.getFilteredNotes(this.selectedExtensionId);
 
         if (!container || !empty) return;
 
         if (notes.length === 0) {
             container.style.display = 'none';
-            empty.style.display = 'flex';
+            empty.classList.add('open');
             
-            // Update empty state message based on search
             const emptyTitle = empty.querySelector('h3');
             const emptyText = empty.querySelector('p');
             
@@ -1588,302 +1433,215 @@ class NotesState {
         }
 
         container.style.display = 'flex';
-        empty.style.display = 'none';
-        
-        // Clear container
-        container.innerHTML = '';
+        empty.classList.remove('open');
+        container.textContent = '';
 
-        notes.forEach((note, index) => {
-            const card = document.createElement('div');
-            card.className = `note-card ${note.isPinned ? 'pinned' : ''} ${note.isSecure ? 'secure' : ''}`;
-            
-            const isUnlocked = !note.isSecure || this.isNoteUnlocked(note.id);
-            let displayContent = note.content;
-            
-            if (note.isSecure && !isUnlocked) {
-                displayContent = '🔒 This note is secured. Click to unlock.';
-            } else if (note.isSecure && isUnlocked) {
-                displayContent = this.getUnlockedContent(note.id) || note.content;
-            }
+        const fragment = document.createDocumentFragment();
 
-            // Build card content safely
-            const header = document.createElement('div');
-            header.className = 'note-header';
-            
-            const titleRow = document.createElement('div');
-            titleRow.className = 'note-title-row';
-            
-            const title = document.createElement('h3');
-            title.className = 'note-title';
-            title.textContent = note.title;
+        notes.forEach(note => {
+            const card = h('div', {
+                className: `note-card ${note.isPinned ? 'pinned' : ''} ${note.isSecure ? 'secure' : ''}`,
+                attrs: { 'data-note-id': note.id }
+            });
+
+            const header = h('div', { className: 'note-header' });
+            const titleRow = h('div', { className: 'note-title-row' });
+            const title = h('h3', { className: 'note-title', text: note.title });
             titleRow.appendChild(title);
             
-            const badges = document.createElement('div');
-            badges.className = 'note-badges';
-            
+            const badges = h('div', { className: 'note-badges' });
             if (note.isPinned) {
-                const pinBadge = document.createElement('span');
-                pinBadge.className = 'badge pinned';
-                pinBadge.title = 'Pinned';
-                pinBadge.textContent = '📌';
-                badges.appendChild(pinBadge);
+                badges.appendChild(h('span', { className: 'badge pinned', attrs: { title: 'Pinned' }, text: '📌' }));
             }
-            
             if (note.isSecure) {
-                const secureBadge = document.createElement('span');
-                secureBadge.className = 'badge secure';
-                secureBadge.title = 'Secure';
-                secureBadge.textContent = '🔒';
-                badges.appendChild(secureBadge);
+                badges.appendChild(h('span', { className: 'badge secure', attrs: { title: 'Secure' }, text: '🔒' }));
             }
-            
             if (badges.children.length > 0) {
                 titleRow.appendChild(badges);
             }
-            
             header.appendChild(titleRow);
             
-            // Actions
-            const actions = document.createElement('div');
-            actions.className = 'note-actions';
+            const actions = h('div', { className: 'note-actions' });
+            actions.appendChild(h('button', {
+                className: 'note-action-btn pin-btn',
+                attrs: { title: note.isPinned ? 'Unpin' : 'Pin' }
+            }, h('img', { attrs: { src: note.isPinned ? ICONS.unpin : ICONS.pin, alt: '' } })));
             
-            const pinBtn = document.createElement('button');
-            pinBtn.className = 'note-action-btn pin-btn';
-            pinBtn.title = note.isPinned ? 'Unpin' : 'Pin';
-            pinBtn.innerHTML = `<img src="${note.isPinned ? ICONS.unpin : ICONS.pin}" alt="">`;
-            pinBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                await this.togglePin(this.selectedExtensionId, note.id);
-                this.renderNotes();
-            });
+            actions.appendChild(h('button', {
+                className: 'note-action-btn edit-btn',
+                attrs: { title: 'Edit' }
+            }, h('img', { attrs: { src: ICONS.edit, alt: '' } })));
             
-            const editBtn = document.createElement('button');
-            editBtn.className = 'note-action-btn edit-btn';
-            editBtn.title = 'Edit';
-            editBtn.innerHTML = `<img src="${ICONS.edit}" alt="">`;
-            editBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (note.isSecure && !this.isNoteUnlocked(note.id)) {
-                    this.showUnlockModal(note, () => this.openNoteEditor(note));
-                } else {
-                    this.openNoteEditor(note);
-                }
-            });
+            actions.appendChild(h('button', {
+                className: 'note-action-btn delete-btn',
+                attrs: { title: 'Delete' }
+            }, h('img', { attrs: { src: ICONS.trash, alt: '' } })));
             
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'note-action-btn delete-btn';
-            deleteBtn.title = 'Delete';
-            deleteBtn.innerHTML = `<img src="${ICONS.trash}" alt="">`;
-            deleteBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const confirmed = await this.showConfirm('Delete Note', 'Are you sure you want to delete this note?');
-                if (confirmed) {
-                    card.classList.add('deleting');
-                    setTimeout(async () => {
-                        await this.deleteNote(this.selectedExtensionId, note.id);
-                        this.render();
-                    }, 300);
-                }
-            });
-            
-            actions.appendChild(pinBtn);
-            actions.appendChild(editBtn);
-            actions.appendChild(deleteBtn);
             header.appendChild(actions);
+            card.appendChild(header);
             
-            // Meta
-            const meta = document.createElement('div');
-            meta.className = 'note-meta';
             const date = note.updatedAt ? new Date(note.updatedAt).toLocaleDateString() : 'Unknown date';
             const tags = note.tags && note.tags.length ? note.tags.map(t => `#${t}`).join(' ') : 'No tags';
-            meta.textContent = `${date} · ${tags}`;
+            card.appendChild(h('div', { className: 'note-meta', text: `${date} · ${tags}` }));
             
-            // Preview
-            const preview = document.createElement('div');
-            preview.className = 'note-preview';
-            preview.textContent = displayContent;
+            let previewText = note.content;
+            if (note.isSecure) {
+                previewText = '🔒 This note is secured. Click to view.';
+            }
+            card.appendChild(h('div', { className: 'note-preview', text: previewText }));
             
-            card.appendChild(header);
-            card.appendChild(meta);
-            card.appendChild(preview);
-            
-            // Tags
             if (note.tags && note.tags.length) {
-                const tagsContainer = document.createElement('div');
-                tagsContainer.className = 'note-tags';
-                
+                const tagsContainer = h('div', { className: 'note-tags' });
                 note.tags.forEach(tag => {
-                    const tagSpan = document.createElement('span');
-                    tagSpan.className = 'note-tag';
-                    tagSpan.textContent = tag;
-                    tagsContainer.appendChild(tagSpan);
+                    tagsContainer.appendChild(h('span', { className: 'note-tag', text: tag }));
                 });
-                
                 card.appendChild(tagsContainer);
             }
             
-            // Card click
-            card.addEventListener('click', () => {
-                if (note.isSecure && !this.isNoteUnlocked(note.id)) {
-                    this.showUnlockModal(note, () => this.showNoteViewer(note));
-                } else {
-                    this.showNoteViewer(note);
-                }
-            });
-            
-            container.appendChild(card);
+            fragment.appendChild(card);
         });
+        
+        container.appendChild(fragment);
     }
 
     // ============================================
-    // MODALS
+    // NOTE INTERACTIONS
     // ============================================
 
     selectExtension(id) {
         this.selectedExtensionId = id;
         this.notesSearchQuery = '';
         this.activeTagFilters.clear();
-        const notesSearch = document.getElementById('notesSearch');
-        if (notesSearch) notesSearch.value = '';
+        if (this.dom.notesSearch) this.dom.notesSearch.value = '';
         this.render();
     }
 
+    async handlePinClick(noteId) {
+        await this.togglePin(this.selectedExtensionId, noteId);
+        this.renderNotes();
+    }
+
+    async handleEditClick(noteId) {
+        const notes = this.getExtensionNotes(this.selectedExtensionId);
+        const note = notes.find(n => n.id === noteId);
+        if (!note) return;
+        
+        if (note.isSecure) {
+            const decrypted = await this.decryptNoteContent(note);
+            if (decrypted) {
+                const editableNote = { ...note, content: decrypted };
+                this.openNoteEditor(editableNote);
+            } else {
+                this.showToast('Failed to decrypt note', 'error');
+            }
+        } else {
+            this.openNoteEditor(note);
+        }
+    }
+
+    async handleDeleteClick(noteId) {
+        const confirmed = await this.showConfirm('Delete Note', 'Are you sure you want to delete this note?');
+        if (confirmed) {
+            const card = this.dom.notesContainer.querySelector(`[data-note-id="${noteId}"]`);
+            if (card) card.classList.add('deleting');
+            
+            setTimeout(async () => {
+                await this.deleteNote(this.selectedExtensionId, noteId);
+                this.render();
+            }, 300);
+        }
+    }
+
+    async handleNoteCardClick(noteId) {
+        const notes = this.getExtensionNotes(this.selectedExtensionId);
+        const note = notes.find(n => n.id === noteId);
+        if (!note) return;
+        this.showNoteViewer(note);
+    }
+
+    // ============================================
+    // NOTE EDITOR
+    // ============================================
+
     openNoteEditor(note = null) {
         this.editingNote = note;
-        const modal = document.getElementById('noteEditorModal');
+        const modal = this.dom.noteEditorModal;
         if (!modal) return;
         
-        const title = document.getElementById('editorTitle');
-        const titleInput = document.getElementById('noteTitle');
-        const contentInput = document.getElementById('noteContent');
-        const pinInput = document.getElementById('notePinned');
-        const secureInput = document.getElementById('noteSecure');
-        const securityPanel = document.getElementById('securityPanel');
-        const allowMasterAccess = document.getElementById('allowMasterAccess');
-        const allowMasterReset = document.getElementById('allowMasterReset');
-
-        if (title) title.textContent = note ? 'Edit Note' : 'New Note';
-        if (titleInput) titleInput.value = note?.title || '';
-        if (contentInput) contentInput.value = note?.content || '';
-        if (pinInput) pinInput.checked = note?.isPinned || false;
-        if (secureInput) secureInput.checked = note?.isSecure || false;
-        if (securityPanel) securityPanel.style.display = note?.isSecure ? 'block' : 'none';
+        this.dom.editorTitle.textContent = note ? 'Edit Note' : 'New Note';
+        this.dom.noteTitle.value = note?.title || '';
+        this.dom.noteContent.value = note?.content || '';
+        this.dom.notePinned.checked = note?.isPinned || false;
+        this.dom.noteSecure.checked = note?.isSecure || false;
         
-        // Master password permissions
-        if (allowMasterAccess) allowMasterAccess.checked = note ? (note.allowMasterAccess !== false) : true;
-        if (allowMasterReset) allowMasterReset.checked = note ? (note.allowMasterReset !== false) : true;
+        if (this.dom.securityPanel) {
+            this.dom.securityPanel.classList.toggle('open', !!note?.isSecure);
+        }
 
         this.editorTags = note?.tags ? [...note.tags] : [];
         this.renderEditorTags();
-
-        const securityPassword = document.getElementById('securityPassword');
-        const confirmPassword = document.getElementById('confirmPassword');
-        if (securityPassword) securityPassword.value = '';
-        if (confirmPassword) confirmPassword.value = '';
-
         this.renderTagSuggestions();
 
         modal.classList.add('open');
-        if (titleInput) titleInput.focus();
+        this.dom.noteTitle.focus();
 
         this.setupTagInput();
 
         // Security toggle
-        if (secureInput) {
-            secureInput.onchange = () => {
-                if (securityPanel) securityPanel.style.display = secureInput.checked ? 'block' : 'none';
+        if (this.dom.noteSecure) {
+            this.dom.noteSecure.onchange = () => {
+                if (this.dom.securityPanel) {
+                    this.dom.securityPanel.classList.toggle('open', this.dom.noteSecure.checked);
+                }
             };
         }
 
         // Save handler
-        const saveBtn = document.getElementById('saveNote');
-        const cancelBtn = document.getElementById('cancelNote');
-        const closeEditor = document.getElementById('closeEditor');
+        this.dom.saveNote.onclick = async () => {
+            if (!this.dom.noteTitle.value.trim()) {
+                this.showToast('Title is required', 'error');
+                this.dom.noteTitle.focus();
+                return;
+            }
 
-        if (saveBtn) {
-            saveBtn.onclick = async () => {
-                if (!titleInput || !titleInput.value.trim()) {
-                    this.showToast('Title is required', 'error');
-                    if (titleInput) titleInput.focus();
-                    return;
-                }
-
-                const isSecure = secureInput && secureInput.checked;
-                let password = null;
-                
-                if (isSecure) {
-                    const pass = securityPassword ? securityPassword.value : '';
-                    const confirm = confirmPassword ? confirmPassword.value : '';
-                    
-                    if (!note?.isSecure) { // New secure note or converting to secure
-                        if (pass.length < 4) {
-                            this.showToast('Password must be at least 4 characters', 'error');
-                            return;
-                        }
-                        if (pass !== confirm) {
-                            this.showToast('Passwords do not match', 'error');
-                            return;
-                        }
-                        password = pass;
-                    } else {
-                        // Editing existing secure note
-                        password = pass;
-                    }
-                }
-
-                const noteData = {
-                    title: titleInput.value.trim(),
-                    content: contentInput ? contentInput.value : '',
-                    tags: this.editorTags,
-                    isPinned: pinInput ? pinInput.checked : false,
-                    isSecure: isSecure,
-                    password: password,
-                    allowMasterAccess: allowMasterAccess ? allowMasterAccess.checked : true,
-                    allowMasterReset: allowMasterReset ? allowMasterReset.checked : true
-                };
-
-                if (note) {
-                    const updated = await this.updateNote(this.selectedExtensionId, note.id, noteData);
-                    if (updated && note.isSecure && noteData.password) {
-                        this.unlockSecureNote(note.id, noteData.content);
-                    }
-                } else {
-                    const newNote = await this.createNote(this.selectedExtensionId, noteData);
-                    if (newNote && newNote.isSecure) {
-                        this.unlockSecureNote(newNote.id, noteData.content);
-                    }
-                }
-
-                modal.classList.remove('open');
-                this.render();
+            const isSecure = this.dom.noteSecure && this.dom.noteSecure.checked;
+            const noteData = {
+                title: this.dom.noteTitle.value.trim(),
+                content: this.dom.noteContent ? this.dom.noteContent.value : '',
+                tags: this.editorTags,
+                isPinned: this.dom.notePinned ? this.dom.notePinned.checked : false,
+                isSecure: isSecure
             };
-        }
 
-        if (cancelBtn) {
-            cancelBtn.onclick = () => {
-                modal.classList.remove('open');
-            };
-        }
+            if (note) {
+                await this.updateNote(this.selectedExtensionId, note.id, noteData);
+            } else {
+                await this.createNote(this.selectedExtensionId, noteData);
+            }
 
-        if (closeEditor) {
-            closeEditor.onclick = () => {
-                modal.classList.remove('open');
-            };
-        }
+            modal.classList.remove('open');
+            this.render();
+        };
+
+        this.dom.cancelNote.onclick = () => {
+            modal.classList.remove('open');
+        };
+
+        this.dom.closeEditor.onclick = () => {
+            modal.classList.remove('open');
+        };
     }
 
     setupTagInput() {
-        const input = document.getElementById('noteTags');
-        const datalist = document.getElementById('existingTags');
+        const input = this.dom.noteTags;
+        const datalist = this.dom.existingTags;
         
         if (!input || !datalist) return;
         
         const allTags = this.getAllTags();
-        datalist.innerHTML = '';
+        datalist.textContent = '';
         allTags.forEach(tag => {
-            const option = document.createElement('option');
-            option.value = tag;
-            datalist.appendChild(option);
+            datalist.appendChild(h('option', { attrs: { value: tag } }));
         });
 
         input.onkeydown = (e) => {
@@ -1915,231 +1673,161 @@ class NotesState {
     }
 
     renderEditorTags() {
-        const container = document.getElementById('editorTagsList');
+        const container = this.dom.editorTagsList;
         if (!container) return;
         
-        container.innerHTML = '';
+        container.textContent = '';
         
         this.editorTags.forEach((tag, i) => {
-            const tagSpan = document.createElement('span');
-            tagSpan.className = 'tag-item';
-            tagSpan.textContent = tag;
-            
-            const removeBtn = document.createElement('button');
-            removeBtn.className = 'tag-remove';
-            removeBtn.textContent = '×';
-            removeBtn.addEventListener('click', () => {
-                this.editorTags.splice(i, 1);
-                this.renderEditorTags();
-                this.renderTagSuggestions();
+            const tagSpan = h('span', { className: 'tag-item', text: tag });
+            const removeBtn = h('button', {
+                className: 'tag-remove',
+                text: '×',
+                on: { click: () => {
+                    this.editorTags.splice(i, 1);
+                    this.renderEditorTags();
+                    this.renderTagSuggestions();
+                }}
             });
-            
             tagSpan.appendChild(removeBtn);
             container.appendChild(tagSpan);
         });
     }
 
     renderTagSuggestions() {
-        const container = document.getElementById('tagSuggestions');
+        const container = this.dom.tagSuggestions;
         if (!container) return;
         
         const suggestions = this.getRecommendedTags(this.editorTags);
         
-        container.innerHTML = '';
+        container.textContent = '';
         suggestions.forEach(tag => {
-            const btn = document.createElement('button');
-            btn.className = 'tag-suggestion';
-            btn.textContent = `+ ${tag}`;
-            btn.addEventListener('click', () => {
-                this.editorTags.push(tag);
-                this.renderEditorTags();
-                this.renderTagSuggestions();
-            });
-            container.appendChild(btn);
+            container.appendChild(h('button', {
+                className: 'tag-suggestion',
+                text: `+ ${tag}`,
+                on: { click: () => {
+                    this.editorTags.push(tag);
+                    this.renderEditorTags();
+                    this.renderTagSuggestions();
+                }}
+            }));
         });
     }
 
-    showNoteViewer(note) {
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay open';
+    // ============================================
+    // NOTE VIEWER
+    // ============================================
+
+    async showNoteViewer(note) {
+        const modal = this.dom.noteViewerModal;
+        if (!modal) return;
         
-        const isUnlocked = this.isNoteUnlocked(note.id);
         let displayContent = note.content;
         
-        if (note.isSecure && isUnlocked) {
-            displayContent = this.getUnlockedContent(note.id) || note.content;
+        if (note.isSecure) {
+            displayContent = await this.decryptNoteContent(note);
+            if (!displayContent) {
+                this.showToast('Failed to decrypt note', 'error');
+                return;
+            }
         }
         
-        const contentHtml = escapeHtml(displayContent).replace(/\n/g, '<br>');
+        this.dom.viewerTitle.textContent = note.title;
         
-        modal.innerHTML = `
-            <div class="modal-content note-viewer">
-                <div class="modal-header">
-                    <h2>${escapeHtml(note.title)}</h2>
-                    <button class="close-btn" id="viewerClose">
-                        <img src="${ICONS.close}" alt="Close">
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <div class="note-view-meta">
-                        ${note.isPinned ? '📌 Pinned · ' : ''}
-                        ${note.updatedAt ? new Date(note.updatedAt).toLocaleString() : ''}
-                        ${note.tags && note.tags.length ? ' · ' + note.tags.map(t => '#' + escapeHtml(t)).join(' ') : ''}
-                    </div>
-                    <div class="note-view-content">${contentHtml}</div>
-                </div>
-                <div class="modal-footer">
-                    <button class="modcore-btn modcore-btn-text" id="viewerCloseBtn">Close</button>
-                    <button class="modcore-btn modcore-btn-primary" id="viewerEditBtn">Edit</button>
-                </div>
-            </div>
-        `;
+        const date = note.updatedAt ? new Date(note.updatedAt).toLocaleString() : '';
+        const tags = note.tags && note.tags.length ? ' · ' + note.tags.map(t => '#' + t).join(' ') : '';
+        const pinned = note.isPinned ? '📌 Pinned · ' : '';
+        this.dom.viewerMeta.textContent = `${pinned}${date}${tags}`;
         
-        document.body.appendChild(modal);
+        // Set content with line breaks using safe DOM methods
+        this.dom.viewerContent.textContent = '';
+        const lines = displayContent.split('\n');
+        lines.forEach((line, i) => {
+            if (i > 0) this.dom.viewerContent.appendChild(document.createElement('br'));
+            this.dom.viewerContent.appendChild(document.createTextNode(line));
+        });
         
-        const closeModal = () => {
-            if (modal.parentNode) modal.remove();
-        };
-        
-        modal.querySelector('#viewerClose').onclick = closeModal;
-        modal.querySelector('#viewerCloseBtn').onclick = closeModal;
-        
-        modal.querySelector('#viewerEditBtn').onclick = () => {
-            closeModal();
+        this.dom.viewerCloseBtn.onclick = () => modal.classList.remove('open');
+        this.dom.viewerClose.onclick = () => modal.classList.remove('open');
+        this.dom.viewerEditBtn.onclick = () => {
+            modal.classList.remove('open');
             this.openNoteEditor(note);
         };
-
-        modal.onclick = (e) => {
-            if (e.target === modal) closeModal();
-        };
-    }
-
-    showUnlockModal(note, onUnlock) {
-        const modal = document.getElementById('unlockModal');
-        if (!modal) return;
         
-        const input = document.getElementById('unlockPassword');
-        const confirmBtn = document.getElementById('confirmUnlock');
-        const cancelBtn = document.getElementById('cancelUnlock');
-
-        if (input) input.value = '';
         modal.classList.add('open');
-        if (input) input.focus();
-
-        const doUnlock = async () => {
-            const password = input ? input.value : '';
-            if (!password) return;
-
-            const decrypted = await this.decryptNoteContent(note, password);
-            if (decrypted) {
-                this.unlockSecureNote(note.id, decrypted);
-                modal.classList.remove('open');
-                onUnlock();
-            } else {
-                // Try master password if allowed
-                if (note.allowMasterAccess && this.masterPassword) {
-                    const masterDecrypted = await this.decryptNoteContent(note, null, true);
-                    if (masterDecrypted) {
-                        this.unlockSecureNote(note.id, masterDecrypted);
-                        modal.classList.remove('open');
-                        onUnlock();
-                        return;
-                    }
-                }
-                
-                this.showToast('Incorrect password', 'error');
-                if (input) {
-                    input.value = '';
-                    input.focus();
-                }
-            }
-        };
-
-        if (confirmBtn) confirmBtn.onclick = doUnlock;
-        if (cancelBtn) cancelBtn.onclick = () => modal.classList.remove('open');
-
-        if (input) {
-            input.onkeydown = (e) => {
-                if (e.key === 'Enter') doUnlock();
-            };
-        }
     }
+
+    // ============================================
+    // GLOBAL SEARCH
+    // ============================================
 
     openGlobalSearch() {
-        const modal = document.getElementById('globalSearchModal');
-        const input = document.getElementById('globalSearchInput');
-        const results = document.getElementById('searchResults');
-
+        const modal = this.dom.globalSearchModal;
         if (!modal) return;
         
         modal.classList.add('open');
-        if (input) {
-            input.value = '';
-            input.focus();
+        if (this.dom.globalSearchInput) {
+            this.dom.globalSearchInput.value = '';
+            this.dom.globalSearchInput.focus();
         }
-        if (results) {
-            results.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 40px;">Start typing to search across all notes...</p>';
+        if (this.dom.searchResults) {
+            this.dom.searchResults.textContent = '';
+            this.dom.searchResults.appendChild(h('p', {
+                className: 'search-empty',
+                text: 'Start typing to search across all notes...'
+            }));
         }
 
         const doSearch = () => {
-            if (!input || !results) return;
+            if (!this.dom.globalSearchInput || !this.dom.searchResults) return;
             
-            const query = input.value.trim();
-            const searchTitles = document.getElementById('searchTitles');
-            const searchContent = document.getElementById('searchContent');
-            const searchTags = document.getElementById('searchTags');
-
+            const query = this.dom.globalSearchInput.value.trim();
+            
             if (!query) {
-                results.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 40px;">Start typing to search across all notes...</p>';
+                this.dom.searchResults.textContent = '';
+                this.dom.searchResults.appendChild(h('p', {
+                    className: 'search-empty',
+                    text: 'Start typing to search across all notes...'
+                }));
                 return;
             }
 
             const searchResults = this.searchAllNotes(query, {
-                titles: searchTitles ? searchTitles.checked : true,
-                content: searchContent ? searchContent.checked : true,
-                tags: searchTags ? searchTags.checked : false
+                titles: this.dom.searchTitles ? this.dom.searchTitles.checked : true,
+                content: this.dom.searchContent ? this.dom.searchContent.checked : true,
+                tags: this.dom.searchTags ? this.dom.searchTags.checked : false
             });
 
+            this.dom.searchResults.textContent = '';
+
             if (searchResults.length === 0) {
-                results.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 40px;">No results found</p>';
+                this.dom.searchResults.appendChild(h('p', {
+                    className: 'search-empty',
+                    text: 'No results found'
+                }));
                 return;
             }
 
-            results.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+            
             searchResults.forEach(result => {
-                const item = document.createElement('div');
-                item.className = 'search-result-item';
-                item.dataset.extId = result.extension.id;
-                item.dataset.noteId = result.note.id;
+                const item = h('div', { className: 'search-result-item' });
                 
-                const icon = document.createElement('img');
-                icon.src = result.extension.icons?.[0]?.url || ICONS.default;
-                icon.alt = '';
-                icon.className = 'search-result-icon';
+                const icon = h('img', {
+                    className: 'search-result-icon',
+                    attrs: { src: result.extension.icons?.[0]?.url || ICONS.default, alt: '' }
+                });
                 
-                const content = document.createElement('div');
-                content.className = 'search-result-content';
+                const content = h('div', { className: 'search-result-content' });
+                const header = h('div', { className: 'search-result-header' });
+                header.appendChild(h('span', { className: 'search-result-title', text: result.note.title }));
+                header.appendChild(h('span', { className: 'search-result-ext', text: result.extension.name }));
                 
-                const header = document.createElement('div');
-                header.className = 'search-result-header';
+                const preview = h('div', { className: 'search-result-preview' });
+                // Safe highlight
+                this._appendHighlightedText(preview, result.preview, query);
                 
-                const title = document.createElement('span');
-                title.className = 'search-result-title';
-                title.textContent = result.note.title;
-                
-                const ext = document.createElement('span');
-                ext.className = 'search-result-ext';
-                ext.textContent = result.extension.name;
-                
-                header.appendChild(title);
-                header.appendChild(ext);
-                
-                const preview = document.createElement('div');
-                preview.className = 'search-result-preview';
-                preview.innerHTML = result.preview; // Already escaped in searchAllNotes
-                
-                const meta = document.createElement('div');
-                meta.className = 'search-result-meta';
+                const meta = h('div', { className: 'search-result-meta' });
                 const date = result.note.updatedAt ? new Date(result.note.updatedAt).toLocaleDateString() : '';
                 meta.textContent = `${result.note.isPinned ? '📌 ' : ''}${result.note.isSecure ? '🔒 ' : ''}${date}`;
                 
@@ -2150,33 +1838,52 @@ class NotesState {
                 item.appendChild(icon);
                 item.appendChild(content);
                 
-                item.onclick = () => {
-                    const extId = item.dataset.extId;
-                    const noteId = item.dataset.noteId;
-                    const note = this.notes[extId]?.find(n => n.id === noteId);
-                    
+                item.addEventListener('click', () => {
                     modal.classList.remove('open');
-                    this.selectExtension(extId);
+                    this.selectExtension(result.extension.id);
                     
-                    if (note) {
-                        setTimeout(() => {
-                            if (note.isSecure && !this.isNoteUnlocked(note.id)) {
-                                this.showUnlockModal(note, () => this.showNoteViewer(note));
-                            } else {
-                                this.showNoteViewer(note);
-                            }
-                        }, 100);
-                    }
-                };
+                    setTimeout(() => {
+                        this.showNoteViewer(result.note);
+                    }, 100);
+                });
                 
-                results.appendChild(item);
+                fragment.appendChild(item);
             });
+            
+            this.dom.searchResults.appendChild(fragment);
         };
 
-        if (input) input.oninput = doSearch;
+        if (this.dom.globalSearchInput) {
+            this.dom.globalSearchInput.oninput = doSearch;
+        }
         document.querySelectorAll('.search-filters input').forEach(cb => {
             cb.onchange = doSearch;
         });
+    }
+
+    _appendHighlightedText(container, text, query) {
+        if (!text || !query) {
+            container.textContent = text || '';
+            return;
+        }
+        const safeQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`(${safeQuery})`, 'gi');
+        let lastIndex = 0;
+        let match;
+        
+        while ((match = regex.exec(text)) !== null) {
+            if (match.index > lastIndex) {
+                container.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+            }
+            const mark = document.createElement('mark');
+            mark.textContent = match[1];
+            container.appendChild(mark);
+            lastIndex = regex.lastIndex;
+        }
+        
+        if (lastIndex < text.length) {
+            container.appendChild(document.createTextNode(text.slice(lastIndex)));
+        }
     }
 }
 
