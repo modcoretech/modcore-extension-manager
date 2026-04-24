@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Extension Notes - modcore Extension Manager</title>
     <link rel="stylesheet" href="../css/notes.css">
+    <link rel="stylesheet" href="../css/variables.css">
     <link rel="stylesheet" href="../../public/fonts/fonts.css">
 </head>
 <body>
@@ -12,14 +13,11 @@
         <!-- Header -->
         <header class="app-header">
             <div class="header-left">
-                <button class="back-btn" id="backBtn" aria-label="Go back">
-                    <img src="../../public/icons/svg/arrow-left.svg" alt="Back">
-                </button>
                 <h1>Extension Notes</h1>
             </div>
             <div class="header-actions">
-                <button class="icon-btn" id="masterPassBtn" aria-label="Master Password">
-                    <img src="../../public/icons/svg/shield.svg" alt="Master Password">
+                <button class="icon-btn" id="masterPassBtn" aria-label="Lock Application">
+                    <img src="../../public/icons/svg/shield.svg" alt="Lock">
                 </button>
                 <button class="icon-btn" id="keyboardShortcutsBtn" aria-label="Keyboard shortcuts">
                     <img src="../../public/icons/svg/keyboard.svg" alt="Shortcuts">
@@ -30,7 +28,7 @@
                 <button class="icon-btn" id="importBtn" aria-label="Import notes">
                     <img src="../../public/icons/svg/upload.svg" alt="Import">
                 </button>
-                <input type="file" id="importFileInput" accept=".json" style="display:                none;">
+                <input type="file" id="importFileInput" accept=".json" style="display: none;">
             </div>
         </header>
 
@@ -58,11 +56,9 @@
                     </div>
                 </div>
                 
-                <div class="extensions-list" id="extensionsList" role="list">
-                    <!-- Extensions populated dynamically -->
-                </div>
+                <div class="extensions-list" id="extensionsList" role="list"></div>
                 
-                <div class="empty-state-sidebar" id="emptySidebar" style="display: none;">
+                <div class="empty-state-sidebar" id="emptySidebar">
                     <img src="../../public/icons/svg/search-off.svg" alt="No results">
                     <p>No extensions found</p>
                     <button class="text-btn" id="clearFiltersBtn">Clear filters</button>
@@ -95,7 +91,7 @@
                 </div>
 
                 <!-- Extension Notes View -->
-                <div class="extension-notes-view" id="extensionNotesView" style="display: none;">
+                <div class="extension-notes-view" id="extensionNotesView">
                     <div class="ext-header">
                         <div class="ext-info">
                             <img id="selectedExtIcon" src="" alt="" class="ext-icon">
@@ -130,18 +126,14 @@
                                 <img src="../../public/icons/svg/close.svg" alt="Clear">
                             </button>
                         </div>
-                        <div class="tags-filter" id="tagsFilter">
-                            <!-- Tags populated dynamically -->
-                        </div>
+                        <div class="tags-filter" id="tagsFilter"></div>
                     </div>
 
                     <!-- Notes List -->
-                    <div class="notes-container" id="notesContainer">
-                        <!-- Notes populated dynamically -->
-                    </div>
+                    <div class="notes-container" id="notesContainer"></div>
 
                     <!-- Empty State for No Notes -->
-                    <div class="empty-state-notes" id="emptyNotes" style="display: none;">
+                    <div class="empty-state-notes" id="emptyNotes">
                         <img src="../../public/icons/svg/empty-notes.svg" alt="No notes">
                         <h3>No notes yet</h3>
                         <p>Create your first note to remember important details about this extension.</p>
@@ -151,6 +143,22 @@
                     </div>
                 </div>
             </main>
+        </div>
+
+        <!-- Lock Screen -->
+        <div class="lock-screen" id="lockScreen">
+            <div class="lock-screen-content">
+                <div class="lock-icon">
+                    <img src="../../public/icons/svg/shield.svg" alt="">
+                </div>
+                <h2 id="lockScreenTitle">Welcome to Extension Notes</h2>
+                <p id="lockScreenText">A Master Password is required to protect your notes.</p>
+                <div class="lock-form">
+                    <input type="password" id="lockScreenPass" placeholder="Master Password" minlength="6" autocomplete="off">
+                    <input type="password" id="lockScreenConfirm" placeholder="Confirm Password" style="display: none;" autocomplete="off">
+                    <button class="modcore-btn modcore-btn-primary" id="lockScreenBtn">Set Password</button>
+                </div>
+            </div>
         </div>
 
         <!-- Note Editor Modal -->
@@ -215,44 +223,13 @@
                     </div>
 
                     <!-- Security Panel (shown when secure is checked) -->
-                    <div class="security-panel" id="securityPanel" style="display: none;">
+                    <div class="security-panel" id="securityPanel">
                         <div class="security-banner">
                             <img src="../../public/icons/svg/shield.svg" alt="Security">
                             <div>
                                 <strong>Secure Note</strong>
-                                <p>This note will be encrypted and require a password to view.</p>
+                                <p>This note will be encrypted with your Master Password.</p>
                             </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="securityPassword">Set Password</label>
-                            <input 
-                                type="password" 
-                                id="securityPassword" 
-                                placeholder="Enter password..."
-                                minlength="4"
-                            >
-                        </div>
-                        <div class="form-group">
-                            <label for="confirmPassword">Confirm Password</label>
-                            <input 
-                                type="password" 
-                                id="confirmPassword" 
-                                placeholder="Confirm password..."
-                            >
-                        </div>
-                        
-                        <!-- Master Password Permissions -->
-                        <div class="master-permissions">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="allowMasterAccess" checked>
-                                <span class="checkmark"></span>
-                                Allow Master Password to unlock this note
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="allowMasterReset" checked>
-                                <span class="checkmark"></span>
-                                Allow Master Password to reset this note's password
-                            </label>
                         </div>
                     </div>
                 </div>
@@ -264,25 +241,22 @@
             </div>
         </div>
 
-        <!-- Security Unlock Modal -->
-        <div class="modal-overlay" id="unlockModal" role="dialog" aria-modal="true">
-            <div class="modal-content unlock-modal">
-                <div class="security-icon-large">
-                    <img src="../../public/icons/svg/lock.svg" alt="Secure">
+        <!-- Note Viewer Modal -->
+        <div class="modal-overlay" id="noteViewerModal" role="dialog" aria-modal="true">
+            <div class="modal-content note-viewer">
+                <div class="modal-header">
+                    <h2 id="viewerTitle"></h2>
+                    <button class="close-btn" id="viewerClose" aria-label="Close viewer">
+                        <img src="../../public/icons/svg/close.svg" alt="Close">
+                    </button>
                 </div>
-                <h2>Secure Note</h2>
-                <p>This note is protected. Enter the password to view it.</p>
-                <div class="form-group">
-                    <input 
-                        type="password" 
-                        id="unlockPassword" 
-                        placeholder="Enter password..."
-                        autofocus
-                    >
+                <div class="modal-body">
+                    <div class="note-view-meta" id="viewerMeta"></div>
+                    <div class="note-view-content" id="viewerContent"></div>
                 </div>
                 <div class="modal-footer">
-                    <button class="modcore-btn modcore-btn-text" id="cancelUnlock">Cancel</button>
-                    <button class="modcore-btn modcore-btn-primary" id="confirmUnlock">Unlock</button>
+                    <button class="modcore-btn modcore-btn-text" id="viewerCloseBtn">Close</button>
+                    <button class="modcore-btn modcore-btn-primary" id="viewerEditBtn">Edit</button>
                 </div>
             </div>
         </div>
@@ -324,9 +298,7 @@
                             Tags
                         </label>
                     </div>
-                    <div class="search-results" id="searchResults">
-                        <!-- Results populated dynamically -->
-                    </div>
+                    <div class="search-results" id="searchResults"></div>
                 </div>
             </div>
         </div>
@@ -354,16 +326,8 @@
                         <span>New note</span>
                     </div>
                     <div class="shortcut">
-                        <kbd>Ctrl</kbd> + <kbd>S</kbd>
-                        <span>Save note</span>
-                    </div>
-                    <div class="shortcut">
-                        <kbd>Ctrl</kbd> + <kbd>P</kbd>
-                        <span>Toggle pin</span>
-                    </div>
-                    <div class="shortcut">
                         <kbd>Escape</kbd>
-                        <span>Close modal / Clear selection</span>
+                        <span>Close modal</span>
                     </div>
                     <div class="shortcut">
                         <kbd>?</kbd>
@@ -390,5 +354,6 @@
     </div>
 
     <script src="../js/features/notes.js"></script>
+    <script src="../js/features/report.js"></script>
 </body>
 </html>
