@@ -1,4 +1,397 @@
-/* Coming Soon */
+/* ==========================================================================
+   variables.css
+   ========================================================================== */
 
-/* This file is for defining CSS variables that can be used throughout the extension's stylesheets.
-   It allows for easy theming and consistent styling across the extension. */
+
+/* ==========================================================================
+   1. TYPOGRAPHY
+   ========================================================================== */
+:root {
+    --font-sans: 'modcore-inter-font-custom', -apple-system, BlinkMacSystemFont,
+        'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans',
+        'Helvetica Neue', sans-serif;
+
+    --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier,
+        monospace;
+
+    /* Scale */
+    --text-display-lg:  48px;
+    --text-display-md:  38px;
+    --text-display-sm:  30px;
+    --text-headline-lg: 26px;
+    --text-headline-md: 22px;
+    --text-headline-sm: 18px;
+    --text-title-lg:    17px;
+    --text-title-md:    15px;
+    --text-title-sm:    13px;
+    --text-body-lg:     14px;
+    --text-body-md:     13px;
+    --text-body-sm:     12px;
+    --text-label-lg:    12px;
+    --text-label-md:    11px;
+    --text-label-sm:    10px;
+
+    /* Line heights */
+    --leading-normal: 1.5;
+    --leading-dense:  1.25;
+
+    /* Weights */
+    --weight-normal:   400;
+    --weight-medium:   500;
+    --weight-semibold: 600;
+    --weight-bold:     700;
+}
+
+
+/* ==========================================================================
+   2. SPACING
+   ========================================================================== */
+:root {
+    --space-1: 4px;   /* xs  */
+    --space-2: 8px;   /* sm  */
+    --space-3: 12px;  /* md  */
+    --space-4: 16px;  /* lg  */
+    --space-5: 20px;  /* xl  */
+    --space-6: 24px;  /* 2xl */
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
+    --space-16: 64px;
+
+    --container-padding: var(--space-5);
+    --sidebar-width: 280px;
+    --header-height: 64px;
+}
+
+
+/* ==========================================================================
+   3. BORDER & BORDER-RADIUS
+   ========================================================================== */
+:root {
+    --border-width: 1px;
+    --radius-sm:   10px;
+    --radius-md:   12px;
+    --radius-lg:   16px;
+    --radius-xl:   20px;
+    --radius-2xl:  24px;
+    --radius-full: 9999px;
+}
+
+
+/* ==========================================================================
+   4. TRANSITIONS
+   ========================================================================== */
+:root {
+    --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --ease-bounce:   cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+    --duration-fast:   160ms;
+    --duration-normal: 280ms;
+    --duration-slow:   400ms;
+
+    --transition-fast:   var(--duration-fast)   var(--ease-standard);
+    --transition-normal: var(--duration-normal) var(--ease-standard);
+    --transition-slow:   var(--duration-slow)   var(--ease-standard);
+}
+
+
+/* ==========================================================================
+   5. ELEVATION / SHADOWS  (light values; nulled in dark mode below)
+   ========================================================================== */
+:root {
+    --shadow-sm: none;
+    --shadow-md: none;
+    --shadow-lg: none;
+    --shadow: var(--shadow-md);
+}
+
+
+/* ==========================================================================
+   6. SEMANTIC COLOR TOKENS  (light mode defaults)
+   ========================================================================== */
+:root {
+    /* --- Background --- */
+    --color-bg:             #fefffe;
+
+    /* --- Surfaces --- */
+    --color-surface:          #fefffe;
+    --color-surface-hover:    #fefffe;
+    --color-surface-selected: #e0e7ff;
+
+    --color-surface-lowest:   #fefffe;
+    --color-surface-low:      #fefffe;
+    --color-surface-mid:      #f8fbfc;
+    --color-surface-high:     #e9e9eb;
+    --color-surface-highest:  #e0e0e0;
+
+    /* --- Borders --- */
+    --color-border:        #e6e6e6;
+    --color-border-strong: #d4d4d4;
+
+    /* --- Text --- */
+    --color-text-primary:     #1F1F1F;
+    --color-text-secondary:   #45474d;
+    --color-text-placeholder: #5E5E5E;
+    --color-text-disabled:    #5E5E5E;
+    --color-text-muted:       #5E5E5E;
+    --color-text-link:        #1967D2;
+
+    /* --- Primary (Blue) --- */
+    --color-primary:           #007aff;
+    --color-primary-hover:     #0072e6;
+    --color-primary-on:        #fefffe;       /* text on primary bg   */
+    --color-primary-container: rgba(0, 122, 255, 0.10);
+    --color-primary-rgb:       0, 122, 255;
+
+    /* --- Secondary --- */
+    --color-secondary:           transparent;
+    --color-secondary-hover:     #e9e9eb;
+    --color-secondary-border:    #d4d4d4;
+    --color-secondary-text:      #1c1c1c;
+
+    /* --- Danger / Error --- */
+    --color-danger:           #ff3b30;
+    --color-danger-hover:     #e63229;
+    --color-danger-container: rgba(255, 59, 48, 0.10);
+    --color-danger-on:        #ffffff;
+    --color-danger-rgb:       255, 59, 48;
+
+    /* --- Success --- */
+    --color-success:           #34c759;
+    --color-success-hover:     #2da84d;
+    --color-success-container: rgba(52, 199, 89, 0.10);
+    --color-success-rgb:       52, 199, 89;
+
+    /* --- Warning --- */
+    --color-warning:           #ffcc00;
+    --color-warning-hover:     #e6b800;
+    --color-warning-container: rgba(255, 204, 0, 0.10);
+    --color-warning-text:      #1c1c1c;
+    --color-warning-rgb:       255, 204, 0;
+
+    /* --- Info (alias of primary) --- */
+    --color-info:           #007aff;
+    --color-info-container: rgba(0, 122, 255, 0.10);
+    --color-info-rgb:       0, 122, 255;
+
+    /* --- Disabled --- */
+    --color-disabled-bg:     #f8f8fa;
+    --color-disabled-text:   #c0c0c0;
+    --color-disabled-border: #e6e6e6;
+
+    /* --- Focus / Highlight --- */
+    --color-focus-ring:    rgba(0, 122, 255, 0.30);
+    --color-highlight-bg:  rgba(0, 122, 255, 0.15);
+    --color-highlight-text: #1c1c1c;
+
+    /* --- Modal / Overlay --- */
+    --color-backdrop: rgba(0, 0, 0, 0.40);
+    --color-modal-bg: #ffffff;
+
+    /* --- Action Feedback --- */
+    --color-feedback-bg:     rgba(0, 122, 255, 0.08);
+    --color-feedback-border: rgba(0, 122, 255, 0.20);
+    --color-feedback-text:   #007aff;
+
+    /* --- Selection --- */
+    --color-selection-bg:   rgba(0, 122, 255, 0.20);
+    --color-selection-text: inherit;
+
+    /* --- Scrollbar --- */
+    --color-scrollbar-thumb:       #c0c0c0;
+    --color-scrollbar-thumb-hover: #a0a0a0;
+
+    /* --- Icons --- */
+    --color-icon:        #6a6a6a;
+    --color-icon-active: #007aff;
+    --filter-icon:       invert(0%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(0%) contrast(100%);
+    --filter-icon-primary: invert(100%);
+
+    /* --- Skeleton --- */
+    --color-skeleton-bg:        rgba(0, 0, 0, 0.05);
+    --color-skeleton-highlight: rgba(0, 0, 0, 0.02);
+
+    /* --- Tooltip --- */
+    --color-tooltip-bg:   #313131;
+    --color-tooltip-text: #ffffff;
+
+    /* --- Neutral --- */
+    --color-neutral:         #a0a0a0;
+    --color-neutral-variant: #c0c0c0;
+
+    /* --- Inverse --- */
+    --color-inverse-surface:    #313131;
+    --color-inverse-on-surface: #ffffff;
+    --color-inverse-primary:    #0a84ff;
+}
+
+
+/* ==========================================================================
+   7. RISK / STATUS PALETTE
+   ========================================================================== */
+:root {
+    /* Generic risk scale (used in details, snapshot, automations) */
+    --color-risk-low:    #34a853;
+    --color-risk-medium: #fbbc04;
+    --color-risk-high:   #ff3b30;
+    --color-risk-varies: #8e8e93;
+
+    --color-risk-low-container:    rgba(52, 199, 89,  0.10);
+    --color-risk-medium-container: rgba(255, 204, 0,  0.10);
+    --color-risk-high-container:   rgba(255, 59, 48,  0.10);
+    --color-risk-varies-container: rgba(142, 142, 147, 0.10);
+    --color-risk-varies-rgb:       142, 142, 147;
+
+    /* Extended risk scale (used in inspect.css) */
+    --color-risk-critical:           #ff3b30;
+    --color-risk-critical-container: rgba(255, 59, 48,  0.10);
+
+    /* Safety-center score palette */
+    --color-score-excellent:  #34c759;
+    --color-score-good:       #30b0c7;
+    --color-score-moderate:   #ff9500;
+    --color-score-concerning: #ff6b35;
+    --color-score-high-risk:  #ff3b30;
+
+    /* Notes-specific semantic aliases */
+    --color-pin:    #ffc107;
+    --color-secure: #dc3545;
+    --color-master: #6f42c1;
+}
+
+
+/* ==========================================================================
+   8. DARK MODE OVERRIDES
+   ========================================================================== */
+@media (prefers-color-scheme: dark) {
+    :root {
+        /* Backgrounds */
+        --color-bg:            #121216;
+
+        /* Surfaces */
+        --color-surface:          #121216;
+        --color-surface-hover:    #2a2a2a;
+        --color-surface-selected: #202c40;
+
+        --color-surface-lowest:  #222225;
+        --color-surface-low:     #121216;
+        --color-surface-mid:     #121216;
+        --color-surface-high:    #18191d;
+        --color-surface-highest: #333333;
+
+        /* Borders */
+        --color-border:        #2a2a2a;
+        --color-border-strong: #3a3a3a;
+
+        /* Text */
+        --color-text-primary:     #F8F9FC;
+        --color-text-secondary:   #B2BBC5;
+        --color-text-placeholder: #6a6a6a;
+        --color-text-disabled:    #5a5a5a;
+        --color-text-muted:       #8e8e93;
+        --color-text-link:        #a8c7fa;
+
+        /* Primary */
+        --color-primary:           #0a84ff;
+        --color-primary-hover:     #30a7ff;
+        --color-primary-on:        #ffffff;
+        --color-primary-container: rgba(10, 132, 255, 0.20);
+        --color-primary-rgb:       10, 132, 255;
+
+        /* Secondary */
+        --color-secondary:        transparent;
+        --color-secondary-hover:  #2a2a2a;
+        --color-secondary-border: #444444;
+        --color-secondary-text:   #ffffff;
+
+        /* Danger */
+        --color-danger:           #ff453a;
+        --color-danger-hover:     #ff6d63;
+        --color-danger-container: rgba(255, 69, 58, 0.20);
+        --color-danger-rgb:       255, 69, 58;
+
+        /* Success */
+        --color-success:           #30d158;
+        --color-success-hover:     #5ee57f;
+        --color-success-container: rgba(48, 209, 88, 0.15);
+        --color-success-rgb:       48, 209, 88;
+
+        /* Warning */
+        --color-warning:           #ffd60a;
+        --color-warning-container: rgba(255, 214, 10, 0.15);
+        --color-warning-text:      #1c1c1c;
+        --color-warning-rgb:       255, 214, 10;
+
+        /* Info */
+        --color-info:           #0a84ff;
+        --color-info-container: rgba(10, 132, 255, 0.20);
+        --color-info-rgb:       10, 132, 255;
+
+        /* Disabled */
+        --color-disabled-bg:     #222222;
+        --color-disabled-text:   #5a5a5a;
+        --color-disabled-border: #2a2a2a;
+
+        /* Focus / Highlight */
+        --color-focus-ring:     rgba(10, 132, 255, 0.30);
+        --color-highlight-bg:   rgba(10, 132, 255, 0.20);
+        --color-highlight-text: #ffffff;
+
+        /* Modal */
+        --color-backdrop: rgba(0, 0, 0, 0.75);
+        --color-modal-bg: #111115;
+
+        /* Action Feedback */
+        --color-feedback-bg:     rgba(10, 132, 255, 0.12);
+        --color-feedback-border: rgba(10, 132, 255, 0.30);
+        --color-feedback-text:   #0a84ff;
+
+        /* Selection */
+        --color-selection-bg:   rgba(10, 132, 255, 0.20);
+
+        /* Scrollbar */
+        --color-scrollbar-thumb:       #6a6a6a;
+        --color-scrollbar-thumb-hover: #8e8e93;
+
+        /* Icons */
+        --color-icon:        #a0a0a0;
+        --color-icon-active: #0a84ff;
+        --filter-icon:       invert(100%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%);
+
+        /* Skeleton */
+        --color-skeleton-bg:        rgba(255, 255, 255, 0.05);
+        --color-skeleton-highlight: rgba(255, 255, 255, 0.02);
+
+        /* Tooltip */
+        --color-tooltip-bg:   #f5f5f7;
+        --color-tooltip-text: #1c1c1c;
+
+        /* Neutral */
+        --color-neutral:         #8e8e93;
+        --color-neutral-variant: #6a6a6a;
+
+        /* Inverse */
+        --color-inverse-surface:    #f5f5f7;
+        --color-inverse-on-surface: #1c1c1c;
+        --color-inverse-primary:    #007aff;
+
+        /* Shadows - removed in dark mode */
+        --shadow-sm: none;
+        --shadow-md: none;
+        --shadow-lg: none;
+        --shadow:    none;
+
+        /* Risk containers (higher opacity in dark) */
+        --color-risk-low-container:    rgba(48,  209, 88,  0.15);
+        --color-risk-medium-container: rgba(255, 214, 10,  0.15);
+        --color-risk-high-container:   rgba(255, 69,  58,  0.15);
+        --color-risk-varies-container: rgba(142, 142, 147, 0.15);
+
+        /* Risk colors (dark-adjusted) */
+        --color-risk-low:      #30d158;
+        --color-risk-medium:   #ffd60a;
+        --color-risk-high:     #ff453a;
+        --color-risk-critical: #ff453a;
+        --color-risk-critical-container: rgba(255, 69, 58, 0.15);
+    }
+}
