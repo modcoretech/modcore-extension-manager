@@ -1,0 +1,21 @@
+{
+  "extensionName": {
+    "message": "modcore Extension Manager",
+    "description": "Nombre de la extensión."
+  },
+  "extensionShortName": {
+    "message": "modcore EM",
+    "description": "Nombre corto de la extensión."
+  },
+  "extensionDescription": {
+    "message": "Administra tus extensiones del navegador sin esfuerzo con funciones avanzadas de perfiles, análisis y control.",
+    "description": "Descripción de la extensión."
+  },
+  
+  
+  
+  
+  "get_crx_menu": { "message": "Obtener CRX de esta extensión" },
+  "donate_menu": { "message": "Apoya a modcore en Patreon" },
+  "command_download_crx": { "message": "Descargar CRX de la extensión actual" }
+}

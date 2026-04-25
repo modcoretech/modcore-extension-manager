@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>modcore Cloud</title>
+    <link rel="stylesheet" href="../css/cloud.css">
+    <link rel="stylesheet" href="../css/variables.css">
+    <link rel="stylesheet" href="../../public/fonts/fonts.css">
+</head>
+<body>
+
+    <div class="page-wrapper">
+        <aside class="sidebar" role="navigation" aria-label="Cloud sections">
+            <div class="sidebar-header">
+                <span class="icon icon-cloud" aria-hidden="true"></span>
+                <h1 class="sidebar-title">modcore Cloud</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <ul role="list">
+                    <li><button class="sidebar-button active" data-panel="overview-panel" aria-current="page" aria-controls="overview-panel"><span class="icon icon-info" aria-hidden="true"></span>Overview</button></li>
+                    <li><button class="sidebar-button" data-panel="options-panel" aria-controls="options-panel"><span class="icon icon-settings" aria-hidden="true"></span>Options</button></li>
+                    <li><button class="sidebar-button" data-panel="actions-panel" aria-controls="actions-panel"><span class="icon icon-toggle-on" aria-hidden="true"></span>Actions</button></li>
+                    <li><button class="sidebar-button" data-panel="records-panel" aria-controls="records-panel"><span class="icon icon-list" aria-hidden="true"></span>Records</button></li>
+                </ul>
+            </nav>
+            <div class="sidebar-footer">
+                <p>© 2026 modcore • <a href="https://sites.google.com/view/modcore-em-help/general-information/additional-features/cloud-sync" target="_blank" rel="noopener noreferrer">modcore Cloud</a></p>
+            </div>
+        </aside>
+
+        <main class="content-area" id="main-content">
+
+            <!-- OVERVIEW PANEL -->
+            <div id="overview-panel" class="content-panel active" role="region" aria-labelledby="overview-heading">
+                <div class="panel-header">
+                    <h2 id="overview-heading">Overview</h2>
+                    <p>View sync health, storage utilization, and quota breakdown.</p>
+                </div>
+                <div class="panel-content">
+                    <div class="warning-box" role="note">
+                        <h3>Preview Release</h3>
+                        <p>modcore Cloud is in early preview. Avoid relying on it as your sole backup. <a href="https://github.com/modcoretech/modcore-extension-manager/issues" class="report-issue-link" target="_blank" rel="noopener noreferrer">Report Issues</a></p>
+                    </div>
+                    <div class="content-section">
+                        <h3 class="section-title small-title">Sync Status</h3>
+                        <div class="details-grid">
+                            <div class="detail-item">
+                                <span class="detail-label" id="chromeSyncLabel">Chrome Sync</span>
+                                <span id="chromeSyncStatus" class="detail-value status-indicator status-unknown" aria-labelledby="chromeSyncLabel" aria-describedby="chromeSyncTooltip" tabindex="0">Checking…</span>
+                                <div id="chromeSyncTooltip" class="tooltip" role="tooltip">
+                                    <p><strong>Chrome Sync</strong></p>
+                                    <p><strong>Active:</strong> Chrome is signed in and syncing extension data.</p>
+                                    <p><strong>Inactive:</strong> Sync may be paused or disabled. Verify in Chrome Settings &gt; You and Google &gt; Sync.</p>
+                                </div>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" id="autoSyncLabel">Automatic Sync</span>
+                                <span id="extensionSyncStatus" class="detail-value status-indicator status-unknown" aria-labelledby="autoSyncLabel" aria-describedby="autoSyncTooltip" tabindex="0">Checking…</span>
+                                <div id="autoSyncTooltip" class="tooltip" role="tooltip">
+                                    <p><strong>Automatic Sync</strong></p>
+                                    <p><strong>Enabled:</strong> Background sync persists data at the configured interval.</p>
+                                    <p><strong>Disabled:</strong> Manual push only.</p>
+                                </div>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Last Sync</span>
+                                <span id="lastSyncTimestamp" class="detail-value">Never</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="content-section">
+                        <h3 class="section-title small-title">Storage Utilization</h3>
+                        <div id="syncProgressBarContainer">
+                            <div id="syncProgressBar" role="progressbar" aria-valuemin="0" aria-valuemax="102400" aria-valuenow="0" aria-label="Chrome Sync quota utilization">
+                                <div id="syncProgress"></div>
+                                <div id="syncProgressText" aria-hidden="true">0 KB / 100 KB</div>
+                            </div>
+                            <div class="quota-info">
+                                <span id="totalBytesUsed">0</span> bytes used of 102,400 bytes total
+                            </div>
+                        </div>
+                        <div id="statusMessage" class="status-message info" role="status" aria-live="polite" aria-atomic="true">Evaluating sync status…</div>
+                    </div>
+                    <div class="content-section">
+                        <h3 class="section-title small-title">Storage Breakdown</h3>
+                        <div id="quotaBreakdown" class="quota-breakdown-container" aria-live="polite">
+                            <p class="placeholder-text">Push data to generate a storage breakdown.</p>
+                        </div>
+                        <p class="small-text-muted">
+                            Chrome Sync quota includes metadata overhead. Actual usage may exceed payload size by a small margin.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- OPTIONS PANEL -->
+            <div id="options-panel" class="content-panel" role="region" aria-labelledby="options-heading">
+                <div class="panel-header">
+                    <h2 id="options-heading">Options</h2>
+                    <p>Configure sync scope, scheduling, and retention policies.</p>
+                </div>
+                <div class="panel-content">
+                    <div class="content-section">
+                        <h3 class="section-title small-title">Sync Scope</h3>
+                        <p>Select data categories for bidirectional sync.</p>
+                        <div id="selectiveSyncOptions" class="option-grid" role="group" aria-label="Data categories to sync"></div>
+                    </div>
+                    <div class="content-section">
+                        <h3 class="section-title small-title">Background Sync</h3>
+                        <div class="option-group">
+                            <div class="option-item">
+                                <label for="enableAutoSync"><input type="checkbox" id="enableAutoSync">Enable background sync</label>
+                                <p>Automatically persist selected data to Chrome Sync at the configured interval.</p>
+                            </div>
+                            <div class="option-item">
+                                <label for="syncInterval">Sync Interval</label>
+                                <select id="syncInterval" class="form-input" aria-describedby="syncIntervalHint">
+                                    <option value="60">Every hour</option>
+                                    <option value="180">Every 3 hours</option>
+                                    <option value="360">Every 6 hours</option>
+                                    <option value="720">Every 12 hours</option>
+                                    <option value="1440">Once a day</option>
+                                </select>
+                                <p id="syncIntervalHint" class="small-text-muted">
+                                    Intervals are approximate. Actual timing depends on browser scheduling and system state.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="content-section">
+                        <h3 class="section-title small-title">Retention Policy</h3>
+                        <p class="small-text-muted" style="margin-top:0; margin-bottom: var(--space-4);">Automatic pruning prevents quota exhaustion. Hard limits are enforced regardless of policy.</p>
+                        <div class="option-group">
+                            <div class="option-item">
+                                <label for="historyRetentionPolicy">Version History</label>
+                                <select id="historyRetentionPolicy" class="form-input" aria-describedby="historyRetentionHint">
+                                    <option value="3">Keep last 3 versions</option>
+                                    <option value="5">Keep last 5 versions</option>
+                                    <option value="7">Keep last 7 versions</option>
+                                    <option value="10">Keep last 10 versions</option>
+                                    <option value="30d">Remove versions older than 30 days</option>
+                                    <option value="60d">Remove versions older than 60 days</option>
+                                    <option value="90d">Remove versions older than 90 days</option>
+                                </select>
+                                <p id="historyRetentionHint" class="small-text-muted">
+                                    Hard limit: 5 versions maximum.
+                                </p>
+                            </div>
+                            <div class="option-item">
+                                <label for="logRetentionPolicy">Audit Log</label>
+                                <select id="logRetentionPolicy" class="form-input" aria-describedby="logRetentionHint">
+                                    <option value="25">Keep last 25 entries</option>
+                                    <option value="50">Keep last 50 entries</option>
+                                    <option value="75">Keep last 75 entries</option>
+                                    <option value="100">Keep last 100 entries</option>
+                                    <option value="30d">Remove entries older than 30 days</option>
+                                    <option value="60d">Remove entries older than 60 days</option>
+                                    <option value="90d">Remove entries older than 90 days</option>
+                                </select>
+                                <p id="logRetentionHint" class="small-text-muted">
+                                    Hard limit: 100 entries maximum.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ACTIONS PANEL -->
+            <div id="actions-panel" class="content-panel" role="region" aria-labelledby="actions-heading">
+                <div class="panel-header">
+                    <h2 id="actions-heading">Actions</h2>
+                    <p>Execute manual sync operations and manage cloud storage.</p>
+                </div>
+                <div class="panel-content">
+                    <div class="warning-box" role="note">
+                        <h3>Critical Operations</h3>
+                        <p>Restore replaces local state. Purge permanently deletes all cloud data. These actions are irreversible.</p>
+                    </div>
+                    <div class="content-section">
+                        <h3 class="section-title small-title">Synchronization</h3>
+                        <div class="button-group">
+                            <button id="syncNowBtn" class="btn primary"><span class="icon icon-toggle-on" aria-hidden="true"></span>Push to Cloud</button>
+                            <button id="restoreBtn" class="btn secondary"><span class="icon icon-grid" aria-hidden="true"></span>Restore from Cloud</button>
+                        </div>
+                        <p class="small-text-muted">
+                            <strong>Push</strong> uploads local data immediately.<br>
+                            <strong>Restore</strong> overwrites local data with the latest cloud snapshot.
+                        </p>
+                    </div>
+                    <div class="content-section">
+                        <h3 class="section-title small-title">Destructive Actions</h3>
+                        <div class="button-group">
+                            <button id="clearSyncBtn" class="btn tertiary danger"><span class="icon icon-trash" aria-hidden="true"></span>Purge Cloud Data</button>
+                        </div>
+                        <p class="small-text-muted">
+                            Irreversibly removes all modcore Cloud data from your Google account.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RECORDS PANEL -->
+            <div id="records-panel" class="content-panel" role="region" aria-labelledby="records-heading">
+                <div class="panel-header">
+                    <h2 id="records-heading">Records</h2>
+                    <p>Inspect version history and sync audit log.</p>
+                </div>
+                <div class="panel-content">
+                    <!-- Tab bar + filter toggle -->
+                    <div class="records-tab-bar-row">
+                        <div class="records-tab-bar" role="tablist" aria-label="Records tabs">
+                            <button class="records-tab active" id="tab-history" role="tab" aria-selected="true" aria-controls="records-history-pane" data-tab="history" tabindex="0">
+                                <span class="icon icon-code" aria-hidden="true"></span>Versions
+                            </button>
+                            <button class="records-tab" id="tab-log" role="tab" aria-selected="false" aria-controls="records-log-pane" data-tab="log" tabindex="-1">
+                                <span class="icon icon-list" aria-hidden="true"></span>Audit Log
+                            </button>
+                        </div>
+                        <button class="records-filter-toggle" id="recordsFilterToggle" aria-label="Toggle filters" aria-expanded="false" aria-controls="recordsFilterPanel" title="Filter &amp; Search">
+                            <span class="icon icon-filter" aria-hidden="true"></span>
+                        </button>
+                    </div>
+
+                    <!-- Collapsible filter panel -->
+                    <div class="records-filter-panel" id="recordsFilterPanel" hidden>
+                        <div class="filter-row">
+                            <div class="filter-field filter-field-search">
+                                <label for="recordsSearchInput" class="filter-label">Search</label>
+                                <input type="search" id="recordsSearchInput" class="form-input" placeholder="Filter records…" aria-label="Search records" autocomplete="off">
+                            </div>
+                            <div class="filter-field">
+                                <label for="recordsDateRange" class="filter-label">Date Range</label>
+                                <select id="recordsDateRange" class="form-input" aria-label="Date range filter">
+                                    <option value="all">All time</option>
+                                    <option value="24h">Last 24 hours</option>
+                                    <option value="7d">Last 7 days</option>
+                                    <option value="30d">Last 30 days</option>
+                                    <option value="custom">Custom range…</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="recordsCustomDateRange" class="filter-row filter-row-custom" hidden>
+                            <div class="filter-field">
+                                <label for="recordsStartDate" class="filter-label">From</label>
+                                <input type="date" id="recordsStartDate" class="form-input" aria-label="Start date">
+                            </div>
+                            <div class="filter-field">
+                                <label for="recordsEndDate" class="filter-label">To</label>
+                                <input type="date" id="recordsEndDate" class="form-input" aria-label="End date">
+                            </div>
+                        </div>
+                        <div class="filter-actions">
+                            <button class="btn secondary btn-sm" id="recordsClearFilters">Clear Filters</button>
+                        </div>
+                    </div>
+
+                    <!-- History tab pane -->
+                    <div id="records-history-pane" role="tabpanel" aria-labelledby="tab-history">
+                        <div id="versionHistory" class="version-history-container" aria-live="polite" aria-label="Version history entries">
+                            <p class="placeholder-text">Loading versions…</p>
+                        </div>
+                        <p class="small-text-muted">
+                            Restoring overwrites local data. All data is encrypted in transit and at rest within Chrome Sync infrastructure.
+                        </p>
+                    </div>
+
+                    <!-- Log tab pane -->
+                    <div id="records-log-pane" role="tabpanel" aria-labelledby="tab-log" hidden>
+                        <div id="syncLog" class="sync-log-container" aria-live="polite" aria-label="Audit log entries">
+                            <p class="placeholder-text">Loading audit log…</p>
+                        </div>
+                        <p class="small-text-muted">
+                            Each sync event is logged with timestamp and status. Retention is configurable in Options.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Version action menu -->
+    <div id="versionActionMenu" class="version-action-menu" hidden role="menu" aria-label="Version actions">
+        <button class="version-action-item" id="versionMenuViewData" role="menuitem">
+            <span class="icon icon-info" aria-hidden="true"></span>View Data
+        </button>
+        <button class="version-action-item" id="versionMenuRestore" role="menuitem">
+            <span class="icon icon-grid" aria-hidden="true"></span>Restore This Version
+        </button>
+        <div class="version-action-separator" role="separator"></div>
+        <button class="version-action-item danger" id="versionMenuDelete" role="menuitem">
+            <span class="icon icon-trash" aria-hidden="true"></span>Delete Version
+        </button>
+    </div>
+
+    <!-- Confirm dialog -->
+    <div id="confirmDialogOverlay" class="modal-overlay" role="presentation" aria-hidden="true">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="confirmDialogTitle" aria-describedby="confirmDialogMessage">
+            <h3 id="confirmDialogTitle">Confirm</h3>
+            <p id="confirmDialogMessage">This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button id="confirmCancelBtn" class="btn secondary">Cancel</button>
+                <button id="confirmOkBtn" class="btn primary">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Conflict dialog -->
+    <div id="conflictDialogOverlay" class="modal-overlay" role="presentation" aria-hidden="true">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="conflictDialogTitle" aria-describedby="conflictDialogMessage">
+            <h3 id="conflictDialogTitle">Sync Conflict</h3>
+            <p id="conflictDialogMessage">Local data has changed since the last sync. Select which version to retain.</p>
+            <div class="modal-actions">
+                <button id="conflictKeepLocalBtn" class="btn secondary">Keep Local</button>
+                <button id="conflictKeepCloudBtn" class="btn primary">Use Cloud</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- View data modal -->
+    <div id="versionDataDialogOverlay" class="modal-overlay" role="presentation" aria-hidden="true">
+        <div class="modal-content modal-content-wide" role="dialog" aria-modal="true" aria-labelledby="versionDataDialogTitle">
+            <h3 id="versionDataDialogTitle">Version Data</h3>
+            <pre id="versionDataContent" class="version-data-pre"></pre>
+            <div class="modal-actions">
+                <button id="versionDataCloseBtn" class="btn secondary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container" aria-live="assertive" aria-atomic="true"></div>
+
+    <script src="../js/core/cloud.js"></script>
+    <script src="../js/features/profile-cards.js"></script>
+    <script src="../js/features/report.js"></script>
+
+</body>
+</html>

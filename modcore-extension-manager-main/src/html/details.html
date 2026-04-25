@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extension Details | modcore Extension Manager</title>
+    <meta name="description" content="Get a detailed look at your installed browser extensions: understand their permissions and assess potential risks.">
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="../css/details.css">
+    <link rel="stylesheet" href="../css/variables.css">
+    <link rel="stylesheet" href="../../public/fonts/fonts.css">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    
+    <div class="page-wrapper">
+        <!-- Header -->
+        <header class="top-header">
+            <div class="header-left">
+                <!-- Section Navigation Dropdown -->
+                <div class="dropdown-container">
+                    <button id="section-dropdown-btn" class="btn secondary dropdown-toggle" aria-haspopup="true" aria-expanded="false" aria-controls="section-dropdown-menu">
+                        <span class="icon icon-info" aria-hidden="true"></span>
+                        <span id="current-section-label">Overview</span>
+                        <span class="dropdown-arrow" aria-hidden="true"></span>
+                    </button>
+                    <div id="section-dropdown-menu" class="dropdown-menu" role="menu" aria-labelledby="section-dropdown-btn">
+                        <button class="dropdown-item active" data-panel-target="panel-details" role="menuitem" aria-current="true">
+                            <span class="icon icon-info" aria-hidden="true"></span>
+                            <span>Overview</span>
+                        </button>
+                        <button class="dropdown-item" data-panel-target="panel-permissions" role="menuitem">
+                            <span class="icon icon-shield" aria-hidden="true"></span>
+                            <span>Permissions</span>
+                        </button>
+                        <button class="dropdown-item" data-panel-target="panel-support" role="menuitem">
+                            <span class="icon icon-support" aria-hidden="true"></span>
+                            <span>Support Developer</span>
+                        </button>
+                        <div class="dropdown-divider" role="separator"></div>
+                        <a id="safety-center-btn" class="dropdown-item" href="safety-center.html" target="_blank" rel="noopener noreferrer" role="menuitem">
+                            <span class="icon icon-link" aria-hidden="true"></span>
+                            <span>Safety Center</span>
+                        </a>
+                        <a id="modcore-inspect-btn" class="dropdown-item" href="inspect.html" target="_blank" rel="noopener noreferrer" role="menuitem">
+                            <span class="icon icon-link" aria-hidden="true"></span>
+                            <span>Inspect</span>
+                        </a>
+                        <a id="modcore-automations-btn" class="dropdown-item" href="automations.html" target="_blank" rel="noopener noreferrer" role="menuitem">
+                            <span class="icon icon-link" aria-hidden="true"></span>
+                            <span>Automations</span>
+                        </a>
+                        <a id="extension-notes-btn" class="dropdown-item" href="notes.html" target="_blank" rel="noopener noreferrer" role="menuitem">
+                            <span class="icon icon-link" aria-hidden="true"></span>
+                            <span>Extension Notes</span>
+                        </a>
+                        <a id="modcore-timeline-btn" class="dropdown-item" href="timeline.html" target="_blank" rel="noopener noreferrer" role="menuitem">
+                            <span class="icon icon-link" aria-hidden="true"></span>
+                            <span>Timeline</span>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Actions Dropdown -->
+                <div class="dropdown-container">
+                    <button id="actions-dropdown-btn" class="btn secondary dropdown-toggle" aria-haspopup="true" aria-expanded="false" aria-controls="actions-dropdown-menu">
+                        <span class="icon icon-settings" aria-hidden="true"></span>
+                        <span>Actions</span>
+                        <span class="dropdown-arrow" aria-hidden="true"></span>
+                    </button>
+                    <div id="actions-dropdown-menu" class="dropdown-menu" role="menu" aria-labelledby="actions-dropdown-btn">
+                        <button id="dropdown-enable-toggle" class="dropdown-item" role="menuitem">
+                            <span class="icon icon-toggle-off" aria-hidden="true"></span>
+                            <span>Enable Extension</span>
+                        </button>
+                        <button id="dropdown-options" class="dropdown-item" role="menuitem" disabled>
+                            <span class="icon icon-settings" aria-hidden="true"></span>
+                            <span>Options</span>
+                        </button>
+                        <button id="dropdown-store" class="dropdown-item" role="menuitem" disabled>
+                            <span class="icon icon-store" aria-hidden="true"></span>
+                            <span>View in Store</span>
+                        </button>
+                        <div class="dropdown-divider" role="separator"></div>
+                        <button id="dropdown-refresh" class="dropdown-item" role="menuitem">
+                            <span class="icon icon-loading" aria-hidden="true"></span>
+                            <span>Refresh</span>
+                        </button>
+                        <button id="dropdown-uninstall" class="dropdown-item danger" role="menuitem">
+                            <span class="icon icon-trash" aria-hidden="true"></span>
+                            <span>Uninstall</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <img id="header-extension-icon" src="../../public/icons/svg/code.svg" alt="" class="header-logo">
+                <h1 id="header-extension-title" class="header-title">Extension Info</h1>
+            </div>
+        </header>
+
+        <main id="main-content" class="content-area">
+            <div id="initial-loading-indicator" class="loading-overlay" role="status" aria-live="polite">
+                <div class="spinner" aria-hidden="true"></div>
+                <p>Loading Extension Details...</p>
+            </div>
+
+            <div id="error-container" class="api-error-display" style="display: none;" role="alert" aria-atomic="true"></div>
+
+            <section id="panel-details" class="content-panel active" aria-labelledby="details-panel-title" tabindex="-1">
+                <header class="panel-header">
+                     <h2 id="details-panel-title">Extension Overview</h2>
+                     <p id="details-panel-description">Comprehensive information about this extension, its metadata, and current status.</p>
+                </header>
+                <div class="panel-content">
+                     <div id="details-content-wrapper" class="content-section" aria-live="polite" aria-busy="true">
+                          <div id="details-actual-content" class="details-view">
+                              <div class="details-grid">
+                                  <!-- Basic Info -->
+                                  <div class="detail-item detail-item-full-width detail-card">
+                                      <span class="detail-label" id="detail-name-label">Extension Name</span>
+                                      <strong id="detail-name" class="detail-value emphasis" aria-labelledby="detail-name-label">N/A</strong>
+                                  </div>
+                                  
+                                  <div class="detail-item">
+                                      <span class="detail-label" id="detail-shortName-label">
+                                          <span>Short Name</span>
+                                          <span class="tooltip-trigger" tabindex="0" aria-describedby="tooltip-shortname"> 
+                                              <span class="icon icon-help" aria-hidden="true"></span>
+                                              <span class="tooltip-content" id="tooltip-shortname" role="tooltip">A shorter name sometimes used by Chrome.</span>
+                                          </span>
+                                      </span>
+                                      <div class="detail-value" aria-labelledby="detail-shortName-label">
+                                           <span id="detail-shortName-text">N/A</span>
+                                            <button id="copy-shortname-button" class="btn-icon btn-copy" title="Copy Short Name" aria-label="Copy Short Name">
+                                                <span class="icon icon-copy" aria-hidden="true"></span>
+                                            </button>
+                                      </div>
+                                  </div>
+                                  
+                                  <div class="detail-item">
+                                       <span class="detail-label" id="detail-version-label">Version</span>
+                                      <div class="detail-value" aria-labelledby="detail-version-label">
+                                            <span id="detail-version-text">N/A</span>
+                                            <button id="copy-version-button" class="btn-icon btn-copy" title="Copy Version" aria-label="Copy Version">
+                                                <span class="icon icon-copy" aria-hidden="true"></span>
+                                            </button>
+                                      </div>
+                                  </div>
+
+                                  <div class="detail-item">
+                                       <span class="detail-label" id="detail-id-label">
+                                            <span>ID</span>
+                                            <span class="tooltip-trigger" tabindex="0" aria-describedby="tooltip-id">
+                                                <span class="icon icon-help" aria-hidden="true"></span>
+                                                <span class="tooltip-content" id="tooltip-id" role="tooltip">A unique identifier for the extension.</span>
+                                            </span>
+                                       </span>
+                                      <div class="detail-value" aria-labelledby="detail-id-label">
+                                          <code id="detail-id">N/A</code>
+                                          <button id="copy-id-button" class="btn-icon btn-copy" title="Copy Extension ID" aria-label="Copy Extension ID">
+                                              <span class="icon icon-copy" aria-hidden="true"></span>
+                                          </button>
+                                      </div>
+                                  </div>
+
+                                  <!-- Status & Type -->
+                                  <div class="detail-item">
+                                       <span class="detail-label" id="detail-type-label">
+                                           <span>Type</span>
+                                           <span class="tooltip-trigger" tabindex="0" aria-describedby="tooltip-type">
+                                               <span class="icon icon-help" aria-hidden="true"></span>
+                                               <span class="tooltip-content" id="tooltip-type" role="tooltip">The category of the installed item.</span>
+                                           </span>
+                                       </span>
+                                      <span id="detail-type" class="detail-value" aria-labelledby="detail-type-label">N/A</span>
+                                  </div>
+
+                                  <div class="detail-item">
+                                      <span class="detail-label" id="detail-status-label">
+                                          <span>Status</span>
+                                          <span class="tooltip-trigger" tabindex="0" aria-describedby="tooltip-status">
+                                              <span class="icon icon-help" aria-hidden="true"></span>
+                                              <span class="tooltip-content" id="tooltip-status" role="tooltip">'Enabled' means the extension is active. 'Disabled' means it is installed but not running.</span>
+                                          </span>
+                                      </span>
+                                      <span id="detail-status" class="detail-value status-disabled" aria-labelledby="detail-status-label">N/A</span>
+                                  </div>
+
+                                  <div class="detail-item">
+                                       <span class="detail-label" id="detail-install-type-label">
+                                           <span>Installed Via</span>
+                                            <span class="tooltip-trigger" tabindex="0" aria-describedby="tooltip-install">
+                                                <span class="icon icon-help" aria-hidden="true"></span>
+                                                <span class="tooltip-content" id="tooltip-install" role="tooltip">How the extension was installed.</span>
+                                            </span>
+                                       </span>
+                                      <span id="detail-install-type" class="detail-value" aria-labelledby="detail-install-type-label">N/A</span>
+                                  </div>
+
+                                  <div class="detail-item">
+                                       <span class="detail-label" id="detail-mayDisable-label">
+                                          <span>Can Be Removed</span>
+                                           <span class="tooltip-trigger" tabindex="0" aria-describedby="tooltip-maydisable">
+                                              <span class="icon icon-help" aria-hidden="true"></span>
+                                              <span class="tooltip-content" id="tooltip-maydisable" role="tooltip">'No' usually means the extension was installed by an administrator's policy.</span>
+                                          </span>
+                                      </span>
+                                      <span id="detail-mayDisable" class="detail-value" aria-labelledby="detail-mayDisable-label">N/A</span>
+                                  </div>
+
+                                  <!-- Additional Metadata -->
+                                  <div class="detail-item" id="detail-offline-enabled-wrapper" hidden>
+                                      <span class="detail-label" id="detail-offline-enabled-label">
+                                          <span>Works Offline</span>
+                                          <span class="tooltip-trigger" tabindex="0" aria-describedby="tooltip-offline">
+                                              <span class="icon icon-help" aria-hidden="true"></span>
+                                              <span class="tooltip-content" id="tooltip-offline" role="tooltip">Whether the extension can function without an internet connection.</span>
+                                          </span>
+                                      </span>
+                                      <span id="detail-offline-enabled" class="detail-value" aria-labelledby="detail-offline-enabled-label">N/A</span>
+                                  </div>
+
+                                  <div class="detail-item" id="detail-update-url-wrapper" hidden>
+                                      <span class="detail-label" id="detail-update-url-label">
+                                          <span>Update URL</span>
+                                          <span class="tooltip-trigger" tabindex="0" aria-describedby="tooltip-update">
+                                              <span class="icon icon-help" aria-hidden="true"></span>
+                                              <span class="tooltip-content" id="tooltip-update" role="tooltip">The URL used to check for extension updates.</span>
+                                          </span>
+                                      </span>
+                                      <div class="detail-value" aria-labelledby="detail-update-url-label">
+                                          <a id="detail-update-url" href="#" class="detail-link" target="_blank" rel="noopener noreferrer">N/A</a>
+                                          <button id="copy-update-url-button" class="btn-icon btn-copy" title="Copy Update URL" aria-label="Copy Update URL">
+                                              <span class="icon icon-copy" aria-hidden="true"></span>
+                                          </button>
+                                      </div>
+                                  </div>
+
+
+                                  <div class="detail-item" id="detail-icons-wrapper" hidden>
+                                      <span class="detail-label" id="detail-icons-label">Available Icons</span>
+                                      <div id="detail-icons-container" class="detail-icons-grid" aria-labelledby="detail-icons-label"></div>
+                                  </div>
+
+                                  <!-- Description -->
+                                  <div class="detail-item detail-item-full-width">
+                                      <span class="detail-label" id="detail-description-label">Description</span>
+                                      <p id="detail-description" class="detail-description-text" aria-labelledby="detail-description-label">No description provided.</p>
+                                  </div>
+
+                                  <!-- Homepage -->
+                                  <div class="detail-item detail-item-full-width">
+                                      <span class="detail-label" id="detail-homepage-label">Homepage</span>
+                                       <div class="detail-value" aria-labelledby="detail-homepage-label">
+                                            <a id="detail-homepage-url" href="#" class="detail-link" target="_blank" rel="noopener noreferrer">N/A</a>
+                                            <button id="copy-homepage-button" class="btn-icon btn-copy" title="Copy Homepage URL" aria-label="Copy Homepage URL">
+                                                <span class="icon icon-copy" aria-hidden="true"></span>
+                                            </button>
+                                       </div>
+                                  </div>
+                              </div>
+                          </div>
+                     </div>
+                </div>
+            </section>
+
+            <section id="panel-permissions" class="content-panel" aria-labelledby="permissions-panel-title" hidden tabindex="-1">
+                <header class="panel-header">
+                    <h2 id="permissions-panel-title">Permissions & Site Access</h2>
+                    <p id="permissions-panel-description">Permissions are requests by an extension to access specific browser features (like bookmarks or notifications) or to read and modify data on websites. Carefully reviewing permissions is crucial for understanding what an extension can do and ensuring your online safety and privacy.</p>
+                </header>
+                <div class="panel-content">
+                    <div class="permissions-controls">
+                        <div class="permissions-search">
+                             <label for="permission-search-input" class="visually-hidden">Search permissions...</label>
+                             <span class="icon icon-search" aria-hidden="true"></span>
+                           <input type="search" id="permission-search-input" placeholder="Search permissions..." aria-controls="api-permissions-list host-permissions-list">
+                        </div>
+                        <div class="permissions-filters">
+                            <div class="filter-dropdown-wrapper">
+                                <button id="filter-btn" class="btn secondary" aria-haspopup="true" aria-expanded="false" aria-controls="filter-dropdown-panel">
+                                    <span class="icon icon-filter" aria-hidden="true"></span>
+                                    <span>Filter</span>
+                                </button>
+                                <div id="filter-dropdown-panel" class="filter-dropdown" role="menu" aria-labelledby="filter-btn">
+                                    <div class="filter-group">
+                                        <h4>Risk Level</h4>
+                                        <label class="filter-option">
+                                            <input type="checkbox" name="risk-filter" value="high" checked>
+                                            <span class="risk-dot high"></span>
+                                            <span>High Risk</span>
+                                        </label>
+                                        <label class="filter-option">
+                                            <input type="checkbox" name="risk-filter" value="medium" checked>
+                                            <span class="risk-dot medium"></span>
+                                            <span>Medium Risk</span>
+                                        </label>
+                                        <label class="filter-option">
+                                            <input type="checkbox" name="risk-filter" value="low" checked>
+                                            <span class="risk-dot low"></span>
+                                            <span>Low Risk</span>
+                                        </label>
+                                        <label class="filter-option">
+                                            <input type="checkbox" name="risk-filter" value="varies" checked>
+                                            <span class="risk-dot varies"></span>
+                                            <span>Varies</span>
+                                        </label>
+                                    </div>
+                                    <div class="filter-group">
+                                        <h4>Type</h4>
+                                        <label class="filter-option">
+                                            <input type="checkbox" name="type-filter" value="api" checked>
+                                            <span>API Permissions</span>
+                                        </label>
+                                        <label class="filter-option">
+                                            <input type="checkbox" name="type-filter" value="host" checked>
+                                            <span>Host Permissions</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="permissions-layout-toggle" role="group" aria-label="Permissions view layout">
+                                 <button id="layout-list-btn" class="btn-icon active" data-layout="list" title="View as List" aria-pressed="true">
+                                     <span class="icon icon-list" aria-hidden="true"></span>
+                                 </button>
+                                 <button id="layout-grid-btn" class="btn-icon" data-layout="grid" title="View as Grid" aria-pressed="false">
+                                     <span class="icon icon-grid" aria-hidden="true"></span>
+                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="permissions-content-wrapper" aria-live="polite" aria-busy="true">
+                         <div id="permissions-actual-content">
+                            <div class="content-section permissions-section">
+                                <h3 id="api-permissions-heading" class="section-title small-title">API Permissions (<span id="api-perm-count">0</span>)</h3>
+                                <div id="api-permissions-list" class="permissions-list list-view"></div>
+                            </div>
+                            <div class="content-section permissions-section">
+                                <h3 id="host-permissions-heading" class="section-title small-title">Host Permissions (<span id="host-perm-count">0</span>)</h3>
+                                <div id="host-permissions-list" class="permissions-list list-view"></div>
+                            </div>
+                            <div class="content-section permissions-section risk-legend">
+                                <h3 class="section-title small-title">Risk Level Guide</h3>
+                                <ul class="risk-definitions">
+                                    <li><span class="risk-indicator low">Low Risk</span> Minimal access to non-sensitive features.</li>
+                                    <li><span class="risk-indicator medium">Medium Risk</span> May access sensitive data or browser functions.</li>
+                                    <li><span class="risk-indicator high">High Risk</span> Grants extensive access to data and browser behavior.</li>
+                                    <li><span class="risk-indicator varies">Varies Risk</span> Risk depends on the specific websites it can access.</li>
+                                </ul>
+                            </div>
+                         </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="panel-support" class="content-panel" aria-labelledby="support-panel-title" hidden tabindex="-1">
+                <header class="panel-header">
+                    <h2 id="support-panel-title">Support the Developer</h2>
+                    <p id="support-panel-description">Found this extension useful? You can support the developer directly. This is a community feature - no fees or payments go through us.</p>
+                </header>
+                <div class="panel-content">
+                    <div id="support-content-wrapper" class="content-section" aria-live="polite" aria-busy="true">
+                        <div id="support-actual-content">
+                            <!-- Empty state: shown by default until JS determines otherwise -->
+                            <div id="support-empty-state" class="support-empty-state">
+                                <div class="support-empty-icon-wrapper" aria-hidden="true">
+                                    <span class="icon icon-support"></span>
+                                </div>
+                                <h3>Not in the Support Program</h3>
+                                <p>This extension hasn't joined the Support the Developer program yet. Developers can sign up to share their support links with users.</p>
+                                <a href="https://github.com/modcoretech/api/blob/main/modcoreEM/SUPPORT_PROGRAM.md" target="_blank" rel="noopener noreferrer" class="btn secondary">
+                                    <span class="icon icon-link" aria-hidden="true"></span>
+                                    Learn About the Program
+                                </a>
+                            </div>
+
+                            <!-- Dynamic content (populated by JS, hidden until loaded) -->
+                            <div id="support-dynamic-content" hidden></div>
+
+                            <!-- Collapsible Disclaimer -->
+                            <div class="support-disclaimer-container">
+                                <button id="disclaimer-toggle" class="disclaimer-toggle" aria-expanded="false" aria-controls="disclaimer-content">
+                                    <span class="icon icon-info" aria-hidden="true"></span>
+                                    <span>Important Notice</span>
+                                    <span class="disclaimer-arrow" aria-hidden="true"></span>
+                                </button>
+                                <div id="disclaimer-content" class="disclaimer-content" hidden>
+                                    <ul class="disclaimer-list">
+                                        <li>This is a community-driven feature: Links are provided by developers and listed for your convenience.</li>
+                                        <li>We do not process payments: All transactions happen on third-party platforms.</li>
+                                        <li>We cannot provide refunds or support: We cannot assist with payment disputes or refunds.</li>
+                                        <li>Verification: We cannot fully verify every link. Please be diligent when providing support.</li>
+                                        <li>Internet Connectivity: An active internet connection is required to access payment platforms.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <footer class="page-footer">
+                <p>&copy; <span id="current-year"></span> modcore • <a href="https://sites.google.com/view/modcore-em-help/manage-extensions/details-page-features" target="_blank" rel="noopener noreferrer">Details Page</a></p>
+            </footer>
+        </main>
+    </div>
+
+    <!-- Permission Detail Popup -->
+    <div id="permission-popup-overlay" class="permission-popup-overlay" aria-hidden="true"></div>
+    <div id="permission-popup" class="permission-popup" role="dialog" aria-modal="true" aria-labelledby="permission-popup-title">
+        <div class="permission-popup-header">
+            <h3 id="permission-popup-title" class="permission-popup-title">Permission Name</h3>
+            <button id="permission-popup-close" class="btn-icon permission-popup-close" aria-label="Close details">
+                <span class="icon icon-close" aria-hidden="true"></span>
+            </button>
+        </div>
+        <div class="permission-popup-content">
+            <div class="permission-popup-meta">
+                <span id="permission-popup-risk" class="permission-popup-risk">Risk Level</span>
+                <div id="permission-popup-category" class="permission-popup-categories"></div>
+            </div>
+            
+            <div class="permission-popup-section">
+                <h4>Short Description</h4>
+                <p id="permission-popup-short-desc" class="permission-popup-description"></p>
+            </div>
+            
+            <div class="permission-popup-section">
+                <h4>Detailed Information</h4>
+                <p id="permission-popup-detailed-desc" class="permission-popup-description detailed"></p>
+            </div>
+            
+            <div class="permission-popup-section">
+                <h4>Common Use Cases</h4>
+                <ul id="permission-popup-use-cases" class="permission-popup-list"></ul>
+            </div>
+            
+            <div class="permission-popup-section">
+                <h4>Security Tips</h4>
+                <ul id="permission-popup-mitigation" class="permission-popup-list mitigation"></ul>
+            </div>
+            
+            <div class="permission-popup-footer">
+                <a id="permission-popup-link" href="#" target="_blank" rel="noopener noreferrer" class="btn secondary">
+                    <span class="icon icon-link" aria-hidden="true"></span>
+                    View Documentation
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="custom-confirm-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-message">
+        <div class="modal-content">
+            <h3 id="modal-title">Confirm Action</h3>
+            <p id="modal-message">Are you sure?</p>
+            <div class="modal-actions">
+                <button id="modal-cancel-button" class="btn secondary">Cancel</button>
+                <button id="modal-confirm-button" class="btn primary">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+    <script src="../js/core/details.js"></script>
+    <script src="../js/features/report.js"></script>
+</body>
+</html>

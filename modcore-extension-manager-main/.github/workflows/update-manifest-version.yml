@@ -1,0 +1,58 @@
+name: Update Manifest Version
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main # Checks out the main branch so we can push back to it
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: get_version
+        run: |
+          # Get the tag name from the release event (e.g., "v2.4.0")
+          TAG_NAME="${{ github.event.release.tag_name }}"
+          
+          # Strip the leading 'v' from the tag (e.g., "2.4.0")
+          VERSION="${TAG_NAME#v}"
+          
+          # Save the version as an output variable for later steps
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
+
+      - name: Update manifest.json
+        run: |
+          # Read the version from the previous step
+          VERSION="${{ steps.get_version.outputs.version }}"
+          
+          # Use jq to update the 'version' field in manifest.json safely
+          jq --arg v "$VERSION" '.version = $v' manifest.json > manifest.tmp.json
+          mv manifest.tmp.json manifest.json
+
+      - name: Commit and Push changes
+        run: |
+          # Configure git to use the standard GitHub Actions bot identity
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          # Add the modified manifest.json
+          git add manifest.json
+          
+          # Check if there are actually changes to commit (prevents errors if the version was already correct)
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: update manifest version to ${{ steps.get_version.outputs.version }}"
+            git push origin main
+          else
+            echo "Version is already up to date. Nothing to commit."
+          fi

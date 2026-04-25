@@ -1,0 +1,76 @@
+{
+  "manifest_version": 3,
+  "name": "__MSG_extensionName__",
+  "short_name": "__MSG_extensionShortName__",
+  "version": "2.4.21",
+  "description": "__MSG_extensionDescription__",
+  "homepage_url": "https://github.com/modcoretech/modcore-extension-manager",
+  "author": "modcore",
+  "offline_enabled": true,
+  "permissions": [
+    "storage",
+    "management",
+    "commands",
+    "alarms",
+    "tabs",
+    "downloads",
+    "contextMenus",
+    "sidePanel",
+    "notifications"
+  ],
+  "background": {
+    "service_worker": "src/js/core/service-worker.js",
+    "type": "module"
+  },
+  "host_permissions": [
+    "https://chrome.google.com/webstore/detail/",
+    "https://chromewebstore.google.com/detail/"
+  ],
+  "side_panel": {
+    "default_path": "src/html/popup.html"
+  },
+  "action": {
+    "default_title": "modcore Extension Manager",
+    "default_popup": "src/html/popup.html",
+    "default_icon": {
+      "128": "public/icons/png/modcore-em.png"
+    }
+  },
+  "icons": {
+    "128": "public/icons/png/modcore-em.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/js/core/content.js"]
+    }
+  ],
+  "options_ui": {
+    "page": "src/html/snapshot.html",
+    "open_in_tab": true
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["src/html/details.html"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "ngde@web.de",
+      "strict_min_version": "128.0"
+    }
+  },
+  "default_locale": "en",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "commands": {
+    "download-crx": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+D"
+      },
+      "description": "__MSG_command_download_crx__"
+    }
+  }
+}

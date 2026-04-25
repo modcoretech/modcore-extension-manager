@@ -1,0 +1,21 @@
+{
+  "extensionName": {
+    "message": "modcore Extension Manager",
+    "description": "拡張機能の名称。"
+  },
+  "extensionShortName": {
+    "message": "modcore EM",
+    "description": "拡張機能の短縮名。"
+  },
+  "extensionDescription": {
+    "message": "高度なプロファイル、分析、コントロール機能でブラウザ拡張機能を簡単に管理。",
+    "description": "拡張機能の説明。"
+  },
+
+
+  
+
+  "get_crx_menu": { "message": "この拡張機能の CRX を取得する" },
+  "donate_menu": { "message": "Patreon で modcore を支援する" },
+  "command_download_crx": { "message": "現在の拡張機能の CRX をダウンロードする" }
+}
