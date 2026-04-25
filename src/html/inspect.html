@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="../../public/fonts/fonts.css">
+    <link rel="stylesheet" href="../css/variables.css">
     <link rel="stylesheet" href="../css/inspect.css">
 </head>
 <body>
@@ -12,7 +13,7 @@
     <header class="header">
         <div class="header-left">
             <h1>Safety Center - modcore Inspect</h1>
-            <div id="header-meta" class="header-meta clickable" title="Click to view scan history">
+            <div id="header-meta" class="header-meta clickable" title="Click to view scan history" role="button" tabindex="0" aria-expanded="false" aria-haspopup="true">
                 <span class="meta-text">No previous scans found</span>
                 <span class="icon icon-history" aria-hidden="true"></span>
             </div>
@@ -21,11 +22,10 @@
             <button id="settingsButton" class="btn tertiary icon-btn" aria-label="Settings">
                 <span class="icon icon-settings"></span>
             </button>
-            <button id="refreshCacheButton" class="btn tertiary" aria-label="Refresh data and rescan">Refresh Data</button>
         </div>
     </header>
 
-    <main id="results" class="content-area" role="main" aria-live="polite">
+    <main id="results" class="content-area" role="main" aria-live="polite" aria-busy="false">
         <div id="initial-scan-screen" class="placeholder" style="display: none;">
             <div class="illustration-container">
                 <img src="../../public/icons/svg/shield-illustrations.svg" alt="" class="illustration illustration-shield" aria-hidden="true">
@@ -41,15 +41,21 @@
         </div>
     </main>
 
-    <div id="loading-spinner" class="loading-spinner" role="status" aria-label="Loading content..."></div>
+    <div id="loading-spinner" class="loading-spinner" role="status" aria-label="Loading content…"></div>
 
     <footer id="footer" class="footer" role="contentinfo"></footer>
 
+    <!-- Live region for screen reader announcements -->
+    <div id="liveRegion" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Toast container -->
+    <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
     <!-- Scan History Popover -->
-    <div id="scanHistoryPopover" class="popover" role="dialog" aria-label="Scan History">
+    <div id="scanHistoryPopover" class="popover" role="dialog" aria-label="Scan History" aria-modal="false">
         <div class="popover-header">
             <h3>Recent Scans</h3>
-            <button id="closeHistoryPopover" class="btn tertiary icon-btn" aria-label="Close">
+            <button id="closeHistoryPopover" class="btn tertiary icon-btn" aria-label="Close scan history">
                 <span class="icon icon-close"></span>
             </button>
         </div>
@@ -73,60 +79,75 @@
                 </button>
             </div>
             <div class="settings-content">
-                <div class="setting-item">
-                    <div class="setting-info">
-                        <label for="autoScanSetting">Automatically scan when opening this page</label>
-                        <p class="setting-description">Only scans if previous data has expired (after 24 hours)</p>
+                <section class="settings-section">
+                    <h4 class="settings-section-title">
+                        <span class="icon icon-shield" aria-hidden="true"></span>
+                        Scanning Preferences
+                    </h4>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <label for="autoScanSetting">Automatically scan when opening this page</label>
+                            <p class="setting-description">Only scans if previous data has expired (after the cache duration)</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="autoScanSetting">
+                            <span class="toggle-slider"></span>
+                        </label>
                     </div>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="autoScanSetting">
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
-                
-                <div class="setting-item">
-                    <div class="setting-info">
-                        <label for="showResolvedSetting">Show resolved issues in history</label>
-                        <p class="setting-description">Keep track of issues you've already fixed</p>
+                    
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <label for="showResolvedSetting">Show resolved issues in history</label>
+                            <p class="setting-description">Keep track of issues you've already fixed</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="showResolvedSetting">
+                            <span class="toggle-slider"></span>
+                        </label>
                     </div>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="showResolvedSetting">
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
+                </section>
 
-                <div class="setting-item">
-                    <div class="setting-info">
-                        <label for="cacheDurationSetting">Cache duration</label>
-                        <p class="setting-description">How long to keep scan results before requiring a refresh</p>
+                <section class="settings-section">
+                    <h4 class="settings-section-title">
+                        <span class="icon icon-history" aria-hidden="true"></span>
+                        Data & Cache
+                    </h4>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <label for="cacheDurationSetting">Cache duration</label>
+                            <p class="setting-description">How long to keep scan results before requiring a refresh</p>
+                        </div>
+                        <select id="cacheDurationSetting" class="setting-select">
+                            <option value="6">6 hours</option>
+                            <option value="12">12 hours</option>
+                            <option value="24" selected>24 hours</option>
+                            <option value="48">48 hours</option>
+                        </select>
                     </div>
-                    <select id="cacheDurationSetting" class="setting-select">
-                        <option value="6">6 hours</option>
-                        <option value="12">12 hours</option>
-                        <option value="24" selected>24 hours</option>
-                        <option value="48">48 hours</option>
-                    </select>
-                </div>
+                </section>
 
-                <div class="setting-item danger-zone">
-                    <div class="setting-info">
-                        <label>Data Management</label>
-                        <p class="setting-description">Clear all local scan history and cached data</p>
+                <section class="settings-section">
+                    <h4 class="settings-section-title">Actions</h4>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <label for="refreshCacheButton">Refresh Conflict Data</label>
+                            <p class="setting-description">Download the latest extension compatibility data from the server</p>
+                        </div>
+                        <button id="refreshCacheButton" class="btn">Refresh Now</button>
                     </div>
-                    <button id="clearDataButton" class="btn danger">Clear All Data</button>
-                </div>
+                </section>
             </div>
         </div>
     </div>
 
     <!-- Fix All Confirmation Modal -->
     <div id="fixAllModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="fixAllTitle" aria-describedby="fixAllMessage">
-        <div class="modal-content">
+        <div class="modal-content fix-all-modal-content">
             <div class="modal-icon">
                 <span class="icon icon-warning-large"></span>
             </div>
             <h3 id="fixAllTitle">Fix All Issues?</h3>
-            <p id="fixAllMessage">This will disable all conflicting extensions except the first one in each group, and disable all deprecated extensions. This action can be reversed by manually enabling extensions later.</p>
+            <p id="fixAllMessage">Review the actions below before confirming. This will disable conflicting extensions (keeping one per group) and disable all deprecated extensions.</p>
             <div class="fix-all-summary" id="fixAllSummary"></div>
             <div class="modal-actions">
                 <button id="cancelFixAllButton" class="btn tertiary">Cancel</button>
