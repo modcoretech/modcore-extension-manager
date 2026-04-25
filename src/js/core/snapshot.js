@@ -8,7 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const createBackupBtn           = document.getElementById('createBackupBtn');
     const restoreBackupBtn          = document.getElementById('restoreBackupBtn');
     const clearSelectedDataBtn      = document.getElementById('clearSelectedDataBtn');
-    const refreshStorageSizesBtn    = document.getElementById('refreshStorageSizesBtn');
 
     // Backup elements
     const backupFileNameInput           = document.getElementById('backupFileName');
@@ -47,15 +46,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const dataViewerSearch      = document.getElementById('data-viewer-search');
     const dataViewerSearchClear = document.getElementById('data-viewer-search-clear');
     const dataViewerCopy        = document.getElementById('data-viewer-copy');
-    const dataViewerExport      = document.getElementById('data-viewer-export');
-    const dataViewerReload      = document.getElementById('data-viewer-reload');
     const dataViewerExpandAll   = document.getElementById('data-viewer-expand-all');
     const dataViewerTree        = document.getElementById('data-viewer-tree');
-    const dataViewerRaw         = document.getElementById('data-viewer-raw');
-    const dataViewerContent     = document.getElementById('data-viewer-content');
     const dataViewerEmpty       = document.getElementById('data-viewer-empty');
     const dataViewerStats       = document.getElementById('viewer-stats');
-    const viewModeButtons       = document.querySelectorAll('.view-mode-btn');
     const filterChips           = document.querySelectorAll('.chip[data-filter]');
     const viewDataModalBtn      = document.getElementById('viewDataModalBtn');
 
@@ -72,7 +66,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // State
     let allStoredData       = {};
     let currentBackupData   = null;
-    let currentViewMode     = 'tree';   // 'tree' | 'raw'
     let currentFilter       = 'all';
     let allExpanded         = false;
     let editContext         = null;     // { storageType, key }
@@ -138,12 +131,29 @@ document.addEventListener('DOMContentLoaded', () => {
         modalOverlay.classList.add('visible');
         modalCancelBtn.focus();
 
+        // Focus trap
+        const focusable = modalOverlay.querySelectorAll('button:not([disabled])');
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const trap = (e) => {
+            if (e.key !== 'Tab') return;
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        };
+        modalOverlay.addEventListener('keydown', trap);
+
         return new Promise((resolve) => {
             const cleanup = () => {
                 modalOverlay.classList.remove('visible');
                 modalConfirmBtn.removeEventListener('click', onConfirm);
                 modalCancelBtn.removeEventListener('click', onCancel);
                 document.removeEventListener('keydown', onEscape);
+                modalOverlay.removeEventListener('keydown', trap);
             };
             const onConfirm = () => { cleanup(); resolve(true); };
             const onCancel  = () => { cleanup(); resolve(false); };
@@ -234,7 +244,6 @@ document.addEventListener('DOMContentLoaded', () => {
             false, ['encrypt']
         );
 
-        // HMAC integrity tag over (salt ‖ iv ‖ ciphertext) - belt-and-suspenders
         const cipherBuf = await crypto.subtle.encrypt(
             { name: 'AES-GCM', iv },
             key,
@@ -359,6 +368,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 panel.hidden = false;
                 hideApiError(backupRestoreErrorDisplay);
                 hideApiError(dataManagementErrorDisplay);
+                if (target === 'data-management') {
+                    updateStorageSizes();
+                }
             }
         });
     });
@@ -380,16 +392,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // =========================================================================
     // Encryption toggle
     // =========================================================================
-    enableEncryptionCheckbox.addEventListener('change', (e) => {
-        encryptionPasswordFields.hidden = !e.target.checked;
-        if (!e.target.checked) {
+    function syncEncryptionFields() {
+        encryptionPasswordFields.hidden = !enableEncryptionCheckbox.checked;
+        if (!enableEncryptionCheckbox.checked) {
             backupPasswordInput.value = '';
             confirmBackupPasswordInput.value = '';
             passwordStrengthBar.value = 0;
             setTextContent(passwordStrengthText, '');
             passwordStrengthContainer.hidden = true;
         }
-    });
+    }
+
+    enableEncryptionCheckbox.addEventListener('change', syncEncryptionFields);
+    // Ensure sync on load (handles default checked state)
+    syncEncryptionFields();
 
     backupPasswordInput.addEventListener('input', (e) => checkPasswordStrength(e.target.value));
 
@@ -464,8 +480,8 @@ document.addEventListener('DOMContentLoaded', () => {
             passwordStrengthBar.value = 0;
             setTextContent(passwordStrengthText, '');
             passwordStrengthContainer.hidden = true;
-            enableEncryptionCheckbox.checked = false;
-            encryptionPasswordFields.hidden = true;
+            enableEncryptionCheckbox.checked = true;
+            syncEncryptionFields();
             backupFileNameInput.value = generateBackupFilename();
 
         } catch (err) {
@@ -500,14 +516,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const text       = await file.text();
             const backupData = JSON.parse(text);
 
-            // Support both v2.0 (version) and v3.0 (snapshot_version)
             if (!backupData.timestamp) throw new Error('Invalid backup file - missing metadata.');
 
-            // Normalise version field
             backupData.snapshot_version = backupData.snapshot_version || backupData.version || '2.0';
             currentBackupData = backupData;
 
-            if (backupData.encrypted) {
+            // Strict boolean check to avoid truthy string bugs
+            if (backupData.encrypted === true) {
                 restorePasswordInputGroup.hidden = false;
                 verifyPasswordBtn.style.display  = '';
                 restorePasswordInput.disabled    = false;
@@ -516,6 +531,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 restorePasswordInput.focus();
             } else {
                 restorePasswordInputGroup.hidden = true;
+                restorePasswordInput.value = '';
+                verifyPasswordBtn.style.display = 'none';
                 displayRestoreOptions(backupData);
             }
 
@@ -531,7 +548,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Verify password button (always in DOM, visibility toggled)
+    // Verify password button
     verifyPasswordBtn.style.display = 'none';
     verifyPasswordBtn.addEventListener('click', async () => {
         const password = restorePasswordInput.value;
@@ -566,7 +583,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Allow Enter to trigger verify
     restorePasswordInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && verifyPasswordBtn.style.display !== 'none') {
             verifyPasswordBtn.click();
@@ -577,7 +593,6 @@ document.addEventListener('DOMContentLoaded', () => {
         restoreOptionsContainer.hidden = false;
         restoreBackupBtn.disabled      = false;
 
-        // Build metadata block
         backupMetadataDisplay.textContent = '';
 
         const wrap   = document.createElement('div');
@@ -588,7 +603,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const rows = [
             ['Created',   new Date(backupData.timestamp).toLocaleString()],
             ['Version',   backupData.snapshot_version || backupData.version || '—'],
-            ['Encrypted', backupData.encrypted ? 'Yes ✓' : 'No'],
+            ['Encrypted', backupData.encrypted === true ? 'Yes ✓' : 'No'],
         ];
         rows.forEach(([label, value]) => {
             const p  = document.createElement('p');
@@ -614,7 +629,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         backupMetadataDisplay.appendChild(wrap);
 
-        // Update restore checkboxes
         restoreStorageCheckboxes.forEach(cb => {
             const has = backupData.storageTypes?.includes(cb.value);
             cb.disabled = !has;
@@ -687,7 +701,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             showToast(`Restored ${count} storage area(s)!`, 'success');
 
-            // Reset restore form
             currentBackupData = null;
             restorePasswordInput.value      = '';
             restoreFileInput.value          = '';
@@ -750,7 +763,6 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast(`Cleared ${count} storage area(s)!`, 'success');
             await updateStorageSizes();
 
-            // Refresh viewer if open
             if (dataViewerModal.classList.contains('visible')) await loadDataIntoViewer();
 
         } catch (err) {
@@ -760,17 +772,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             hideLoading();
         }
-    });
-
-    // =========================================================================
-    // Refresh sizes button
-    // =========================================================================
-    refreshStorageSizesBtn.addEventListener('click', async () => {
-        const icon = refreshStorageSizesBtn.querySelector('.icon');
-        if (icon) icon.classList.add('loading');
-        await updateStorageSizes();
-        if (icon) icon.classList.remove('loading');
-        showToast('Sizes refreshed', 'info');
     });
 
     // =========================================================================
@@ -830,24 +831,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // View mode toggle
-    viewModeButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            viewModeButtons.forEach(b => { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
-            btn.classList.add('active');
-            btn.setAttribute('aria-pressed', 'true');
-            currentViewMode = btn.getAttribute('data-mode');
-            renderViewer();
-        });
-    });
-
-    // Reload
-    dataViewerReload.addEventListener('click', async () => {
-        dataViewerSearch.value = '';
-        dataViewerSearchClear.hidden = true;
-        await loadDataIntoViewer();
-    });
-
     // Expand all
     dataViewerExpandAll.addEventListener('click', () => {
         allExpanded = !allExpanded;
@@ -861,27 +844,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Copy visible data
     dataViewerCopy.addEventListener('click', () => {
-        const text = currentViewMode === 'raw'
-            ? dataViewerContent.textContent
-            : JSON.stringify(getFilteredData(), null, 2);
+        const text = JSON.stringify(getFilteredData(), null, 2);
         navigator.clipboard.writeText(text)
             .then(() => showToast('Copied to clipboard!', 'success'))
             .catch(() => showToast('Copy failed!', 'error'));
-    });
-
-    // Export
-    dataViewerExport.addEventListener('click', () => {
-        const filtered = getFilteredData();
-        const blob = new Blob([JSON.stringify(filtered, null, 2)], { type: 'application/json' });
-        const url  = URL.createObjectURL(blob);
-        const a    = document.createElement('a');
-        a.href     = url;
-        a.download = `snapshot_export_${Date.now()}.json`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        showToast('Exported!', 'success');
     });
 
     // -------------------------------------------------------------------------
@@ -921,25 +887,19 @@ document.addEventListener('DOMContentLoaded', () => {
             return acc + (typeof v === 'object' && v !== null ? Object.keys(v).length : 1);
         }, 0);
 
-        // Stats
         dataViewerStats.textContent = `${Object.keys(filtered).length} area(s) · ${totalKeys} key(s)`;
 
         const hasData = Object.keys(filtered).length > 0;
         dataViewerEmpty.hidden = hasData;
+        dataViewerTree.hidden = !hasData;
 
-        if (currentViewMode === 'raw') {
-            dataViewerTree.hidden = true;
-            dataViewerRaw.hidden  = false;
-            dataViewerContent.textContent = JSON.stringify(filtered, null, 2);
-        } else {
-            dataViewerTree.hidden = false;
-            dataViewerRaw.hidden  = true;
+        if (hasData) {
             renderTree(filtered);
         }
     }
 
     function renderTree(data) {
-        dataViewerTree.textContent = ''; // safe DOM clear
+        dataViewerTree.textContent = '';
         const q = dataViewerSearch.value.toLowerCase().trim();
 
         for (const storageType in data) {
@@ -947,7 +907,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const isObj = typeof storageData === 'object' && storageData !== null;
             const keyCount = isObj ? Object.keys(storageData).length : 0;
 
-            // Storage area group
             const group = document.createElement('div');
             group.className = 'tree-group';
             group.setAttribute('role', 'treeitem');
@@ -957,7 +916,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const toggle = document.createElement('button');
             toggle.className = 'btn-icon tree-toggle';
-            toggle.setAttribute('aria-expanded', 'true');
+            toggle.setAttribute('aria-expanded', 'false');
             toggle.setAttribute('aria-label', `Toggle ${storageDisplayName(storageType)}`);
             const toggleIcon = document.createElement('span');
             toggleIcon.className = 'icon icon-list';
@@ -978,11 +937,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             group.appendChild(header);
 
-            // Children
             const children = document.createElement('div');
             children.className = 'tree-children';
             children.setAttribute('role', 'group');
-            children.hidden = false;
+            children.hidden = true; // Collapsed by default
 
             toggle.addEventListener('click', () => {
                 children.hidden = !children.hidden;
@@ -1019,7 +977,6 @@ document.addEventListener('DOMContentLoaded', () => {
         row.className = 'tree-row';
         row.setAttribute('role', 'treeitem');
 
-        // Key name
         const keyEl = document.createElement('span');
         keyEl.className = 'tree-key';
         keyEl.textContent = key;
@@ -1028,7 +985,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         row.appendChild(keyEl);
 
-        // Value preview
         const valueEl = document.createElement('span');
         valueEl.className = 'tree-value';
         const preview = formatValuePreview(value);
@@ -1038,17 +994,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         row.appendChild(valueEl);
 
-        // Type badge
         const typeBadge = document.createElement('span');
         typeBadge.className = 'badge badge-type';
         typeBadge.textContent = getValueType(value);
         row.appendChild(typeBadge);
 
-        // Action buttons
         const actions = document.createElement('div');
         actions.className = 'tree-row-actions';
 
-        // Copy value
         const copyBtn = document.createElement('button');
         copyBtn.className = 'btn-icon tree-action-btn';
         copyBtn.setAttribute('aria-label', `Copy value of ${key}`);
@@ -1066,7 +1019,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         actions.appendChild(copyBtn);
 
-        // Edit value (not for managed/read-only)
         if (storageType !== 'chromeManaged') {
             const editBtn = document.createElement('button');
             editBtn.className = 'btn-icon tree-action-btn';
@@ -1082,7 +1034,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             actions.appendChild(editBtn);
 
-            // Delete key
             const delBtn = document.createElement('button');
             delBtn.className = 'btn-icon tree-action-btn tree-action-danger';
             delBtn.setAttribute('aria-label', `Delete ${key}`);
@@ -1140,7 +1091,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 case 'webSession':   sessionStorage.removeItem(key);          break;
                 default: throw new Error('Cannot delete from this storage area.');
             }
-            // Update local cache
             if (allStoredData[storageType]) delete allStoredData[storageType][key];
             renderViewer();
             await updateStorageSizes();
@@ -1181,7 +1131,6 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             parsedValue = JSON.parse(rawValue);
         } catch {
-            // treat as plain string
             parsedValue = rawValue;
         }
 
@@ -1203,7 +1152,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 default:
                     throw new Error('Cannot edit this storage area.');
             }
-            // Update local cache
             if (allStoredData[storageType]) allStoredData[storageType][key] = parsedValue;
             renderViewer();
             await updateStorageSizes();
@@ -1218,7 +1166,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Ctrl+Enter to save in edit modal
     keyEditValue.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) keyEditSave.click();
     });
