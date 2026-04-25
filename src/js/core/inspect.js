@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let conflictConfig = null;
     let activeTooltip = null;
     let currentScanResults = null;
+    let lastFocusedElement = null;
     let currentSettings = {
         autoScan: false,
         showResolved: false,
@@ -23,10 +24,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultsDiv = document.getElementById('results');
     const loadingSpinner = document.getElementById('loading-spinner');
     const footer = document.getElementById('footer');
+    const liveRegion = document.getElementById('liveRegion');
+    const toastContainer = document.getElementById('toastContainer');
     
     // Header
     const headerMetaDiv = document.getElementById('header-meta');
-    const refreshCacheButton = document.getElementById('refreshCacheButton');
     
     // Initial Screen
     const initialScanScreen = document.getElementById('initial-scan-screen');
@@ -51,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const autoScanSetting = document.getElementById('autoScanSetting');
     const showResolvedSetting = document.getElementById('showResolvedSetting');
     const cacheDurationSetting = document.getElementById('cacheDurationSetting');
-    const clearDataButton = document.getElementById('clearDataButton');
+    const refreshCacheButton = document.getElementById('refreshCacheButton');
 
     // Fix All Modal
     const fixAllModal = document.getElementById('fixAllModal');
@@ -60,6 +62,87 @@ document.addEventListener('DOMContentLoaded', () => {
     const fixAllSummary = document.getElementById('fixAllSummary');
     const confirmFixAllButton = document.getElementById('confirmFixAllButton');
     const cancelFixAllButton = document.getElementById('cancelFixAllButton');
+
+    // --- Helpers ---
+    const formatRelativeTime = (timestamp) => {
+        const seconds = Math.floor((Date.now() - timestamp) / 1000);
+        if (seconds < 10) return 'Just now';
+        if (seconds < 60) return `${seconds}s ago`;
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return `${minutes}m ago`;
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `${hours}h ago`;
+        const days = Math.floor(hours / 24);
+        if (days < 7) return `${days}d ago`;
+        return new Date(timestamp).toLocaleDateString();
+    };
+
+    const announce = (message, priority = 'polite') => {
+        liveRegion.setAttribute('aria-live', priority);
+        // Small delay to ensure screen readers pick up the change
+        requestAnimationFrame(() => {
+            liveRegion.textContent = message;
+            setTimeout(() => { liveRegion.textContent = ''; }, 1000);
+        });
+    };
+
+    const showToast = (message, type = 'info') => {
+        const toast = document.createElement('div');
+        toast.className = `toast toast--${type}`;
+        toast.textContent = message;
+        toastContainer.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(10px)';
+            toast.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+    };
+
+    const trapFocus = (element) => {
+        const focusables = element.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+
+        const handler = (e) => {
+            if (e.key !== 'Tab') return;
+            if (e.shiftKey) {
+                if (document.activeElement === first) {
+                    last.focus();
+                    e.preventDefault();
+                }
+            } else {
+                if (document.activeElement === last) {
+                    first.focus();
+                    e.preventDefault();
+                }
+            }
+        };
+        element.addEventListener('keydown', handler);
+        // Store handler to remove later if needed; for now we rely on modal close
+        element._focusTrapHandler = handler;
+    };
+
+    const openModal = (modal, returnFocus = true) => {
+        if (returnFocus) lastFocusedElement = document.activeElement;
+        modal.classList.add('visible');
+        const focusable = modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (focusable) setTimeout(() => focusable.focus(), 50);
+        trapFocus(modal);
+    };
+
+    const closeModal = (modal) => {
+        modal.classList.remove('visible');
+        if (modal._focusTrapHandler) {
+            modal.removeEventListener('keydown', modal._focusTrapHandler);
+            delete modal._focusTrapHandler;
+        }
+        if (lastFocusedElement && document.contains(lastFocusedElement)) {
+            lastFocusedElement.focus();
+        }
+    };
 
     // --- Settings Management ---
     function loadSettings() {
@@ -74,15 +157,13 @@ document.addEventListener('DOMContentLoaded', () => {
     async function saveSettings(settings) {
         currentSettings = { ...currentSettings, ...settings };
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(currentSettings));
-        
-        // Also save auto-scan to chrome storage for compatibility
         await chrome.storage.local.set({ [AUTO_SCAN_KEY]: currentSettings.autoScan });
     }
 
     function initSettingsUI() {
         autoScanSetting.checked = currentSettings.autoScan;
         showResolvedSetting.checked = currentSettings.showResolved;
-        cacheDurationSetting.value = currentSettings.cacheDuration.toString();
+        cacheDurationSetting.value = String(currentSettings.cacheDuration);
     }
 
     // --- Enhanced Storage Management ---
@@ -93,60 +174,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
         async storeScanResults(results, hasIssues) {
             const timestamp = Date.now();
-            const storageData = {
-                [LAST_SCAN_KEY]: timestamp
-            };
-
-            if (!hasIssues) {
-                // Store minimal data when no conflicts found
-                storageData.lastScanResult = {
-                    status: 'clean',
-                    timestamp: timestamp,
-                    conflictCount: 0,
-                    deprecatedCount: 0
-                };
-            } else {
-                // Store only problematic extension data
-                const minimalConflicts = results.conflicts.map(c => ({
-                    category_id: c.category_id,
-                    name: c.name,
-                    conflict_level: c.conflict_level,
-                    extension_ids: c.extensions.map(e => e.id)
-                }));
-                
-                const minimalDeprecated = results.deprecated.map(d => ({
-                    id: d.extension.id,
-                    name: d.extension.name,
-                    security_risk_level: d.security_risk_level
-                }));
-
-                storageData.lastScanResult = {
-                    status: 'issues_found',
-                    timestamp: timestamp,
-                    conflicts: minimalConflicts,
-                    deprecated: minimalDeprecated,
-                    conflictCount: results.conflicts.length,
-                    deprecatedCount: results.deprecated.length
-                };
-            }
-
-            await chrome.storage.local.set(storageData);
-            await this.addToHistory(storageData.lastScanResult);
+            await chrome.storage.local.set({ [LAST_SCAN_KEY]: timestamp });
+            await this.addToHistory(results, timestamp, hasIssues);
+            await this.cleanupHistory();
         },
 
-        async addToHistory(scanResult) {
+        async addToHistory(results, timestamp, hasIssues) {
             const history = await this.getScanHistory();
             const entry = {
-                timestamp: scanResult.timestamp,
-                status: scanResult.status,
-                conflictCount: scanResult.conflictCount || 0,
-                deprecatedCount: scanResult.deprecatedCount || 0,
-                id: Date.now().toString(36)
+                timestamp,
+                status: hasIssues ? 'issues_found' : 'clean',
+                conflictCount: results.conflicts?.length || 0,
+                deprecatedCount: results.deprecated?.length || 0,
+                id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+                summary: this.buildSummary(results)
             };
 
-            // Keep only last 5 scans
-            const updatedHistory = [entry, ...history].slice(0, 5);
+            const updatedHistory = [entry, ...history].slice(0, 10);
             await chrome.storage.local.set({ [SCAN_HISTORY_KEY]: updatedHistory });
+        },
+
+        buildSummary(results) {
+            const names = [];
+            results.conflicts?.forEach(c => names.push(c.name));
+            results.deprecated?.forEach(d => names.push(d.extension.name));
+            if (names.length === 0) return null;
+            return names.slice(0, 2).join(', ') + (names.length > 2 ? ` +${names.length - 2} more` : '');
         },
 
         async getScanHistory() {
@@ -154,24 +207,23 @@ document.addEventListener('DOMContentLoaded', () => {
             return data[SCAN_HISTORY_KEY] || [];
         },
 
-        async clearAllData() {
-            await chrome.storage.local.remove([
-                'conflictConfig',
-                'cache_timestamp',
-                LAST_SCAN_KEY,
-                SCAN_HISTORY_KEY,
-                IGNORED_EXTENSIONS_KEY,
-                'lastScanResult'
-            ]);
-            localStorage.removeItem(SETTINGS_KEY);
-        },
-
-        async getMinimalCache() {
-            const data = await chrome.storage.local.get(['lastScanResult', 'cache_timestamp']);
-            return {
-                result: data.lastScanResult,
-                timestamp: data.cache_timestamp
-            };
+        async cleanupHistory() {
+            let history = await this.getScanHistory();
+            const now = Date.now();
+            const oneDay = 24 * 60 * 60 * 1000;
+            
+            let cleanScanKept = false;
+            history = history.filter(entry => {
+                const hasIssues = entry.conflictCount > 0 || entry.deprecatedCount > 0;
+                if (hasIssues) return true;
+                if (!cleanScanKept && (now - entry.timestamp) < oneDay) {
+                    cleanScanKept = true;
+                    return true;
+                }
+                return false;
+            }).slice(0, 10);
+            
+            await chrome.storage.local.set({ [SCAN_HISTORY_KEY]: history });
         }
     };
 
@@ -189,23 +241,25 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const setButtonsDisabled = (disabled) => {
-        const buttons = document.querySelectorAll('button');
-        buttons.forEach(btn => btn.disabled = disabled);
+        document.querySelectorAll('button, select, input').forEach(el => {
+            if (!el.closest('.modal-overlay') && !el.closest('.popover')) {
+                el.disabled = disabled;
+            }
+        });
     };
 
     // --- Custom Confirmation Modal Logic ---
     const showConfirmationModal = (title, message) => {
         modalTitle.textContent = title;
         modalMessage.textContent = message;
-        confirmationModal.classList.add('visible');
-        confirmButton.focus();
+        openModal(confirmationModal);
         return new Promise((resolve) => {
             const handleConfirm = () => {
-                confirmationModal.classList.remove('visible');
+                closeModal(confirmationModal);
                 resolve(true);
             };
             const handleCancel = () => {
-                confirmationModal.classList.remove('visible');
+                closeModal(confirmationModal);
                 resolve(false);
             };
             confirmButton.addEventListener('click', handleConfirm, { once: true });
@@ -247,13 +301,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const cacheTTL = await StorageManager.getCacheTTL();
 
         if (!forceRefresh && cachedConfig && (Date.now() - cachedTime < cacheTTL)) {
-            console.log('Using valid cached API data.');
             conflictConfig = cachedConfig;
             return conflictConfig;
         }
 
         try {
-            console.log(forceRefresh ? 'Forcing refresh of API data.' : 'Cache expired or missing. Fetching new API data.');
             const response = await fetch(API_URL);
             if (!response.ok) throw new Error(`API request failed with status: ${response.status}`);
             
@@ -264,7 +316,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error("Failed to fetch config:", error);
             if (cachedConfig) {
-                console.warn("Using stale cached data as fallback.");
                 conflictConfig = cachedConfig;
                 return cachedConfig;
             }
@@ -304,19 +355,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }).filter(Boolean);
     };
 
+    const clearResults = () => {
+        Array.from(resultsDiv.children).forEach(child => {
+            if (child !== initialScanScreen && child !== loadingSpinner) {
+                resultsDiv.removeChild(child);
+            }
+        });
+    };
+
     const runScan = async (forceRefresh = false) => {
         showSpinner();
         setButtonsDisabled(true);
         initialScanScreen.style.display = 'none';
-        
-        // Clear previous results
-        while (resultsDiv.firstChild) {
-            if (resultsDiv.firstChild !== initialScanScreen && resultsDiv.firstChild !== loadingSpinner) {
-                resultsDiv.removeChild(resultsDiv.firstChild);
-            } else {
-                break;
-            }
-        }
+        clearResults();
+
+        announce('Scanning extensions. Please wait.', 'polite');
 
         try {
             const [config, installedExtensions, ignoredExtensions] = await Promise.all([
@@ -337,13 +390,21 @@ document.addEventListener('DOMContentLoaded', () => {
             displayDataVersionInfo(config);
             displayLastScanTime();
 
+            if (hasIssues) {
+                announce(`Scan complete. ${conflicts.length} conflict groups and ${deprecated.length} deprecated extensions found.`, 'assertive');
+                showToast(`Found ${conflicts.length + deprecated.length} issue${conflicts.length + deprecated.length > 1 ? 's' : ''}`, 'warning');
+            } else {
+                announce('Scan complete. No issues found.', 'polite');
+                showToast('No issues found', 'success');
+            }
+
         } catch (error) {
             console.error("Error during scan:", error);
             let title = "An Error Occurred";
             let message = "Something went wrong. Please try again.";
             if (error.message.includes('API request failed')) {
                 title = "Could Not Fetch Data";
-                message = `The server returned an error (${error.message.split(': ')[1]}). You can try again or use the 'Refresh Data' button.`;
+                message = `The server returned an error (${error.message.split(': ')[1]}). You can try again or use the Refresh Data option in Settings.`;
             } else if (error.message.includes('Failed to fetch')) {
                  title = "Network Error";
                  message = "Could not connect to the data server. Please check your internet connection.";
@@ -352,6 +413,7 @@ document.addEventListener('DOMContentLoaded', () => {
                  message = "Could not fetch conflict data and no cached version is available. An internet connection is required for the first scan.";
             }
             renderErrorPlaceholder(title, message);
+            announce(`Error: ${title}. ${message}`, 'assertive');
         } finally {
             hideSpinner();
             setButtonsDisabled(false);
@@ -364,45 +426,110 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const { conflicts, deprecated } = currentScanResults;
         const totalIssues = conflicts.length + deprecated.length;
-        
         if (totalIssues === 0) return;
 
-        // Build summary
-        fixAllSummary.innerHTML = '';
-        
-        if (conflicts.length > 0) {
-            const conflictItem = document.createElement('div');
-            conflictItem.className = 'fix-all-summary-item';
-            conflictItem.innerHTML = `
-                <span class="icon icon-warning"></span>
-                <span>Disable ${conflicts.length} conflicting extension group${conflicts.length > 1 ? 's' : ''} (keeping 1 per group)</span>
-            `;
-            fixAllSummary.appendChild(conflictItem);
-        }
-        
-        if (deprecated.length > 0) {
-            const deprecatedItem = document.createElement('div');
-            deprecatedItem.className = 'fix-all-summary-item';
-            deprecatedItem.innerHTML = `
-                <span class="icon icon-error"></span>
-                <span>Disable ${deprecated.length} deprecated extension${deprecated.length > 1 ? 's' : ''}</span>
-            `;
-            fixAllSummary.appendChild(deprecatedItem);
+        const hasCritical = conflicts.some(c => c.conflict_level === 'critical') || 
+                            deprecated.some(d => d.security_risk_level === 'critical');
+
+        fixAllTitle.textContent = hasCritical ? 'Fix Critical Issues?' : 'Fix All Issues?';
+        fixAllMessage.textContent = hasCritical 
+            ? 'Critical-risk extensions were detected. Review the actions below before confirming. Disabling them is strongly recommended.'
+            : 'Review the actions below before confirming. This will disable conflicting extensions (keeping one per group) and disable all deprecated extensions.';
+
+        // Clear previous content safely
+        while (fixAllSummary.firstChild) {
+            fixAllSummary.removeChild(fixAllSummary.firstChild);
         }
 
-        fixAllModal.classList.add('visible');
+        if (conflicts.length > 0) {
+            const conflictSection = document.createElement('div');
+            conflictSection.className = 'fix-all-section';
+            
+            const conflictTitle = document.createElement('div');
+            conflictTitle.className = 'fix-all-section-title';
+            conflictTitle.textContent = `Conflicting Extensions (${conflicts.length} group${conflicts.length > 1 ? 's' : ''})`;
+            conflictSection.appendChild(conflictTitle);
+            
+            conflicts.forEach(conflict => {
+                const group = document.createElement('div');
+                group.className = 'fix-all-group';
+                
+                const groupName = document.createElement('div');
+                groupName.className = 'fix-all-group-name';
+                groupName.textContent = conflict.name;
+                group.appendChild(groupName);
+                
+                const extensionsToDisable = conflict.extensions.slice(1);
+                if (extensionsToDisable.length > 0) {
+                    extensionsToDisable.forEach(ext => {
+                        const item = document.createElement('div');
+                        item.className = 'fix-all-item';
+                        
+                        const icon = document.createElement('span');
+                        icon.className = 'icon icon-warning';
+                        icon.setAttribute('aria-hidden', 'true');
+                        
+                        const text = document.createElement('span');
+                        text.textContent = `Disable ${ext.name}`;
+                        
+                        item.appendChild(icon);
+                        item.appendChild(text);
+                        group.appendChild(item);
+                    });
+                } else {
+                    const item = document.createElement('div');
+                    item.className = 'fix-all-item fix-all-item--info';
+                    item.textContent = 'Only one extension active — nothing to disable';
+                    group.appendChild(item);
+                }
+                
+                conflictSection.appendChild(group);
+            });
+            
+            fixAllSummary.appendChild(conflictSection);
+        }
+
+        if (deprecated.length > 0) {
+            const deprecatedSection = document.createElement('div');
+            deprecatedSection.className = 'fix-all-section';
+            
+            const deprecatedTitle = document.createElement('div');
+            deprecatedTitle.className = 'fix-all-section-title';
+            deprecatedTitle.textContent = `Deprecated Extensions (${deprecated.length})`;
+            deprecatedSection.appendChild(deprecatedTitle);
+            
+            deprecated.forEach(dep => {
+                const item = document.createElement('div');
+                item.className = 'fix-all-item';
+                
+                const icon = document.createElement('span');
+                icon.className = 'icon icon-error';
+                icon.setAttribute('aria-hidden', 'true');
+                
+                const text = document.createElement('span');
+                text.textContent = `Disable ${dep.extension.name}`;
+                
+                item.appendChild(icon);
+                item.appendChild(text);
+                deprecatedSection.appendChild(item);
+            });
+            
+            fixAllSummary.appendChild(deprecatedSection);
+        }
+
+        openModal(fixAllModal);
     };
 
     const executeFixAll = async () => {
-        fixAllModal.classList.remove('visible');
+        closeModal(fixAllModal);
         showSpinner();
         setButtonsDisabled(true);
+        announce('Fixing all issues. Disabling extensions.', 'polite');
 
         try {
             const { conflicts, deprecated } = currentScanResults;
             const promises = [];
 
-            // For each conflict group, disable all but the first extension
             conflicts.forEach(conflict => {
                 const extensionsToDisable = conflict.extensions.slice(1);
                 extensionsToDisable.forEach(ext => {
@@ -410,19 +537,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
 
-            // Disable all deprecated extensions
             deprecated.forEach(dep => {
                 promises.push(chrome.management.setEnabled(dep.extension.id, false));
             });
 
             await Promise.all(promises);
             
-            // Re-run scan to reflect changes
+            showToast('All issues fixed successfully', 'success');
+            announce('All issues fixed. Re-scanning to reflect changes.', 'polite');
+            
             await runScan(false);
             
         } catch (error) {
             console.error("Fix All failed:", error);
             renderErrorPlaceholder("Fix All Failed", "Some extensions could not be disabled. Please try again manually.");
+            announce('Fix All failed. Some extensions could not be disabled.', 'assertive');
+            showToast('Fix All failed', 'error');
         } finally {
             hideSpinner();
             setButtonsDisabled(false);
@@ -434,47 +564,145 @@ document.addEventListener('DOMContentLoaded', () => {
         const isVisible = scanHistoryPopover.classList.contains('visible');
         if (isVisible) {
             scanHistoryPopover.classList.remove('visible');
+            headerMetaDiv.setAttribute('aria-expanded', 'false');
         } else {
             renderScanHistory();
             scanHistoryPopover.classList.add('visible');
+            headerMetaDiv.setAttribute('aria-expanded', 'true');
         }
+    };
+
+    const showHistoryDetail = (entry, itemElement) => {
+        // Remove any existing detail views
+        document.querySelectorAll('.scan-history-detail').forEach(el => el.remove());
+        
+        const detail = document.createElement('div');
+        detail.className = 'scan-history-detail';
+        
+        const date = document.createElement('div');
+        date.className = 'scan-history-detail-date';
+        date.textContent = new Date(entry.timestamp).toLocaleString();
+        detail.appendChild(date);
+        
+        if (entry.conflictCount > 0) {
+            const conflicts = document.createElement('div');
+            conflicts.className = 'scan-history-detail-row';
+            const strong = document.createElement('strong');
+            strong.textContent = 'Conflicts: ';
+            conflicts.appendChild(strong);
+            conflicts.appendChild(document.createTextNode(`${entry.conflictCount} group${entry.conflictCount > 1 ? 's' : ''} found`));
+            detail.appendChild(conflicts);
+        }
+        
+        if (entry.deprecatedCount > 0) {
+            const deprecated = document.createElement('div');
+            deprecated.className = 'scan-history-detail-row';
+            const strong = document.createElement('strong');
+            strong.textContent = 'Deprecated: ';
+            deprecated.appendChild(strong);
+            deprecated.appendChild(document.createTextNode(`${entry.deprecatedCount} extension${entry.deprecatedCount > 1 ? 's' : ''} found`));
+            detail.appendChild(deprecated);
+        }
+        
+        if (!entry.conflictCount && !entry.deprecatedCount) {
+            const clean = document.createElement('div');
+            clean.className = 'scan-history-detail-row';
+            clean.textContent = 'No issues were found in this scan.';
+            detail.appendChild(clean);
+        }
+        
+        itemElement.insertAdjacentElement('afterend', detail);
     };
 
     const renderScanHistory = async () => {
         const history = await StorageManager.getScanHistory();
-        scanHistoryList.innerHTML = '';
+        
+        while (scanHistoryList.firstChild) {
+            scanHistoryList.removeChild(scanHistoryList.firstChild);
+        }
 
         if (history.length === 0) {
-            scanHistoryList.innerHTML = '<div class="empty-state">No scan history available</div>';
+            const emptyState = document.createElement('div');
+            emptyState.className = 'empty-state';
+            emptyState.textContent = 'No scan history available';
+            scanHistoryList.appendChild(emptyState);
             return;
         }
 
-        history.forEach(entry => {
+        history.forEach((entry) => {
             const item = document.createElement('div');
             item.className = 'scan-history-item';
+            item.setAttribute('role', 'button');
+            item.setAttribute('tabindex', '0');
+            item.setAttribute('aria-label', `Scan from ${formatRelativeTime(entry.timestamp)}. ${entry.summary || 'No issues found'}`);
             
             const hasIssues = entry.conflictCount > 0 || entry.deprecatedCount > 0;
-            const iconClass = hasIssues ? 'warning' : 'success';
-            const iconType = hasIssues ? 'icon-warning' : 'icon-check';
+            const iconWrapper = document.createElement('div');
+            iconWrapper.className = `scan-history-icon ${hasIssues ? 'warning' : 'success'}`;
             
-            let statusText = 'No issues found';
-            if (entry.conflictCount > 0 && entry.deprecatedCount > 0) {
-                statusText = `${entry.conflictCount} conflict${entry.conflictCount > 1 ? 's' : ''}, ${entry.deprecatedCount} deprecated`;
-            } else if (entry.conflictCount > 0) {
-                statusText = `${entry.conflictCount} conflict${entry.conflictCount > 1 ? 's' : ''}`;
-            } else if (entry.deprecatedCount > 0) {
-                statusText = `${entry.deprecatedCount} deprecated`;
+            const icon = document.createElement('span');
+            icon.className = `icon ${hasIssues ? 'icon-warning' : 'icon-check'}`;
+            icon.setAttribute('aria-hidden', 'true');
+            iconWrapper.appendChild(icon);
+            
+            const info = document.createElement('div');
+            info.className = 'scan-history-info';
+            
+            const time = document.createElement('div');
+            time.className = 'scan-history-time';
+            time.textContent = formatRelativeTime(entry.timestamp);
+            time.setAttribute('title', new Date(entry.timestamp).toLocaleString());
+            
+            const status = document.createElement('div');
+            status.className = 'scan-history-status';
+            status.textContent = entry.summary || 'No issues found';
+            
+            info.appendChild(time);
+            info.appendChild(status);
+            
+            const counts = document.createElement('div');
+            counts.className = 'scan-history-counts';
+            if (entry.conflictCount > 0) {
+                const badge = document.createElement('span');
+                badge.className = 'scan-history-badge scan-history-badge--conflict';
+                badge.textContent = `${entry.conflictCount} conflict${entry.conflictCount > 1 ? 's' : ''}`;
+                counts.appendChild(badge);
             }
-
-            item.innerHTML = `
-                <div class="scan-history-icon ${iconClass}">
-                    <span class="icon ${iconType}"></span>
-                </div>
-                <div class="scan-history-info">
-                    <div class="scan-history-time">${new Date(entry.timestamp).toLocaleString()}</div>
-                    <div class="scan-history-status">${statusText}</div>
-                </div>
-            `;
+            if (entry.deprecatedCount > 0) {
+                const badge = document.createElement('span');
+                badge.className = 'scan-history-badge scan-history-badge--deprecated';
+                badge.textContent = `${entry.deprecatedCount} deprecated`;
+                counts.appendChild(badge);
+            }
+            if (!hasIssues) {
+                const badge = document.createElement('span');
+                badge.className = 'scan-history-badge scan-history-badge--clean';
+                badge.textContent = 'Clean';
+                counts.appendChild(badge);
+            }
+            
+            item.appendChild(iconWrapper);
+            item.appendChild(info);
+            item.appendChild(counts);
+            
+            let detailOpen = false;
+            const toggleDetail = () => {
+                detailOpen = !detailOpen;
+                if (detailOpen) {
+                    showHistoryDetail(entry, item);
+                } else {
+                    const existing = item.parentNode.querySelector('.scan-history-detail');
+                    if (existing) existing.remove();
+                }
+            };
+            
+            item.addEventListener('click', toggleDetail);
+            item.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleDetail();
+                }
+            });
             
             scanHistoryList.appendChild(item);
         });
@@ -482,13 +710,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Rendering Functions ---
     const renderResults = (conflicts, deprecated, allInstalled, ignoredSet) => {
-        // Clear previous results (except initial screen and spinner)
-        const children = Array.from(resultsDiv.children);
-        children.forEach(child => {
-            if (child !== initialScanScreen && child !== loadingSpinner) {
-                resultsDiv.removeChild(child);
-            }
-        });
+        clearResults();
 
         const hasIssues = conflicts.length > 0 || deprecated.length > 0;
         const hasIgnored = ignoredSet.size > 0;
@@ -533,25 +755,25 @@ document.addEventListener('DOMContentLoaded', () => {
             ));
         }
 
-        // Add Fix All button if there are issues
         if (hasIssues) {
             const fixAllContainer = document.createElement('div');
             fixAllContainer.className = 'fix-all-container';
-            fixAllContainer.innerHTML = `
-                <button id="fixAllButton" class="btn fix-all-btn">
-                    <span class="icon icon-check"></span>
-                    Fix All Issues
-                </button>
-            `;
-            wrapper.appendChild(fixAllContainer);
             
-            // Add event listener after appending to DOM
-            setTimeout(() => {
-                const fixAllBtn = document.getElementById('fixAllButton');
-                if (fixAllBtn) {
-                    fixAllBtn.addEventListener('click', showFixAllModal);
-                }
-            }, 0);
+            const fixAllBtn = document.createElement('button');
+            fixAllBtn.id = 'fixAllButton';
+            fixAllBtn.className = 'btn fix-all-btn';
+            fixAllBtn.setAttribute('aria-label', `Fix all ${conflicts.length + deprecated.length} issues`);
+            
+            const icon = document.createElement('span');
+            icon.className = 'icon icon-check';
+            icon.setAttribute('aria-hidden', 'true');
+            
+            fixAllBtn.appendChild(icon);
+            fixAllBtn.appendChild(document.createTextNode(' Fix All Issues'));
+            fixAllBtn.addEventListener('click', showFixAllModal);
+            
+            fixAllContainer.appendChild(fixAllBtn);
+            wrapper.appendChild(fixAllContainer);
         }
 
         resultsDiv.appendChild(wrapper);
@@ -587,7 +809,8 @@ document.addEventListener('DOMContentLoaded', () => {
         section.append(header, content);
         header.addEventListener('click', () => {
             header.classList.toggle('active');
-            header.setAttribute('aria-expanded', header.classList.contains('active'));
+            const isActive = header.classList.contains('active');
+            header.setAttribute('aria-expanded', isActive);
         });
         return section;
     };
@@ -685,18 +908,14 @@ document.addEventListener('DOMContentLoaded', () => {
             alternativesStrong.textContent = 'Suggested Alternatives:';
             alternativesDiv.appendChild(alternativesStrong);
             
-            const links = dep.alternatives.map(alt => {
+            dep.alternatives.forEach((alt, index) => {
                 const a = document.createElement('a');
                 a.href = alt.url;
                 a.target = '_blank';
                 a.rel = 'noopener noreferrer';
                 a.textContent = alt.name;
-                return a;
-            });
-            
-            links.forEach((link, index) => {
-                alternativesDiv.appendChild(link);
-                if (index < links.length - 1) {
+                alternativesDiv.appendChild(a);
+                if (index < dep.alternatives.length - 1) {
                     alternativesDiv.appendChild(document.createTextNode(', '));
                 }
             });
@@ -810,13 +1029,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const renderErrorPlaceholder = (title, text) => {
-        while (resultsDiv.firstChild) {
-            if (resultsDiv.firstChild !== initialScanScreen && resultsDiv.firstChild !== loadingSpinner) {
-                resultsDiv.removeChild(resultsDiv.firstChild);
-            } else {
-                break;
-            }
-        }
+        clearResults();
         resultsDiv.appendChild(createPlaceholder('icon-error', title, text));
     };
 
@@ -844,11 +1057,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const displayLastScanTime = async () => {
         const history = await StorageManager.getScanHistory();
-        const metaText = headerMetaDiv.querySelector('.meta-text') || headerMetaDiv;
+        const metaText = headerMetaDiv.querySelector('.meta-text');
         
         if (history.length > 0) {
             const lastScan = history[0];
-            metaText.textContent = `Last scanned: ${new Date(lastScan.timestamp).toLocaleString()}`;
+            metaText.textContent = `Last scanned: ${formatRelativeTime(lastScan.timestamp)}`;
             headerMetaDiv.classList.add('clickable');
             headerMetaDiv.title = "Click to view scan history";
         } else {
@@ -895,7 +1108,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const { action, id, name, enabled } = button.dataset;
         
         if (action === 'ignore') {
-            const confirmed = await showConfirmationModal( "Ignore Extension?", `Are you sure you want to ignore "${name}"? It will no longer appear in scans.`);
+            const confirmed = await showConfirmationModal("Ignore Extension?", `Are you sure you want to ignore "${name}"? It will no longer appear in scans.`);
             if (!confirmed) return;
         }
         
@@ -921,6 +1134,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error(`Failed to perform action '${action}':`, error);
             renderErrorPlaceholder("Action Failed", `Could not complete the action. Please try again or perform it manually from the extensions page.`);
+            showToast('Action failed', 'error');
         } finally {
             if (action !== 'details') {
                  setButtonsDisabled(false);
@@ -952,11 +1166,28 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('scroll', onScrollOrResize, true);
     window.addEventListener('resize', onScrollOrResize);
 
-    // --- Click Outside Handler for Popover ---
+    // --- Global Keyboard & Click Handlers ---
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.visible, .popover.visible').forEach(el => {
+                el.classList.remove('visible');
+                if (el._focusTrapHandler) {
+                    el.removeEventListener('keydown', el._focusTrapHandler);
+                    delete el._focusTrapHandler;
+                }
+            });
+            if (lastFocusedElement && document.contains(lastFocusedElement)) {
+                lastFocusedElement.focus();
+            }
+            headerMetaDiv.setAttribute('aria-expanded', 'false');
+        }
+    });
+
     document.addEventListener('click', (e) => {
         if (scanHistoryPopover.classList.contains('visible')) {
             if (!scanHistoryPopover.contains(e.target) && !headerMetaDiv.contains(e.target)) {
                 scanHistoryPopover.classList.remove('visible');
+                headerMetaDiv.setAttribute('aria-expanded', 'false');
             }
         }
     });
@@ -995,40 +1226,31 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const initializePage = async () => {
-        // Initialize settings
         initSettingsUI();
         
-        // Settings button
-        settingsButton.addEventListener('click', () => {
-            settingsModal.classList.add('visible');
-        });
-        
-        closeSettingsModal.addEventListener('click', () => {
-            settingsModal.classList.remove('visible');
-        });
+        // Settings modal
+        settingsButton.addEventListener('click', () => openModal(settingsModal));
+        closeSettingsModal.addEventListener('click', () => closeModal(settingsModal));
         
         // Settings change handlers
         autoScanSetting.addEventListener('change', (e) => {
             saveSettings({ autoScan: e.target.checked });
+            showToast(e.target.checked ? 'Auto-scan enabled' : 'Auto-scan disabled', 'info');
         });
         
         showResolvedSetting.addEventListener('change', (e) => {
             saveSettings({ showResolved: e.target.checked });
+            showToast(e.target.checked ? 'Resolved issues will be shown' : 'Resolved issues hidden', 'info');
         });
         
         cacheDurationSetting.addEventListener('change', (e) => {
             saveSettings({ cacheDuration: parseInt(e.target.value) });
+            showToast(`Cache duration set to ${e.target.value} hours`, 'info');
         });
         
-        clearDataButton.addEventListener('click', async () => {
-            const confirmed = await showConfirmationModal(
-                "Clear All Data?", 
-                "This will remove all scan history, cached data, and settings. This action cannot be undone."
-            );
-            if (confirmed) {
-                await StorageManager.clearAllData();
-                location.reload();
-            }
+        refreshCacheButton.addEventListener('click', () => {
+            closeModal(settingsModal);
+            runScan(true);
         });
         
         // Scan history popover
@@ -1037,20 +1259,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 toggleHistoryPopover();
             }
         });
+        headerMetaDiv.addEventListener('keydown', (e) => {
+            if ((e.key === 'Enter' || e.key === ' ') && headerMetaDiv.classList.contains('clickable')) {
+                e.preventDefault();
+                toggleHistoryPopover();
+            }
+        });
         
         closeHistoryPopover.addEventListener('click', () => {
             scanHistoryPopover.classList.remove('visible');
+            headerMetaDiv.setAttribute('aria-expanded', 'false');
         });
         
         // Fix All modal
         confirmFixAllButton.addEventListener('click', executeFixAll);
-        cancelFixAllButton.addEventListener('click', () => {
-            fixAllModal.classList.remove('visible');
-        });
+        cancelFixAllButton.addEventListener('click', () => closeModal(fixAllModal));
         
         // Main buttons
         startScanButton.addEventListener('click', () => runScan(false));
-        refreshCacheButton.addEventListener('click', () => runScan(true));
         resultsDiv.addEventListener('click', handleActionClick);
         
         // Check cache and auto-scan settings
@@ -1059,16 +1285,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const isCacheValid = cacheData.cache_timestamp && (Date.now() - cacheData.cache_timestamp < cacheTTL) && cacheData.conflictConfig;
 
         if (isCacheValid) {
-            console.log('Valid cache found. Loading results directly.');
             initialScanScreen.style.display = 'none';
             await loadResultsFromCache();
         } else {
-            console.log('Cache is expired or missing.');
             if (currentSettings.autoScan) {
-                console.log('Auto-scan is enabled. Running a new scan on load.');
                 runScan(false);
             } else {
-                console.log('Displaying initial scan screen.');
                 initialScanScreen.style.display = 'flex';
                 displayLastScanTime();
                 if (cacheData.conflictConfig) displayDataVersionInfo(cacheData.conflictConfig);
