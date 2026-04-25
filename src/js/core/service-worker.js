@@ -21,8 +21,8 @@ const EXTENSION_HISTORY_KEY = 'extensionActivityHistory';
 const HISTORY_SETTINGS_KEY  = 'extensionHistorySettings';
 
 // Hard limits - must match cloud.js constants!!
-const HARD_MAX_VERSIONS    = 25;
-const HARD_MAX_LOG_ENTRIES = 500;
+const HARD_MAX_VERSIONS    = 5;
+const HARD_MAX_LOG_ENTRIES = 100;
 
 const DATA_KEYS_TO_SYNC = {
     [RULES_STORAGE_KEY]:    'Automation Rules',
@@ -332,8 +332,8 @@ chrome.runtime.onInstalled.addListener(async (details) => {
                 syncInterval:           60,
                 selectiveSync:          Object.keys(DATA_KEYS_TO_SYNC).reduce((a, k) => ({ ...a, [k]: true }), {}),
                 lastSyncTimestamp:      null,
-                logRetentionPolicy:     '100',
-                historyRetentionPolicy: '10',
+                logRetentionPolicy:     '50',
+                historyRetentionPolicy: '5',
             },
             syncLog:                    [],
             [EXTENSION_HISTORY_KEY]:    [],
