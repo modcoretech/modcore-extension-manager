@@ -6,6 +6,7 @@
     <meta name="description" content="modcore Snapshot - Manage extension data with encrypted backups and restore functionality">
     <title>modcore Snapshot - modcore EM</title>
     <link rel="stylesheet" href="../css/snapshot.css">
+    <link rel="stylesheet" href="../css/variables.css">
     <link rel="stylesheet" href="../../public/fonts/fonts.css">
 </head>
 <body>
@@ -117,7 +118,7 @@
 
                             <div class="detail-item detail-item-full-width">
                                 <label class="checkbox-container">
-                                    <input type="checkbox" id="enableEncryptionCheckbox" aria-describedby="encryption-hint">
+                                    <input type="checkbox" id="enableEncryptionCheckbox" checked aria-describedby="encryption-hint">
                                     <span class="checkmark"></span>
                                     Encrypt with Password
                                     <span class="tooltip-trigger" style="margin-left: var(--spacing-small);" aria-label="About encryption">
@@ -125,12 +126,12 @@
                                         <span class="tooltip-content">Uses AES-256-GCM with PBKDF2 key derivation (310,000 iterations). Strongly recommended for sensitive data.</span>
                                     </span>
                                 </label>
-                                <small id="encryption-hint" class="detail-description-text">Protects your backup file with a password using AES-256-GCM.</small>
+                                <small id="encryption-hint" class="detail-description-text">Backups are encrypted by default for your safety and privacy. Uncheck only if you need an unencrypted copy.</small>
                             </div>
                         </div>
 
                         <!-- Encryption password fields -->
-                        <div id="encryptionPasswordFields" class="details-grid" hidden aria-live="polite">
+                        <div id="encryptionPasswordFields" class="details-grid" aria-live="polite">
                             <div class="detail-item">
                                 <label for="backupPassword" class="detail-label">Password</label>
                                 <div class="input-with-toggle">
@@ -141,7 +142,7 @@
                                            aria-describedby="password-requirements"
                                            autocomplete="new-password">
                                     <button type="button" class="btn-icon toggle-password-visibility" data-target="backupPassword" aria-label="Toggle password visibility" tabindex="0">
-                                        <span class="icon icon-help" aria-hidden="true"></span>
+                                        <span class="icon icon-eye" aria-hidden="true"></span>
                                     </button>
                                 </div>
                                 <small id="password-requirements" class="detail-description-text">Min. 8 characters. Mix letters, numbers, and symbols.</small>
@@ -155,7 +156,7 @@
                                            placeholder="Re-enter password"
                                            autocomplete="new-password">
                                     <button type="button" class="btn-icon toggle-password-visibility" data-target="confirmBackupPassword" aria-label="Toggle confirm password visibility" tabindex="0">
-                                        <span class="icon icon-help" aria-hidden="true"></span>
+                                        <span class="icon icon-eye" aria-hidden="true"></span>
                                     </button>
                                 </div>
                             </div>
@@ -209,7 +210,7 @@
                                            aria-describedby="restore-password-hint"
                                            autocomplete="off">
                                     <button type="button" class="btn-icon toggle-password-visibility" data-target="restorePassword" aria-label="Toggle password visibility">
-                                        <span class="icon icon-help" aria-hidden="true"></span>
+                                        <span class="icon icon-eye" aria-hidden="true"></span>
                                     </button>
                                 </div>
                                 <small id="restore-password-hint" class="detail-description-text">This backup is encrypted. Enter the password used when creating it.</small>
@@ -320,9 +321,6 @@
                             <button id="viewDataModalBtn" class="btn primary">
                                 <span class="icon icon-list" aria-hidden="true"></span> Open Data Viewer
                             </button>
-                            <button id="refreshStorageSizesBtn" class="btn secondary" aria-label="Refresh storage sizes">
-                                <span class="icon icon-loading" aria-hidden="true"></span> Refresh
-                            </button>
                         </div>
                     </section>
 
@@ -419,7 +417,7 @@
     </div>
 
     <!-- ================================================================
-         DATA VIEWER MODAL  (enhanced)
+         DATA VIEWER MODAL
          ================================================================ -->
     <div class="modal-overlay" id="data-viewer-modal" role="dialog" aria-modal="true" aria-labelledby="data-viewer-title">
         <div class="modal-content modal-large">
@@ -428,15 +426,6 @@
             <div class="modal-header">
                 <h3 id="data-viewer-title">Data Viewer</h3>
                 <div class="modal-header-actions">
-                    <!-- View mode toggle -->
-                    <div class="view-mode-toggle" role="group" aria-label="View mode">
-                        <button class="btn-icon view-mode-btn active" data-mode="tree" aria-label="Tree view" aria-pressed="true">
-                            <span class="icon icon-list" aria-hidden="true"></span>
-                        </button>
-                        <button class="btn-icon view-mode-btn" data-mode="raw" aria-label="Raw JSON view" aria-pressed="false">
-                            <span class="icon icon-code" aria-hidden="true"></span>
-                        </button>
-                    </div>
                     <button class="btn-icon" id="data-viewer-close" aria-label="Close data viewer">
                         <span class="icon icon-close" aria-hidden="true"></span>
                     </button>
@@ -466,25 +455,13 @@
                     <button class="chip" data-filter="webSession">Session</button>
                 </div>
 
-                <!-- Action buttons (icon-only with tooltips) -->
+                <!-- Action buttons -->
                 <div class="viewer-actions">
                     <span class="tooltip-trigger">
                         <button class="btn-icon" id="data-viewer-copy" aria-label="Copy visible data">
                             <span class="icon icon-copy" aria-hidden="true"></span>
                         </button>
                         <span class="tooltip-content">Copy visible data</span>
-                    </span>
-                    <span class="tooltip-trigger">
-                        <button class="btn-icon" id="data-viewer-export" aria-label="Export as JSON file">
-                            <span class="icon icon-download" aria-hidden="true"></span>
-                        </button>
-                        <span class="tooltip-content">Export as JSON</span>
-                    </span>
-                    <span class="tooltip-trigger">
-                        <button class="btn-icon" id="data-viewer-reload" aria-label="Reload data from storage">
-                            <span class="icon icon-loading" aria-hidden="true"></span>
-                        </button>
-                        <span class="tooltip-content">Reload data</span>
                     </span>
                     <span class="tooltip-trigger">
                         <button class="btn-icon" id="data-viewer-expand-all" aria-label="Expand all keys">
@@ -502,10 +479,6 @@
             <div class="modal-body" id="data-viewer-body">
                 <!-- Tree view -->
                 <div id="data-viewer-tree" class="data-tree" role="tree" aria-label="Storage data tree"></div>
-                <!-- Raw JSON view (hidden by default) -->
-                <div id="data-viewer-raw" class="code-block" hidden style="max-height:480px;overflow-y:auto;">
-                    <pre><code id="data-viewer-content"></code></pre>
-                </div>
                 <!-- Empty state -->
                 <div id="data-viewer-empty" class="viewer-empty-state" hidden>
                     <span class="icon icon-search" aria-hidden="true" style="width:2em;height:2em;opacity:.3;"></span>
@@ -526,7 +499,7 @@
                     <span class="icon icon-close" aria-hidden="true"></span>
                 </button>
             </div>
-            <div class="modal-body" style="overflow:visible;">
+            <div class="modal-body">
                 <div class="details-grid">
                     <div class="detail-item detail-item-full-width">
                         <label class="detail-label">Storage Area</label>
