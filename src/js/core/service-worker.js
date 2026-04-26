@@ -37,8 +37,26 @@ const DATA_KEYS_TO_SYNC = {
 let urlRulesCache = [];
 
 // ==========================================================================
+// Permissions cache (for accurate permission-change detection)
+// ==========================================================================
+
+let permissionsCache = new Map();
+
+// ==========================================================================
 // Extension History Tracking
 // ==========================================================================
+
+async function initializePermissionsCache() {
+    try {
+        const extensions = await chrome.management.getAll();
+        permissionsCache.clear();
+        extensions.forEach(ext => {
+            if (ext.id) permissionsCache.set(ext.id, [...(ext.permissions || [])]);
+        });
+    } catch (err) {
+        console.warn('initializePermissionsCache failed:', err);
+    }
+}
 
 async function recordExtensionActivity(eventType, extensionInfo, details = '') {
     try {
@@ -49,6 +67,7 @@ async function recordExtensionActivity(eventType, extensionInfo, details = '') {
         const history = stored[EXTENSION_HISTORY_KEY] ?? [];
 
         history.unshift({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
             timestamp:        Date.now(),
             eventType,
             extensionId:      extensionInfo.id      ?? 'unknown',
@@ -57,9 +76,7 @@ async function recordExtensionActivity(eventType, extensionInfo, details = '') {
             details,
         });
 
-        // Trim to a reasonable limit
-        const trimmed = history.slice(0, 500);
-        await chrome.storage.local.set({ [EXTENSION_HISTORY_KEY]: trimmed });
+        await chrome.storage.local.set({ [EXTENSION_HISTORY_KEY]: history });
     } catch (err) {
         console.warn('recordExtensionActivity failed:', err);
     }
@@ -67,6 +84,50 @@ async function recordExtensionActivity(eventType, extensionInfo, details = '') {
 
 async function clearExtensionHistory() {
     await chrome.storage.local.set({ [EXTENSION_HISTORY_KEY]: [] });
+}
+
+async function handlePruneByDays({ daysToKeep }) {
+    const cutoff = Date.now() - daysToKeep * 864e5;
+    const stored = await chrome.storage.local.get(EXTENSION_HISTORY_KEY);
+    const history = stored[EXTENSION_HISTORY_KEY] ?? [];
+    const pruned = history.filter(r => r.timestamp >= cutoff);
+    await chrome.storage.local.set({ [EXTENSION_HISTORY_KEY]: pruned });
+}
+
+async function handlePruneInactive() {
+    let installedIds;
+    try {
+        const extensions = await chrome.management.getAll();
+        installedIds = new Set(extensions.map(e => e.id));
+    } catch (e) {
+        throw new Error('Unable to fetch installed extensions.');
+    }
+    const stored = await chrome.storage.local.get(EXTENSION_HISTORY_KEY);
+    const history = stored[EXTENSION_HISTORY_KEY] ?? [];
+    const pruned = history.filter(r => installedIds.has(r.extensionId));
+    await chrome.storage.local.set({ [EXTENSION_HISTORY_KEY]: pruned });
+}
+
+async function handlePruneByTypes(typesToPrune) {
+    if (!Array.isArray(typesToPrune)) throw new Error('Invalid types payload.');
+    const stored = await chrome.storage.local.get(EXTENSION_HISTORY_KEY);
+    const history = stored[EXTENSION_HISTORY_KEY] ?? [];
+    const pruned = history.filter(r => !typesToPrune.includes(r.eventType));
+    await chrome.storage.local.set({ [EXTENSION_HISTORY_KEY]: pruned });
+}
+
+async function handlePruneToLimit({ limit }) {
+    const n = parseInt(limit, 10);
+    if (isNaN(n) || n < 1) throw new Error('Invalid limit.');
+    const stored = await chrome.storage.local.get(EXTENSION_HISTORY_KEY);
+    const history = stored[EXTENSION_HISTORY_KEY] ?? [];
+    if (history.length <= n) return;
+    await chrome.storage.local.set({ [EXTENSION_HISTORY_KEY]: history.slice(0, n) });
+}
+
+async function handleRestoreHistory(records) {
+    if (!Array.isArray(records)) throw new Error('Invalid history data.');
+    await chrome.storage.local.set({ [EXTENSION_HISTORY_KEY]: records });
 }
 
 // ==========================================================================
@@ -285,30 +346,44 @@ function registerManagementListeners() {
     try {
         chrome.management.onInstalled.addListener(info => {
             recordExtensionActivity('installed', info);
+            permissionsCache.set(info.id, [...(info.permissions || [])]);
         });
 
         chrome.management.onUninstalled.addListener(id => {
             recordExtensionActivity('uninstalled', { id, name: 'Unknown', version: 'Unknown' });
+            permissionsCache.delete(id);
         });
 
         chrome.management.onEnabled.addListener(info => {
             recordExtensionActivity('enabled', info);
+            permissionsCache.set(info.id, [...(info.permissions || [])]);
         });
 
         chrome.management.onDisabled.addListener(info => {
             recordExtensionActivity('disabled', info);
+            permissionsCache.set(info.id, [...(info.permissions || [])]);
         });
 
         chrome.management.onUpdated.addListener(info => {
-            const added   = (info.permissions   ?? []).filter(p => !(info.oldPermissions ?? []).includes(p));
-            const removed = (info.oldPermissions ?? []).filter(p => !(info.permissions   ?? []).includes(p));
+            const previousPerms = permissionsCache.get(info.id);
+            const currentPerms  = info.permissions || [];
+            let added = [], removed = [];
+
+            if (previousPerms !== undefined) {
+                added   = currentPerms.filter(p => !previousPerms.includes(p));
+                removed = previousPerms.filter(p => !currentPerms.includes(p));
+            }
 
             let details = `Updated to v${info.version}.`;
             if (added.length)   details += ` Added permissions: ${added.join(', ')}.`;
             if (removed.length) details += ` Removed permissions: ${removed.join(', ')}.`;
 
-            const evType = (added.length || removed.length) ? 'permissions_updated' : 'updated';
+            const evType = (previousPerms !== undefined && (added.length || removed.length))
+                ? 'permissions_updated'
+                : 'updated';
+
             recordExtensionActivity(evType, info, details);
+            permissionsCache.set(info.id, [...currentPerms]);
         });
 
         console.log('chrome.management listeners registered.');
@@ -344,6 +419,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 
     await updateAlarmsAndCache();
     await updateSyncAlarm();
+    await initializePermissionsCache();
     registerManagementListeners();
 
     if (details.reason === 'install' || details.reason === 'update') {
@@ -380,6 +456,7 @@ chrome.runtime.onStartup.addListener(async () => {
     console.log('Browser started. Re-initializing systems.');
     await updateAlarmsAndCache();
     await updateSyncAlarm();
+    await initializePermissionsCache();
     registerManagementListeners();
     // Note: "sync on startup" removed - use the auto-sync alarm interval instead.
 });
@@ -422,6 +499,36 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
 
         case 'CLEAR_EXTENSION_HISTORY':
             clearExtensionHistory().then(() => sendResponse({ status: 'success' }));
+            return true;
+
+        case 'PRUNE_HISTORY_BY_DAYS':
+            handlePruneByDays(request.payload)
+                .then(() => sendResponse({ status: 'success' }))
+                .catch(err => sendResponse({ status: 'error', message: err.message }));
+            return true;
+
+        case 'PRUNE_INACTIVE_EXTENSIONS':
+            handlePruneInactive()
+                .then(() => sendResponse({ status: 'success' }))
+                .catch(err => sendResponse({ status: 'error', message: err.message }));
+            return true;
+
+        case 'PRUNE_HISTORY_BY_TYPES':
+            handlePruneByTypes(request.payload)
+                .then(() => sendResponse({ status: 'success' }))
+                .catch(err => sendResponse({ status: 'error', message: err.message }));
+            return true;
+
+        case 'PRUNE_HISTORY_TO_LIMIT':
+            handlePruneToLimit(request.payload)
+                .then(() => sendResponse({ status: 'success' }))
+                .catch(err => sendResponse({ status: 'error', message: err.message }));
+            return true;
+
+        case 'RESTORE_HISTORY':
+            handleRestoreHistory(request.payload)
+                .then(() => sendResponse({ status: 'success' }))
+                .catch(err => sendResponse({ status: 'error', message: err.message }));
             return true;
     }
 });
