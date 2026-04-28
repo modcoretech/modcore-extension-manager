@@ -1191,7 +1191,7 @@ function createHelpSheet() {
         className: 'mc-help-doc-link',
         text: 'Full Documentation',
         attrs: {
-            href: 'https://example.com',
+            href: 'https://sites.google.com/view/modcore-em-help/general-information/additional-features/discovery',
             target: '_blank',
             rel: 'noopener noreferrer',
             'aria-label': 'Open full documentation in new tab'
