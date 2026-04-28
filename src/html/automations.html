@@ -7,8 +7,7 @@
     <link rel="stylesheet" href="../../public/fonts/fonts.css">
     <link rel="stylesheet" href="../css/variables.css">
     <link rel="stylesheet" href="../css/automations.css">
-<base target="_blank">
-<base target="_blank">
+    <base target="_blank">
 </head>
 <body>
 
@@ -21,7 +20,8 @@
                 <ul>
                     <li><button id="nav-view-rules" class="sidebar-button active" aria-controls="rules-list-panel"><span class="icon icon-list"></span> View All Rules</button></li>
                     <li><button id="nav-add-rule" class="sidebar-button" aria-controls="add-rule-panel"><span class="icon icon-add"></span> Add New Rule</button></li>
-                    <li><button id="nav-help" class="sidebar-button" aria-controls="help-panel"><span class="icon icon-help"></span> Help & Info</button></li>
+                    <li><button id="nav-settings" class="sidebar-button" aria-controls="settings-panel"><span class="icon icon-settings"></span> Settings</button></li>
+                    <li><a id="nav-help" class="sidebar-button" href="https://sites.google.com/view/modcore-em-help/manage-extensions/rules-page" target="_blank" rel="noopener noreferrer"><span class="icon icon-help"></span> Help</a></li>
                 </ul>
             </nav>
         </aside>
@@ -35,10 +35,8 @@
                         <p>Manage rules to automatically enable or disable extensions or apply profiles.</p>
                     </div>
                     <div class="header-actions">
-                        <button id="import-rules-btn" class="btn secondary"><span class="icon icon-upload"></span> Import</button>
-                        <button id="export-rules-btn" class="btn secondary"><span class="icon icon-download"></span> Export</button>
-                        <button id="view-toggle-btn" class="view-toggle-btn" aria-label="Toggle view layout">
-                            <span class="icon icon-layout-grid" id="view-toggle-icon"></span>
+                        <button id="filter-btn" class="btn-icon" aria-label="Open filters">
+                            <span class="icon icon-filter"></span>
                         </button>
                     </div>
                 </div>
@@ -48,28 +46,23 @@
                        <span class="icon icon-search"></span>
                        <input type="search" id="rule-search-input" placeholder="Search rules by name or tag..." class="search-input" aria-label="Search rules">
                    </div>
-                   <select id="filter-status-select" class="btn filter-control-select" aria-label="Filter by status">
-                       <option value="all">All Statuses</option>
-                       <option value="enabled">Enabled</option>
-                       <option value="disabled">Disabled</option>
-                   </select>
-                   <select id="filter-trigger-select" class="btn filter-control-select" aria-label="Filter by trigger type">
-                       <option value="all">All Triggers</option>
-                       <option value="time">Time-based</option>
-                       <option value="url">URL-based</option>
-                   </select>
-                   <select id="filter-target-type-select" class="btn filter-control-select" aria-label="Filter by target type">
-                       <option value="all">All Targets</option>
-                       <option value="extension">Extensions</option>
-                       <option value="profile">Profiles</option>
-                   </select>
-                   <label for="select-all-rules" class="select-all-label">
-                       <input type="checkbox" id="select-all-rules" class="rule-select-checkbox"> Select All
-                   </label>
                 </div>
 
-                <div id="rules-list-container" class="rules-list" role="list" aria-live="polite">
-                    </div>
+                <div class="table-wrapper">
+                    <table class="rules-table">
+                        <thead>
+                            <tr>
+                                <th class="col-select"><input type="checkbox" id="select-all-rules" class="rule-select-checkbox" aria-label="Select all rules"></th>
+                                <th class="col-name">Name</th>
+                                <th class="col-trigger">Trigger</th>
+                                <th class="col-targets">Targets</th>
+                                <th class="col-status">Status</th>
+                                <th class="col-actions"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="rules-list-container" aria-live="polite"></tbody>
+                    </table>
+                </div>
                 
                 <div id="no-rules-placeholder" class="placeholder" role="status" style="display: none;">
                     <span class="icon icon-list"></span>
@@ -107,143 +100,193 @@
                 <form id="rule-form" novalidate aria-live="polite">
                     <input type="hidden" id="rule-id-input">
 
-                    <div class="form-group">
-                        <label for="rule-name-input" class="form-label">Rule Name <span aria-hidden="true">*</span></label>
-                        <input type="text" id="rule-name-input" placeholder="e.g., 'Work Focus Mode'" required aria-required="true">
-                        <p id="rule-name-error" class="error-message" aria-live="polite"></p>
+                    <div class="form-stepper">
+                        <div class="form-step active" data-step="1">1. Basics</div>
+                        <div class="form-step" data-step="2">2. Action</div>
+                        <div class="form-step" data-step="3">3. Trigger</div>
                     </div>
 
-                    <div class="form-group">
-                        <label for="rule-tags-input" class="form-label">Tags (comma-separated)</label>
-                        <input type="text" id="rule-tags-input" placeholder="e.g., work, productivity, social">
+                    <div class="form-step-content active" data-step-content="1">
+                        <div class="form-group">
+                            <label for="rule-name-input" class="form-label">Rule Name <span aria-hidden="true">*</span></label>
+                            <input type="text" id="rule-name-input" placeholder="e.g., Work Focus Mode" required aria-required="true">
+                            <p id="rule-name-error" class="error-message" aria-live="polite"></p>
+                        </div>
+                        <div class="form-group">
+                            <label for="rule-tags-input" class="form-label">Tags (comma-separated)</label>
+                            <input type="text" id="rule-tags-input" placeholder="e.g., work, productivity">
+                        </div>
+                        <div class="form-actions step-actions">
+                            <button type="button" class="btn tertiary" id="cancel-rule-form">Cancel</button>
+                            <button type="button" class="btn primary" id="step-1-next">Next</button>
+                        </div>
                     </div>
 
-                    <div class="form-group">
-                        <label for="rule-target-type-select" class="form-label">Target Type <span aria-hidden="true">*</span></label>
-                        <select id="rule-target-type-select" required aria-required="true">
-                            <option value="extension">Extensions</option>
-                            <option value="profile">Profiles</option>
-                        </select>
+                    <div class="form-step-content" data-step-content="2">
+                        <div class="form-group">
+                            <label for="rule-target-type-select" class="form-label">Target Type <span aria-hidden="true">*</span></label>
+                            <select id="rule-target-type-select" required aria-required="true">
+                                <option value="extension">Extensions</option>
+                                <option value="profile">Profiles</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label id="target-selector-label" class="form-label">Select Targets <span aria-hidden="true">*</span></label>
+                            <div id="target-selector-container" class="extension-selector-list" role="group" aria-labelledby="target-selector-label"></div>
+                            <p id="target-selector-error" class="error-message" aria-live="polite"></p>
+                        </div>
+                        <div class="form-group">
+                            <label for="rule-action-select" class="form-label">Action <span aria-hidden="true">*</span></label>
+                            <select id="rule-action-select" required aria-required="true"></select>
+                            <p id="rule-action-error" class="error-message" aria-live="polite"></p>
+                        </div>
+                        <div class="form-actions step-actions">
+                            <button type="button" class="btn tertiary" id="step-2-back">Back</button>
+                            <button type="button" class="btn primary" id="step-2-next">Next</button>
+                        </div>
                     </div>
 
-                    <div class="form-group">
-                        <label id="target-selector-label" class="form-label">Select Targets <span aria-hidden="true">*</span></label>
-                        <div id="target-selector-container" class="extension-selector-list" role="group" aria-labelledby="target-selector-label">
+                    <div class="form-step-content" data-step-content="3">
+                        <div class="form-group">
+                            <label for="trigger-type-select" class="form-label">Condition (Trigger) <span aria-hidden="true">*</span></label>
+                            <select id="trigger-type-select" required aria-required="true">
+                                <option value="time">When a specific time is met</option>
+                                <option value="url">When a specific URL is visited</option>
+                            </select>
+                        </div>
+
+                        <div id="time-condition-fields">
+                            <div class="form-group">
+                                <label for="rule-time-input" class="form-label">Time <span aria-hidden="true">*</span></label>
+                                <input type="time" id="rule-time-input" required aria-required="true">
+                                <p id="rule-time-error" class="error-message" aria-live="polite"></p>
                             </div>
-                        <p id="target-selector-error" class="error-message" aria-live="polite"></p>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="rule-action-select" class="form-label">Action <span aria-hidden="true">*</span></label>
-                        <select id="rule-action-select" required aria-required="true">
-                            <option value="enable">Enable</option>
-                            <option value="disable">Disable</option>
-                        </select>
-                        <p id="rule-action-error" class="error-message" aria-live="polite"></p>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="trigger-type-select" class="form-label">Condition (Trigger) <span aria-hidden="true">*</span></label>
-                        <select id="trigger-type-select" required aria-required="true">
-                            <option value="time">When a specific time is met</option>
-                            <option value="url">When a specific URL is visited</option>
-                        </select>
-                    </div>
-
-                    <div id="time-condition-fields">
-                        <div class="form-group">
-                            <label for="rule-time-input" class="form-label">Time <span aria-hidden="true">*</span></label>
-                            <input type="time" id="rule-time-input" required aria-required="true">
-                            <p id="rule-time-error" class="error-message" aria-live="polite"></p>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">On these days <span aria-hidden="true">*</span></label>
-                            <div class="day-selector" role="group" aria-labelledby="day-selector-label">
-                                <input type="checkbox" id="day-sun" value="0"><label for="day-sun">Sun</label>
-                                <input type="checkbox" id="day-mon" value="1"><label for="day-mon">Mon</label>
-                                <input type="checkbox" id="day-tue" value="2"><label for="day-tue">Tue</label>
-                                <input type="checkbox" id="day-wed" value="3"><label for="day-wed">Wed</label>
-                                <input type="checkbox" id="day-thu" value="4"><label for="day-thu">Thu</label>
-                                <input type="checkbox" id="day-fri" value="5"><label for="day-fri">Fri</label>
-                                <input type="checkbox" id="day-sat" value="6"><label for="day-sat">Sat</label>
+                            <div class="form-group">
+                                <label class="form-label">On these days <span aria-hidden="true">*</span></label>
+                                <div class="day-selector" role="group" aria-labelledby="day-selector-label">
+                                    <input type="checkbox" id="day-sun" value="0"><label for="day-sun">Sun</label>
+                                    <input type="checkbox" id="day-mon" value="1"><label for="day-mon">Mon</label>
+                                    <input type="checkbox" id="day-tue" value="2"><label for="day-tue">Tue</label>
+                                    <input type="checkbox" id="day-wed" value="3"><label for="day-wed">Wed</label>
+                                    <input type="checkbox" id="day-thu" value="4"><label for="day-thu">Thu</label>
+                                    <input type="checkbox" id="day-fri" value="5"><label for="day-fri">Fri</label>
+                                    <input type="checkbox" id="day-sat" value="6"><label for="day-sat">Sat</label>
+                                </div>
+                                <p id="day-selector-error" class="error-message" aria-live="polite"></p>
                             </div>
-                            <p id="day-selector-error" class="error-message" aria-live="polite"></p>
                         </div>
-                    </div>
 
-                    <div id="url-condition-fields" style="display: none;">
-                        <div class="form-group">
-                            <label for="rule-url-input" class="form-label">URL or Domain contains <span aria-hidden="true">*</span></label>
-                            <input type="text" id="rule-url-input" placeholder="e.g., 'youtube.com' or 'developer.chrome.com'" required aria-required="true">
-                            <p id="rule-url-error" class="error-message" aria-live="polite"></p>
-                            <p class="form-help-text">Don't forget to add https:// at the beginning.</p>
+                        <div id="url-condition-fields" style="display: none;">
+                            <div class="form-group">
+                                <label for="rule-url-input" class="form-label">URL or Domain contains <span aria-hidden="true">*</span></label>
+                                <input type="text" id="rule-url-input" placeholder="e.g., youtube.com or developer.chrome.com" required aria-required="true">
+                                <p id="rule-url-error" class="error-message" aria-live="polite"></p>
+                                <p class="form-help-text">Don't forget to add https:// at the beginning.</p>
+                            </div>
                         </div>
-                    </div>
-                    
-                    <div class="form-actions">
-                        <button type="button" class="btn tertiary" id="cancel-rule-form">Cancel</button>
-                        <button type="submit" class="btn primary">Save Rule</button>
+                        
+                        <div class="form-actions step-actions">
+                            <button type="button" class="btn tertiary" id="step-3-back">Back</button>
+                            <button type="submit" class="btn primary">Save Rule</button>
+                        </div>
                     </div>
                 </form>
             </div>
 
-            <div id="help-panel" class="content-panel" role="tabpanel" aria-labelledby="nav-help">
-                 <div class="panel-header">
+            <div id="settings-panel" class="content-panel" role="tabpanel" aria-labelledby="nav-settings">
+                <div class="panel-header">
                     <div class="panel-header-text">
-                        <h2>Help & Information</h2>
-                        <p>Understand how rules work and their limitations.</p>
+                        <h2>Automation Settings</h2>
+                        <p>Configure default behaviors and preferences for your automation rules.</p>
                     </div>
                 </div>
-                <div class="support-message">
-                    <span class="icon icon-help"></span>
-                    <div>
-                        <h4>How Rules Work</h4>
-                        <p>Automation rules allow you to define specific triggers that will automatically enable or disable one or more of your extensions, or switch profiles.</p>
-                        <p>Rules can be time-based (e.g., disable social media extensions at certain hours on specific days, repeating weekly) or URL-based (e.g., enable development tools when you visit a programming website).</p>
+                <div class="settings-list">
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <h4>Confirm before deleting</h4>
+                            <p>Show a confirmation dialog before deleting any rule.</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="setting-confirm-delete">
+                            <span class="slider"></span>
+                        </label>
                     </div>
-                </div>
-                <div class="support-message error-message-style"> <span class="icon icon-alert-circle"></span> <div>
-                        <h4>Important: Browser Must Be Running</h4>
-                        <p>For any rule to execute, your computer must be turned on and the Chrome browser must be running. Time-based rules may be delayed if the browser is closed during their scheduled time; they will attempt to run when Chrome is next opened.</p>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <h4>Auto-disable conflicts</h4>
+                            <p>Automatically disable existing rules that conflict with a newly saved rule.</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="setting-auto-disable-conflicts">
+                            <span class="slider"></span>
+                        </label>
                     </div>
-                </div>
-                <div class="support-message">
-                    <span class="icon icon-grid"></span>
-                    <div>
-                        <h4>Managing Rule Conflicts</h4>
-                        <p>The system performs checks to help prevent conflicting rules. A conflict occurs if two <strong>enabled</strong> rules target the same item (extension, profile, or group) with opposite actions and their triggers overlap (e.g., same time/days or overlapping URLs).</p>
-                        <p>If you try to save a rule that conflicts with an existing active rule, you will be alerted, and the rule will not be saved until the conflict is resolved. You can resolve conflicts by:</p>
-                        <ul>
-                            <li>Adjusting the target items of the new or conflicting rule.</li>
-                            <li>Changing the action (enable/disable/apply) of the new or conflicting rule.</li>
-                            <li>Modifying the trigger conditions (time, days, URL) to avoid overlap.</li>
-                            <li>Disabling or deleting one of the conflicting rules.</li>
-                        </ul>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <h4>Default target type</h4>
+                            <p>Pre-select this target type when creating a new rule.</p>
+                        </div>
+                        <select id="setting-default-target-type" class="filter-control-select">
+                            <option value="extension">Extensions</option>
+                            <option value="profile">Profiles</option>
+                        </select>
                     </div>
-                </div>
-                <div class="support-message">
-                    <span class="icon icon-shield"></span>
-                    <div>
-                        <h4>Security & Privacy</h4>
-                        <p>Automation Rules are processed locally within your browser environment. No data related to your automations, extensions, or profiles is transmitted to external servers or third parties. Your privacy and security are our top priorities.</p>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <h4>Default trigger type</h4>
+                            <p>Pre-select this trigger when creating a new rule.</p>
+                        </div>
+                        <select id="setting-default-trigger-type" class="filter-control-select">
+                            <option value="time">Time-based</option>
+                            <option value="url">URL-based</option>
+                        </select>
                     </div>
-                </div>
-                <div class="support-message">
-                    <span class="icon icon-search"></span>
-                    <div>
-                        <h4>Keyboard Shortcuts</h4>
-                        <ul>
-                            <li>Press <kbd>/</kbd> (forward slash) on the "View All Rules" page to quickly focus the search bar.</li>
-                            <li>Press <kbd>Ctrl</kbd> + <kbd>N</kbd> (or <kbd>Cmd</kbd> + <kbd>N</kbd> on Mac) anywhere to open the "Add New Rule" form.</li>
-                            <li>Press <kbd>Ctrl</kbd> + <kbd>S</kbd> (or <kbd>Cmd</kbd> + <kbd>S</kbd> on Mac) on the "Add/Edit Rule" form to save the rule.</li>
-                            <li>Press <kbd>Esc</kbd> to close confirmation dialogs.</li>
-                        </ul>
-                    </div>
-                </div>
                 </div>
             </div>
 
         </main>
+    </div>
+
+    <div id="filter-side-sheet" class="side-sheet" role="dialog" aria-modal="true" aria-label="Filter rules">
+        <div class="side-sheet-overlay" id="filter-sheet-overlay"></div>
+        <div class="side-sheet-panel">
+            <div class="side-sheet-header">
+                <h3>Filter Rules</h3>
+                <button type="button" class="btn-icon" id="close-filter-sheet" aria-label="Close filters">
+                    <span class="icon icon-close"></span>
+                </button>
+            </div>
+            <div class="side-sheet-content">
+                <div class="form-group">
+                    <label for="filter-status-select" class="form-label">Status</label>
+                    <select id="filter-status-select" class="filter-control-select">
+                        <option value="all">All Statuses</option>
+                        <option value="enabled">Enabled</option>
+                        <option value="disabled">Disabled</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="filter-trigger-select" class="form-label">Trigger</label>
+                    <select id="filter-trigger-select" class="filter-control-select">
+                        <option value="all">All Triggers</option>
+                        <option value="time">Time-based</option>
+                        <option value="url">URL-based</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="filter-target-type-select" class="form-label">Target Type</label>
+                    <select id="filter-target-type-select" class="filter-control-select">
+                        <option value="all">All Targets</option>
+                        <option value="extension">Extensions</option>
+                        <option value="profile">Profiles</option>
+                    </select>
+                </div>
+            </div>
+            <div class="side-sheet-footer">
+                <button type="button" class="btn tertiary" id="reset-filters-btn">Reset</button>
+                <button type="button" class="btn primary" id="apply-filters-btn">Apply Filters</button>
+            </div>
+        </div>
     </div>
 
     <div id="toast-container" aria-live="assertive" aria-atomic="true"></div>
@@ -258,8 +301,7 @@
             </div>
         </div>
     </div>
-    
-    <input type="file" id="import-file-input" accept=".json" style="display: none;">
+
     <script src="../js/core/automations.js"></script>
     <script src="../js/features/report.js"></script>
 </body>

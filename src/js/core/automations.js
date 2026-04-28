@@ -1,29 +1,24 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const PROFILES_STORAGE_KEY = 'extensionManagerProfiles_v2';
     const DEFAULT_ICON_PLACEHOLDER = '../../public/icons/svg/updatelogo.svg';
+    const SETTINGS_KEY = 'automationsSettings';
+
+    const DEFAULT_SETTINGS = {
+        confirmBeforeDelete: true,
+        autoDisableConflicts: false,
+        defaultTargetType: 'extension',
+        defaultTriggerType: 'time'
+    };
 
     // --- Global State ---
     let allRules = [];
     let allExtensions = [];
-    let allProfiles = []; // New state for profiles
+    let allProfiles = [];
     let currentActivePanelId = 'rules-list-panel';
     let selectedRuleIds = new Set();
-    let currentViewMode = 'list';
-    let currentFilters = {
-        query: '',
-        status: 'all',
-        trigger: 'all',
-        targetType: 'all' // New filter
-    };
-
-    // --- Utility Functions ---
-    // Moved sanitizeText here as it's needed by this script
-    function sanitizeText(str) {
-        if (str === null || typeof str === 'undefined') return '';
-        const temp = document.createElement('div');
-        temp.textContent = String(str);
-        return temp.textContent;
-    }
+    let currentFilters = { query: '', status: 'all', trigger: 'all', targetType: 'all' };
+    let settings = { ...DEFAULT_SETTINGS };
+    let searchDebounceTimer = null;
 
     // --- DOM Element Selection ---
     const rulesListContainer = document.getElementById('rules-list-container');
@@ -31,9 +26,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     const noResultsPlaceholder = document.getElementById('no-results-placeholder');
     const ruleSearchInput = document.getElementById('rule-search-input');
     const selectAllRulesCheckbox = document.getElementById('select-all-rules');
-    const viewToggleBtn = document.getElementById('view-toggle-btn');
-    const viewToggleIcon = document.getElementById('view-toggle-icon');
-    
+    const filterBtn = document.getElementById('filter-btn');
+
+    // Filter Side Sheet
+    const filterSideSheet = document.getElementById('filter-side-sheet');
+    const filterSheetOverlay = document.getElementById('filter-sheet-overlay');
+    const closeFilterSheetBtn = document.getElementById('close-filter-sheet');
+    const applyFiltersBtn = document.getElementById('apply-filters-btn');
+    const resetFiltersBtn = document.getElementById('reset-filters-btn');
+    const filterStatusSelect = document.getElementById('filter-status-select');
+    const filterTriggerSelect = document.getElementById('filter-trigger-select');
+    const filterTargetTypeSelect = document.getElementById('filter-target-type-select');
+
     // Bulk Actions Bar elements
     const bulkActionsBar = document.getElementById('bulk-actions-bar');
     const selectedRulesCountSpan = document.getElementById('selected-rules-count');
@@ -48,9 +52,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const ruleIdInput = document.getElementById('rule-id-input');
     const ruleNameInput = document.getElementById('rule-name-input');
     const ruleTagsInput = document.getElementById('rule-tags-input');
-    const ruleTargetTypeSelect = document.getElementById('rule-target-type-select'); // NEW
-    const targetSelectorContainer = document.getElementById('target-selector-container'); // Renamed from extensionSelector
-    const targetSelectorLabel = document.getElementById('target-selector-label'); // Label for the selector
+    const ruleTargetTypeSelect = document.getElementById('rule-target-type-select');
+    const targetSelectorContainer = document.getElementById('target-selector-container');
+    const targetSelectorLabel = document.getElementById('target-selector-label');
     const ruleActionSelect = document.getElementById('rule-action-select');
     const triggerTypeSelect = document.getElementById('trigger-type-select');
     const timeConditionFields = document.getElementById('time-condition-fields');
@@ -58,10 +62,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const ruleTimeInput = document.getElementById('rule-time-input');
     const ruleUrlInput = document.getElementById('rule-url-input');
 
+    // Stepper buttons
+    const step1Next = document.getElementById('step-1-next');
+    const step2Back = document.getElementById('step-2-back');
+    const step2Next = document.getElementById('step-2-next');
+    const step3Back = document.getElementById('step-3-back');
+
     // Error message elements
     const ruleNameError = document.getElementById('rule-name-error');
-    const targetSelectorError = document.getElementById('target-selector-error'); // Renamed
-    const ruleActionError = document.getElementById('rule-action-error'); // NEW
+    const targetSelectorError = document.getElementById('target-selector-error');
+    const ruleActionError = document.getElementById('rule-action-error');
     const ruleTimeError = document.getElementById('rule-time-error');
     const daySelectorError = document.getElementById('day-selector-error');
     const ruleUrlError = document.getElementById('rule-url-error');
@@ -72,23 +82,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     const backToRulesListBtn = document.getElementById('back-to-rules-list');
     const cancelRuleFormBtn = document.getElementById('cancel-rule-form');
 
+    // Settings elements
+    const settingConfirmDelete = document.getElementById('setting-confirm-delete');
+    const settingAutoDisableConflicts = document.getElementById('setting-auto-disable-conflicts');
+    const settingDefaultTargetType = document.getElementById('setting-default-target-type');
+    const settingDefaultTriggerType = document.getElementById('setting-default-trigger-type');
+
     // Custom Confirmation Dialog Elements
     const confirmDialogOverlay = document.getElementById('confirm-dialog-overlay');
     const confirmDialogMessage = document.getElementById('confirm-dialog-message');
     const confirmOkBtn = document.getElementById('confirm-ok-btn');
     const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
 
-    // NEW: Elements for new features
-    const importRulesBtn = document.getElementById('import-rules-btn');
-    const exportRulesBtn = document.getElementById('export-rules-btn');
-    const importFileInput = document.getElementById('import-file-input');
-    const filterStatusSelect = document.getElementById('filter-status-select');
-    const filterTriggerSelect = document.getElementById('filter-trigger-select');
-    const filterTargetTypeSelect = document.getElementById('filter-target-type-select'); // NEW
+    // --- Utility Functions ---
+    function sanitizeText(str) {
+        if (str === null || typeof str === 'undefined') return '';
+        const temp = document.createElement('div');
+        temp.textContent = String(str);
+        return temp.textContent;
+    }
 
-    // --- Helper Functions for DOM Manipulation & Validation ---
-
-    /** Creates a DOM element with specified tag, class, and text content. */
     const createElement = (tag, className, textContent) => {
         const element = document.createElement(tag);
         if (className) element.className = className;
@@ -96,106 +109,55 @@ document.addEventListener('DOMContentLoaded', async () => {
         return element;
     };
 
-    /** Securely builds and appends a single rule item to the list. */
-    const createRuleElement = (rule) => {
-        const ruleItem = createElement('div', 'rule-item');
-        ruleItem.dataset.ruleId = rule.id;
-        ruleItem.setAttribute('role', 'listitem');
+    // --- Settings Logic ---
+    async function loadSettings() {
+        try {
+            const result = await chrome.storage.local.get(SETTINGS_KEY);
+            const stored = result[SETTINGS_KEY] || {};
+            settings = { ...DEFAULT_SETTINGS, ...stored };
 
-        const checkbox = createElement('input', 'rule-select-checkbox');
-        checkbox.type = 'checkbox';
-        checkbox.id = `select-rule-${rule.id}`;
-        checkbox.value = rule.id;
-        checkbox.checked = selectedRuleIds.has(rule.id);
-        checkbox.setAttribute('aria-label', `Select rule named ${sanitizeText(rule.name)}`); // ACCESSIBILITY: Enhanced label
-        ruleItem.appendChild(checkbox);
-
-        if (selectedRuleIds.has(rule.id)) {
-            ruleItem.classList.add('selected');
+            settingConfirmDelete.checked = settings.confirmBeforeDelete;
+            settingAutoDisableConflicts.checked = settings.autoDisableConflicts;
+            settingDefaultTargetType.value = settings.defaultTargetType;
+            settingDefaultTriggerType.value = settings.defaultTriggerType;
+        } catch (e) {
+            console.error('Failed to load settings:', e);
         }
+    }
 
-        const ruleDetails = createElement('div', 'rule-details');
-        const ruleName = createElement('h4', 'rule-name', sanitizeText(rule.name));
-        const conditionsGrid = createElement('div', 'rule-conditions-grid');
-
-        // Rule Action Display
-        let actionIconClass = '';
-        let actionText = '';
-        if (rule.targetType === 'extension') {
-            actionIconClass = rule.action === 'enable' ? 'icon-toggle-on' : 'icon-toggle-off';
-            actionText = `Action: ${rule.action.charAt(0).toUpperCase() + rule.action.slice(1)}`;
-        } else if (rule.targetType === 'profile') {
-            actionIconClass = 'icon-profiles'; // Placeholder icon for apply profile
-            actionText = `Action: Apply Profile`;
+    async function saveSettings() {
+        try {
+            await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
+            showToast('Settings saved.', 'success');
+        } catch (e) {
+            console.error('Failed to save settings:', e);
+            showToast('Failed to save settings.', 'error');
         }
-        conditionsGrid.appendChild(createConditionElement(actionIconClass, actionText, true));
+    }
 
-        // Rule Trigger Display
-        let triggerCondition;
-        if (rule.trigger.type === 'time') {
-            const days = rule.trigger.days.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ') || 'No days';
-            triggerCondition = createConditionElement('icon-clock', `At ${rule.trigger.time} on ${days}`, true);
-        } else {
-            triggerCondition = createConditionElement('icon-url', `On visit to ${rule.trigger.url}`, true);
-        }
-        conditionsGrid.appendChild(triggerCondition);
-        
-        // Rule Targets Display
-        let targetsText = 'None';
-        let targetsIconClass = 'icon-grid'; // Default icon
-        if (rule.targetType === 'extension') {
-            const names = allExtensions.filter(ext => rule.targetIds.includes(ext.id)).map(ext => ext.name);
-            targetsText = `Targets Extensions: ${names.join(', ') || 'None'}`;
-            targetsIconClass = 'icon-grid';
-        } else if (rule.targetType === 'profile') {
-            const profile = allProfiles.find(p => p.id === rule.targetIds[0]); // Profiles only target one
-            targetsText = `Targets Profile: ${profile ? sanitizeText(profile.name) : 'Unknown Profile'}`;
-            targetsIconClass = 'icon-profiles'; // SVG for profiles icon
-        }
-        const targetsCondition = createConditionElement(targetsIconClass, targetsText, false);
-        targetsCondition.title = targetsText; // Use full text for tooltip
-        conditionsGrid.appendChild(targetsCondition);
-        
-        ruleDetails.append(ruleName, conditionsGrid);
+    settingConfirmDelete.addEventListener('change', (e) => {
+        settings.confirmBeforeDelete = e.target.checked;
+        saveSettings();
+    });
+    settingAutoDisableConflicts.addEventListener('change', (e) => {
+        settings.autoDisableConflicts = e.target.checked;
+        saveSettings();
+    });
+    settingDefaultTargetType.addEventListener('change', (e) => {
+        settings.defaultTargetType = e.target.value;
+        saveSettings();
+    });
+    settingDefaultTriggerType.addEventListener('change', (e) => {
+        settings.defaultTriggerType = e.target.value;
+        saveSettings();
+    });
 
-        // Display tags
-        if (rule.tags && rule.tags.length > 0) {
-            const tagsContainer = createElement('div', 'tags-container');
-            rule.tags.forEach(tagText => {
-                const tagElement = createElement('span', 'tag', sanitizeText(tagText));
-                tagsContainer.appendChild(tagElement);
-            });
-            ruleDetails.appendChild(tagsContainer);
-        }
-
-        const ruleActions = createElement('div', 'rule-actions');
-        const toggleSwitch = createToggleSwitch(rule.id, rule.enabled);
-        const editBtn = createIconButton('icon-edit', 'edit-rule-btn', `Edit rule named ${sanitizeText(rule.name)}`);
-        const deleteBtn = createIconButton('icon-trash', 'delete-rule-btn', `Delete rule named ${sanitizeText(rule.name)}`);
-        ruleActions.append(toggleSwitch, editBtn, deleteBtn);
-
-        ruleItem.append(checkbox, ruleDetails, ruleActions); // Order checkbox, details, actions
-        return ruleItem;
-    };
-    
-    const createConditionElement = (iconClass, text, isStrong) => {
-        const condition = createElement('div', 'rule-condition');
-        const icon = createElement('span', `icon ${iconClass}`);
-        const textDiv = createElement('div', 'condition-text');
-        if (isStrong) {
-            const parts = text.split(':');
-            textDiv.textContent = `${sanitizeText(parts[0])}: `;
-            textDiv.appendChild(createElement('strong', null, sanitizeText(parts.slice(1).join(':').trim())));
-        } else {
-            textDiv.textContent = sanitizeText(text);
-        }
-        condition.append(icon, textDiv);
-        return condition;
-    };
+    // --- Helper Functions for DOM Manipulation & Validation ---
 
     const createIconButton = (iconClass, buttonClass, ariaLabel) => {
         const button = createElement('button', `btn-icon ${buttonClass}`);
         button.setAttribute('aria-label', ariaLabel);
+        button.type = 'button';
         button.appendChild(createElement('span', `icon ${iconClass}`));
         return button;
     };
@@ -215,9 +177,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         return label;
     };
 
+    const createConditionElement = (iconClass, text) => {
+        const condition = createElement('div', 'rule-condition');
+        const icon = createElement('span', `icon ${iconClass}`);
+        const textDiv = createElement('div', 'condition-text', sanitizeText(text));
+        condition.append(icon, textDiv);
+        return condition;
+    };
+
     /** Populates the target selector based on type. */
     const populateTargetSelector = (targetType, selectedIds = []) => {
-        targetSelectorContainer.textContent = ''; // Clear existing content
+        targetSelectorContainer.textContent = '';
         let items = [];
         let labelText = '';
 
@@ -227,32 +197,31 @@ document.addEventListener('DOMContentLoaded', async () => {
                 labelText = 'Select Extensions';
                 break;
             case 'profile':
-                items = allProfiles; // This is an array of profile objects
+                items = allProfiles;
                 labelText = 'Select Profile (One only)';
                 break;
         }
 
-        console.log(`Rules.js: Populating target selector for type: ${targetType}. Items to render:`, items); // DEBUG LOG
-
         if (items.length === 0) {
             const placeholder = createElement('p', 'placeholder-text', `No ${targetType}s found.`);
             placeholder.style.textAlign = 'center';
-            placeholder.style.color = 'var(--on-surface-variant-color)';
+            placeholder.style.color = 'var(--color-text-secondary)';
+            placeholder.style.padding = 'var(--space-4)';
             targetSelectorContainer.appendChild(placeholder);
             return;
         }
 
         items.forEach(item => {
-            const id = item.id
-            const name = item.name;
+            const id = item.id;
+            const name = item.name || 'Unnamed';
             const itemImgSrc = item.icons && item.icons.length > 0 && item.icons[item.icons.length - 1].url
                                ? item.icons[item.icons.length - 1].url
-                               : DEFAULT_ICON_PLACEHOLDER; // Use generic placeholder if no icon specific to target type
+                               : DEFAULT_ICON_PLACEHOLDER;
 
-            const itemDiv = createElement('div', 'extension-selector-item'); // Reusing style class
+            const itemDiv = createElement('div', 'extension-selector-item');
             const input = createElement('input');
             input.type = targetType === 'profile' ? 'radio' : 'checkbox';
-            input.name = 'target-item-selection'; // Radio buttons need same name
+            input.name = 'target-item-selection';
             input.id = `target-sel-${id}`;
             input.value = id;
             if (selectedIds.includes(id)) {
@@ -265,9 +234,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const img = createElement('img');
             img.src = itemImgSrc;
             img.alt = `Icon for ${sanitizeText(name)}`;
-            img.onerror = function() { this.src = DEFAULT_ICON_PLACEHOLDER; }; // Fallback for broken image
+            img.onerror = function() { this.src = DEFAULT_ICON_PLACEHOLDER; };
 
-            label.append(img, createElement('span', null, sanitizeText(name))); // Sanitize name before displaying
+            label.append(img, createElement('span', null, sanitizeText(name)));
             itemDiv.append(input, label);
             targetSelectorContainer.appendChild(itemDiv);
         });
@@ -281,7 +250,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         let options = [];
 
-        if (targetType === 'extension' || targetType === 'group') {
+        if (targetType === 'extension') {
             options = [
                 { value: 'enable', text: 'Enable' },
                 { value: 'disable', text: 'Disable' }
@@ -295,8 +264,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         options.forEach(optionData => {
             const option = createElement('option');
             option.value = optionData.value;
-            option.textContent = optionData.text; // Use textContent
-            // Set selected if it matches
+            option.textContent = optionData.text;
             if (optionData.value === selectedAction) {
                 option.selected = true;
             }
@@ -304,40 +272,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     };
 
-
     const showValidationError = (element, message) => {
         element.textContent = message;
-        // Check if the previous sibling is an element (input/select)
-        if (element.previousElementSibling && (element.previousElementSibling.tagName === 'INPUT' || element.previousElementSibling.tagName === 'SELECT')) {
-            element.previousElementSibling.classList.add('invalid');
-        } else { // For the whole selector container (like target-selector-container)
-            if (element.id === 'target-selector-error') {
-                 targetSelectorContainer.classList.add('invalid-border');
-            }
+        const prev = element.previousElementSibling;
+        if (prev && (prev.tagName === 'INPUT' || prev.tagName === 'SELECT')) {
+            prev.classList.add('invalid');
+        } else if (element.id === 'target-selector-error') {
+            targetSelectorContainer.classList.add('invalid-border');
+        } else if (element.id === 'day-selector-error') {
+            // day selector container is the div, previous is the label
+            const daySelector = document.querySelector('.day-selector');
+            if (daySelector) daySelector.style.borderColor = 'var(--color-danger)';
         }
         element.setAttribute('role', 'alert');
     };
 
     const clearValidationError = (element) => {
         element.textContent = '';
-        if (element.previousElementSibling && (element.previousElementSibling.tagName === 'INPUT' || element.previousElementSibling.tagName === 'SELECT')) {
-            element.previousElementSibling.classList.remove('invalid');
-        } else {
-             if (element.id === 'target-selector-error') {
-                targetSelectorContainer.classList.remove('invalid-border');
-            }
+        const prev = element.previousElementSibling;
+        if (prev && (prev.tagName === 'INPUT' || prev.tagName === 'SELECT')) {
+            prev.classList.remove('invalid');
+        } else if (element.id === 'target-selector-error') {
+            targetSelectorContainer.classList.remove('invalid-border');
+        } else if (element.id === 'day-selector-error') {
+            const daySelector = document.querySelector('.day-selector');
+            if (daySelector) daySelector.style.borderColor = '';
         }
         element.removeAttribute('role');
     };
 
     const clearAllValidationErrors = () => {
-        clearValidationError(ruleNameError);
-        clearValidationError(targetSelectorError);
-        clearValidationError(ruleActionError);
-        clearValidationError(ruleTimeError);
-        clearValidationError(daySelectorError);
-        clearValidationError(ruleUrlError);
+        [ruleNameError, targetSelectorError, ruleActionError, ruleTimeError, daySelectorError, ruleUrlError].forEach(clearValidationError);
         targetSelectorContainer.classList.remove('invalid-border');
+        const daySelector = document.querySelector('.day-selector');
+        if (daySelector) daySelector.style.borderColor = '';
     };
 
     /** Custom confirmation dialog. Returns a Promise. */
@@ -347,54 +315,122 @@ document.addEventListener('DOMContentLoaded', async () => {
             confirmDialogOverlay.classList.add('active');
             confirmOkBtn.focus();
 
-            const onConfirm = () => {
+            const onConfirm = () => cleanup(true);
+            const onCancel = () => cleanup(false);
+
+            const cleanup = (result) => {
                 confirmDialogOverlay.classList.remove('active');
                 confirmOkBtn.removeEventListener('click', onConfirm);
                 confirmCancelBtn.removeEventListener('click', onCancel);
-                resolve(true);
+                document.removeEventListener('keydown', handleEsc);
+                resolve(result);
             };
 
-            const onCancel = () => {
-                confirmDialogOverlay.classList.remove('active');
-                confirmOkBtn.removeEventListener('click', onConfirm);
-                confirmCancelBtn.removeEventListener('click', onCancel);
-                resolve(false);
+            const handleEsc = (e) => {
+                if (e.key === 'Escape') onCancel();
             };
 
             confirmOkBtn.addEventListener('click', onConfirm);
             confirmCancelBtn.addEventListener('click', onCancel);
-
-            const handleEsc = (e) => {
-                if (e.key === 'Escape') {
-                    onCancel();
-                    document.removeEventListener('keydown', handleEsc);
-                }
-            };
             document.addEventListener('keydown', handleEsc);
         });
     };
 
+    // --- Stepper Logic ---
+    let currentStep = 1;
+    const totalSteps = 3;
+
+    const showStep = (step) => {
+        currentStep = step;
+        document.querySelectorAll('.form-step').forEach((el, idx) => {
+            const stepNum = idx + 1;
+            el.classList.toggle('active', stepNum === step);
+            el.classList.toggle('completed', stepNum < step);
+        });
+        document.querySelectorAll('.form-step-content').forEach(el => {
+            const contentStep = parseInt(el.dataset.stepContent, 10);
+            el.classList.toggle('active', contentStep === step);
+        });
+    };
+
+    const validateStep = (step) => {
+        if (step === 1) {
+            const ruleName = ruleNameInput.value.trim();
+            if (!ruleName) {
+                showValidationError(ruleNameError, 'Rule name is required.');
+                return false;
+            }
+            const isNameTaken = allRules.some(r => 
+                sanitizeText(r.name).toLowerCase() === sanitizeText(ruleName).toLowerCase() && r.id !== ruleIdInput.value);
+            if (isNameTaken) {
+                showValidationError(ruleNameError, 'A rule with this name already exists.');
+                return false;
+            }
+            clearValidationError(ruleNameError);
+            return true;
+        }
+        if (step === 2) {
+            const selectedTargets = Array.from(targetSelectorContainer.querySelectorAll('input:checked')).map(cb => cb.value);
+            if (selectedTargets.length === 0) {
+                showValidationError(targetSelectorError, 'Please select at least one target.');
+                return false;
+            }
+            if (ruleTargetTypeSelect.value === 'profile' && selectedTargets.length > 1) {
+                showValidationError(targetSelectorError, 'Please select only one profile.');
+                return false;
+            }
+            clearValidationError(targetSelectorError);
+            clearValidationError(ruleActionError);
+            return true;
+        }
+        if (step === 3) {
+            if (triggerTypeSelect.value === 'time') {
+                if (!ruleTimeInput.value) {
+                    showValidationError(ruleTimeError, 'Please select a time.');
+                    return false;
+                }
+                const days = Array.from(document.querySelectorAll('.day-selector input:checked')).map(cb => parseInt(cb.value, 10));
+                if (days.length === 0) {
+                    showValidationError(daySelectorError, 'Please select at least one day.');
+                    return false;
+                }
+                clearValidationError(ruleTimeError);
+                clearValidationError(daySelectorError);
+                return true;
+            } else {
+                if (!ruleUrlInput.value.trim()) {
+                    showValidationError(ruleUrlError, 'URL cannot be empty.');
+                    return false;
+                }
+                clearValidationError(ruleUrlError);
+                return true;
+            }
+        }
+        return true;
+    };
+
+    step1Next.addEventListener('click', () => {
+        if (validateStep(1)) showStep(2);
+    });
+    step2Back.addEventListener('click', () => showStep(1));
+    step2Next.addEventListener('click', () => {
+        if (validateStep(2)) showStep(3);
+    });
+    step3Back.addEventListener('click', () => showStep(2));
 
     // --- Data & UI Management ---
 
     const refreshUI = async () => {
         try {
-            // Fetch extensions
             if (chrome.management && chrome.management.getSelf) {
                 const self = await chrome.management.getSelf();
                 const extensions = await chrome.management.getAll();
-                // Filter out the extension manager itself and ensure it's a regular extension type
                 allExtensions = extensions.filter(ext => ext.type === 'extension' && ext.id !== self.id);
             }
             
-            // Fetch profiles
-            console.log(`Rules.js: Fetching profiles using key: '${PROFILES_STORAGE_KEY}'`);
             const profilesData = await chrome.storage.local.get(PROFILES_STORAGE_KEY);
-            console.log("Rules.js: Raw data from PROFILES_STORAGE_KEY:", profilesData);
             allProfiles = Object.values(profilesData[PROFILES_STORAGE_KEY] || {});
-            allProfiles.sort((a,b) => (a.name || '').localeCompare(b.name || '')); // Ensure sorting
-            console.log("Rules.js: Processed allProfiles array:", allProfiles); // DEBUG LOG
-
+            allProfiles.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
             const data = await chrome.storage.local.get('rules');
             allRules = data.rules || [];
@@ -402,46 +438,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             applyFiltersAndRender();
             updateBulkActionBarVisibility();
             updateSelectAllCheckboxState();
-            // Also re-populate filter dropdown for target type, in case new profiles were added
-            populateTargetTypeFilterDropdown(); 
         } catch (error) {
-            console.error("Rules.js: Error initializing the page:", error);
-            showToast("Error loading data. Please refresh.", "error");
+            console.error('Error initializing the page:', error);
+            showToast('Error loading data. Please refresh.', 'error');
         }
     };
-    
-    // NEW: Populate the target type filter dropdown in the main view
-    const populateTargetTypeFilterDropdown = () => {
-        // Ensure that any existing options are preserved if they match new values
-        const currentSelectedValue = filterTargetTypeSelect.value;
-        
-        while (filterTargetTypeSelect.firstChild) {
-            filterTargetTypeSelect.removeChild(filterTargetTypeSelect.firstChild);
-        }
 
-        const optionsData = [
-            { value: "all", text: "All Targets" },
-            { value: "extension", text: "Extensions" },
-            { value: "profile", text: "Profiles" },
-        ];
-
-        optionsData.forEach(optionData => {
-            const option = createElement('option');
-            option.value = optionData.value;
-            option.textContent = optionData.text;
-            filterTargetTypeSelect.appendChild(option);
-        });
-
-        if (Array.from(filterTargetTypeSelect.options).some(opt => opt.value === currentSelectedValue)) {
-            filterTargetTypeSelect.value = currentSelectedValue;
-        }
-    }
-
-
-    // NEW: Centralized filtering logic
     const applyFiltersAndRender = () => {
+        const queryLower = currentFilters.query.toLowerCase();
         const filtered = allRules.filter(rule => {
-            const queryLower = currentFilters.query.toLowerCase();
             const searchMatch = rule.name.toLowerCase().includes(queryLower) ||
                 (rule.tags && rule.tags.some(tag => tag.toLowerCase().includes(queryLower)));
             const statusMatch = currentFilters.status === 'all' || (currentFilters.status === 'enabled' && rule.enabled) || (currentFilters.status === 'disabled' && !rule.enabled);
@@ -453,33 +458,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderRules(filtered);
     };
     
-    /**
-     * PERFORMANCE: Renders rules by diffing the DOM, not replacing it entirely.
-     */
     const renderRules = (rulesToRender) => {
-        rulesListContainer.classList.remove('list-view', 'grid-view');
-        rulesListContainer.classList.add(`${currentViewMode}-view`);
-        viewToggleIcon.className = `icon icon-layout-${currentViewMode === 'list' ? 'grid' : 'list'}`;
-
         const hasRules = allRules.length > 0;
         noRulesPlaceholder.style.display = !hasRules ? 'block' : 'none';
         if (!hasRules) {
-            noRulesPlaceholder.textContent = ''; // Clear existing content
+            noRulesPlaceholder.textContent = '';
             noRulesPlaceholder.appendChild(createElement('span', 'icon icon-list'));
             noRulesPlaceholder.appendChild(createElement('h3', null, 'No Automation Rules Found'));
             noRulesPlaceholder.appendChild(createElement('p', null, 'Use the sidebar to "Add New Rule" and get started.'));
             const learnMoreLink = createElement('a', null, 'Learn more about Automation Rules...');
-            learnMoreLink.href = "https://sites.google.com/view/modcore-em-help/manage-extensions/rules-page";
-            learnMoreLink.target = "_blank";
-            learnMoreLink.rel = "noopener noreferrer";
-            learnMoreLink.style.display = "block";
-            learnMoreLink.style.marginTop = "12px";
+            learnMoreLink.href = 'https://sites.google.com/view/modcore-em-help/manage-extensions/rules-page';
+            learnMoreLink.target = '_blank';
+            learnMoreLink.rel = 'noopener noreferrer';
+            learnMoreLink.style.display = 'block';
+            learnMoreLink.style.marginTop = '12px';
             noRulesPlaceholder.appendChild(learnMoreLink);
         }
 
-
         const ruleElementsOnPage = new Map();
-        rulesListContainer.querySelectorAll('.rule-item').forEach(el => {
+        rulesListContainer.querySelectorAll('tr[data-rule-id]').forEach(el => {
             ruleElementsOnPage.set(el.dataset.ruleId, el);
         });
 
@@ -504,7 +501,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const hasResults = rulesListContainer.children.length > 0;
         noResultsPlaceholder.style.display = hasRules && !hasResults ? 'block' : 'none';
         if (hasRules && !hasResults) {
-            noResultsPlaceholder.textContent = ''; // Clear existing content
+            noResultsPlaceholder.textContent = '';
             noResultsPlaceholder.appendChild(createElement('span', 'icon icon-search'));
             noResultsPlaceholder.appendChild(createElement('h3', null, 'No Rules Match Your Search'));
             noResultsPlaceholder.appendChild(createElement('p', null, 'Try searching for a different name or adjusting your filters.'));
@@ -513,68 +510,77 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateSelectAllCheckboxState();
     };
     
-    const validateForm = () => {
-        let isValid = true;
-        clearAllValidationErrors();
+    const createRuleElement = (rule) => {
+        const tr = createElement('tr', 'rule-row');
+        tr.dataset.ruleId = rule.id;
+        if (selectedRuleIds.has(rule.id)) {
+            tr.classList.add('selected');
+        }
 
-        const ruleName = ruleNameInput.value.trim();
-        if (ruleName === '') {
-            showValidationError(ruleNameError, 'Rule name cannot be empty.');
-            isValid = false;
+        // Checkbox cell
+        const tdSelect = createElement('td', 'col-select');
+        const checkbox = createElement('input', 'rule-select-checkbox');
+        checkbox.type = 'checkbox';
+        checkbox.checked = selectedRuleIds.has(rule.id);
+        checkbox.setAttribute('aria-label', `Select rule ${sanitizeText(rule.name)}`);
+        tdSelect.appendChild(checkbox);
+
+        // Name cell
+        const tdName = createElement('td', 'col-name');
+        const nameDiv = createElement('div', 'rule-name-cell');
+        const nameText = createElement('span', 'rule-name-text', sanitizeText(rule.name));
+        nameDiv.appendChild(nameText);
+        
+        if (rule.tags && rule.tags.length > 0) {
+            const tagsDiv = createElement('div', 'tags-container');
+            rule.tags.forEach(tagText => {
+                tagsDiv.appendChild(createElement('span', 'tag', sanitizeText(tagText)));
+            });
+            nameDiv.appendChild(tagsDiv);
+        }
+        tdName.appendChild(nameDiv);
+
+        // Trigger cell
+        const tdTrigger = createElement('td', 'col-trigger');
+        if (rule.trigger.type === 'time') {
+            const days = rule.trigger.days.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ');
+            tdTrigger.appendChild(createConditionElement('icon-clock', `${rule.trigger.time} — ${days}`));
         } else {
-            const isNameTaken = allRules.some(r => 
-                sanitizeText(r.name).toLowerCase() === sanitizeText(ruleName).toLowerCase() && r.id !== ruleIdInput.value);
-            if (isNameTaken) {
-                showValidationError(ruleNameError, 'A rule with this name already exists. Please choose a unique name.');
-                isValid = false;
-            }
+            tdTrigger.appendChild(createConditionElement('icon-url', rule.trigger.url));
         }
 
-        const selectedTargetType = ruleTargetTypeSelect.value;
-        const selectedTargets = Array.from(targetSelectorContainer.querySelectorAll('input:checked')).map(cb => cb.value);
-
-        if (selectedTargets.length === 0) {
-            showValidationError(targetSelectorError, `Please select at least one ${selectedTargetType}.`);
-            isValid = false;
-        } else if (selectedTargetType === 'profile' && selectedTargets.length > 1) {
-            showValidationError(targetSelectorError, 'Please select only one profile for automation.');
-            isValid = false;
+        // Targets cell
+        const tdTargets = createElement('td', 'col-targets');
+        let targetsText = '';
+        if (rule.targetType === 'extension') {
+            const names = allExtensions.filter(ext => rule.targetIds.includes(ext.id)).map(ext => ext.name);
+            targetsText = names.join(', ') || 'None';
+        } else if (rule.targetType === 'profile') {
+            const profile = allProfiles.find(p => p.id === rule.targetIds[0]);
+            targetsText = profile ? sanitizeText(profile.name) : 'Unknown';
         }
+        tdTargets.textContent = targetsText;
+        tdTargets.title = targetsText;
 
-        const selectedAction = ruleActionSelect.value;
-        if (selectedTargetType === 'profile' && selectedAction !== 'apply') {
-            showValidationError(ruleActionError, 'For profiles, the only supported action is "Apply Profile".');
-            isValid = false;
-        } else if (selectedTargetType === 'extension' && !['enable', 'disable'].includes(selectedAction)) { // Extensions only enable/disable
-             showValidationError(ruleActionError, 'For extensions, action must be "Enable" or "Disable".');
-             isValid = false;
-        }
+        // Status cell
+        const tdStatus = createElement('td', 'col-status');
+        tdStatus.appendChild(createToggleSwitch(rule.id, rule.enabled));
 
+        // Actions cell
+        const tdActions = createElement('td', 'col-actions');
+        const editBtn = createIconButton('icon-edit', 'edit-rule-btn', `Edit ${sanitizeText(rule.name)}`);
+        const deleteBtn = createIconButton('icon-trash', 'delete-rule-btn', `Delete ${sanitizeText(rule.name)}`);
+        tdActions.append(editBtn, deleteBtn);
 
-        if (triggerTypeSelect.value === 'time') {
-            if (!ruleTimeInput.value) {
-                showValidationError(ruleTimeError, 'Please select a time for the rule.');
-                isValid = false;
-            }
-            const selectedDays = Array.from(document.querySelectorAll('.day-selector input:checked')).map(cb => parseInt(cb.value));
-            if (selectedDays.length === 0) {
-                showValidationError(daySelectorError, 'Please select at least one day.');
-                isValid = false;
-            }
-        } else { // URL trigger
-            if (!ruleUrlInput.value.trim()) {
-                showValidationError(ruleUrlError, 'URL or Domain cannot be empty.');
-                isValid = false;
-            }
-        }
-        return isValid;
+        tr.append(tdSelect, tdName, tdTrigger, tdTargets, tdStatus, tdActions);
+        return tr;
     };
 
-    const checkRuleConflicts = (newRule) => {
+    const findConflictingRules = (newRule) => {
         const relevantRules = allRules.filter(r => r.enabled && r.id !== newRule.id);
-
+        const conflicts = [];
+        
         for (const existingRule of relevantRules) {
-            // Check if triggers overlap
             let triggersOverlap = false;
             if (newRule.trigger.type === 'time' && existingRule.trigger.type === 'time') {
                 if (newRule.trigger.time === existingRule.trigger.time) {
@@ -582,69 +588,29 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (commonDays.length > 0) triggersOverlap = true;
                 }
             } else if (newRule.trigger.type === 'url' && existingRule.trigger.type === 'url') {
-                const newUrlStr = newRule.trigger.url.toLowerCase();
-                const existingUrlStr = existingRule.trigger.url.toLowerCase();
-                // Simple check: if one URL contains the other (e.g., youtube.com vs youtube.com/watch)
-                if (newUrlStr.includes(existingUrlStr) || existingUrlStr.includes(newUrlStr)) {
-                    triggersOverlap = true;
-                }
+                const newUrl = newRule.trigger.url.toLowerCase();
+                const existingUrl = existingRule.trigger.url.toLowerCase();
+                if (newUrl.includes(existingUrl) || existingUrl.includes(newUrl)) triggersOverlap = true;
             }
-
-            if (!triggersOverlap) continue; // No trigger overlap means no conflict for this pair
-
-            // Check for target and action conflicts
-            let hasDirectConflict = false;
-
-            // Case 1: Same target type, conflicting actions
+            
+            if (!triggersOverlap) continue;
+            
+            let hasConflict = false;
             if (newRule.targetType === existingRule.targetType) {
                 const commonTargets = newRule.targetIds.filter(id => existingRule.targetIds.includes(id));
                 if (commonTargets.length > 0) {
-                    if (newRule.targetType === 'extension') {
-                        if (newRule.action !== existingRule.action) {
-                            hasDirectConflict = true;
-                        }
-                    } else if (newRule.targetType === 'profile') {
-                         if (newRule.action === 'apply' && existingRule.action === 'apply') {
-                            hasDirectConflict = true; // Two apply rules for the same profile is a conflict
-                         }
-                    } else if (newRule.targetType === 'group') {
-                        const newAction = newRule.action; // enable, disable, toggle
-                        const existingAction = existingRule.action;
-
-                        if (newAction === 'toggle' || existingAction === 'toggle') {
-                             // If either is 'toggle', it conflicts with a direct enable/disable of the same group.
-                             if ((newAction === 'toggle' && (existingAction === 'enable' || existingAction === 'disable')) ||
-                                 (existingAction === 'toggle' && (newAction === 'enable' || newAction === 'disable'))) {
-                                 hasDirectConflict = true;
-                             }
-                        } else if (newAction !== existingAction) {
-                            // If both are direct enable/disable, they conflict if different
-                            hasDirectConflict = true;
-                        }
+                    if (newRule.targetType === 'extension' && newRule.action !== existingRule.action) {
+                        hasConflict = true;
+                    } else if (newRule.targetType === 'profile' && newRule.action === 'apply' && existingRule.action === 'apply') {
+                        hasConflict = true;
                     }
                 }
             }
-
-            // More complex cross-type conflicts (e.g., profile rule vs extension rule) are outside this scope for initial implementation.
-
-            if (hasDirectConflict) {
-                const conflictingItemNames = newRule.targetIds
-                    .filter(id => existingRule.targetIds.includes(id))
-                    .map(id => {
-                        if (newRule.targetType === 'extension') return allExtensions.find(ext => ext.id === id)?.name;
-                        if (newRule.targetType === 'profile') return allProfiles.find(p => p.id === id)?.name;
-                        return id;
-                    })
-                    .filter(name => name)
-                    .map(name => sanitizeText(name)) // Sanitize here too
-                    .join(', ');
-
-                return `Rule "${sanitizeText(newRule.name)}" conflicts with existing enabled rule "${sanitizeText(existingRule.name)}". They both target the same ${newRule.targetType}(s): ${conflictingItemNames} with opposite/redundant actions and overlapping ${newRule.trigger.type} triggers.`;
-            }
+            
+            if (hasConflict) conflicts.push(existingRule);
         }
-        return null; // No conflicts
+        return conflicts;
     };
-
 
     // --- Bulk Action Logic ---
 
@@ -654,9 +620,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             selectedRuleIds.delete(ruleId);
         }
-        const ruleItemElement = document.querySelector(`.rule-item[data-rule-id="${ruleId}"]`);
-        if (ruleItemElement) {
-            ruleItemElement.classList.toggle('selected', isChecked);
+        const ruleRowElement = document.querySelector(`tr[data-rule-id="${ruleId}"]`);
+        if (ruleRowElement) {
+            ruleRowElement.classList.toggle('selected', isChecked);
         }
         updateBulkActionBarVisibility();
         updateSelectAllCheckboxState();
@@ -667,15 +633,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         selectedRulesCountSpan.textContent = `${count} selected`;
         if (count > 0) {
             bulkActionsBar.style.display = 'flex';
-            setTimeout(() => bulkActionsBar.classList.add('active'), 10);
+            requestAnimationFrame(() => bulkActionsBar.classList.add('active'));
         } else {
             bulkActionsBar.classList.remove('active');
-            setTimeout(() => bulkActionsBar.style.display = 'none', 300);
+            setTimeout(() => { bulkActionsBar.style.display = 'none'; }, 300);
         }
     };
 
     const updateSelectAllCheckboxState = () => {
-        const visibleRuleIds = Array.from(rulesListContainer.querySelectorAll('.rule-item')).map(el => el.dataset.ruleId);
+        const visibleRuleIds = Array.from(rulesListContainer.querySelectorAll('tr[data-rule-id]')).map(el => el.dataset.ruleId);
         if (visibleRuleIds.length === 0) {
             selectAllRulesCheckbox.checked = false;
             selectAllRulesCheckbox.indeterminate = false;
@@ -690,30 +656,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         const visibleRuleCheckboxes = document.querySelectorAll('#rules-list-container .rule-select-checkbox');
         visibleRuleCheckboxes.forEach(checkbox => {
             checkbox.checked = isChecked;
-            toggleRuleSelection(checkbox.value, isChecked);
+            toggleRuleSelection(checkbox.closest('tr')?.dataset.ruleId, isChecked);
         });
     };
 
     const bulkDeleteSelected = async () => {
         if (selectedRuleIds.size === 0) {
-            showToast("No rules selected for deletion.", "info");
+            showToast('No rules selected for deletion.', 'info');
             return;
         }
-
-        const confirmed = await showConfirmDialog(`Are you sure you want to delete ${selectedRuleIds.size} selected rule(s)?`);
-        if (confirmed) {
-            const updatedRules = allRules.filter(r => !selectedRuleIds.has(r.id));
-            selectedRuleIds.clear();
-            chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updatedRules }, () => {
-                refreshUI();
-                showToast("Selected rules deleted.", "success");
-            });
+        if (settings.confirmBeforeDelete) {
+            const confirmed = await showConfirmDialog(`Are you sure you want to delete ${selectedRuleIds.size} selected rule(s)?`);
+            if (!confirmed) return;
         }
+
+        const updatedRules = allRules.filter(r => !selectedRuleIds.has(r.id));
+        selectedRuleIds.clear();
+        chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updatedRules }, () => {
+            refreshUI();
+            showToast('Selected rules deleted.', 'success');
+        });
     };
 
     const bulkToggleSelected = async (enable) => {
         if (selectedRuleIds.size === 0) {
-            showToast(`No rules selected to ${enable ? 'enable' : 'disable'}.`, "info");
+            showToast(`No rules selected to ${enable ? 'enable' : 'disable'}.`, 'info');
             return;
         }
 
@@ -729,24 +696,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             selectedRuleIds.clear();
             chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updatedRules }, () => {
                 refreshUI();
-                showToast(`Selected rules ${actionText}d.`, "success");
+                showToast(`Selected rules ${actionText}d.`, 'success');
             });
         }
     };
-
-    // --- UI View Mode Logic ---
-    const toggleViewMode = () => {
-        currentViewMode = currentViewMode === 'list' ? 'grid' : 'list';
-        applyFiltersAndRender();
-    };
-
 
     // --- Event Handlers ---
 
     const handleFormSubmit = async (e) => {
         e.preventDefault();
         
-        if (!validateForm()) {
+        if (!validateStep(1) || !validateStep(2) || !validateStep(3)) {
+            if (!validateStep(1)) showStep(1);
+            else if (!validateStep(2)) showStep(2);
+            else showStep(3);
             showToast('Please correct the errors in the form.', 'error');
             return;
         }
@@ -758,25 +721,34 @@ document.addEventListener('DOMContentLoaded', async () => {
             id: ruleIdInput.value || `rule_${Date.now()}`,
             name: ruleNameInput.value.trim(),
             tags: ruleTagsInput.value.split(',').map(tag => tag.trim()).filter(Boolean),
-            targetType: selectedTargetType, // NEW
-            targetIds: selectedTargetIds, // Renamed from extensionIds
-            action: ruleActionSelect.value, // This can now be 'apply' for profiles
+            targetType: selectedTargetType,
+            targetIds: selectedTargetIds,
+            action: ruleActionSelect.value,
             trigger: { type: triggerTypeSelect.value },
-            enabled: allRules.find(r => r.id === ruleIdInput.value)?.enabled ?? true, // Preserve enabled state on edit
+            enabled: allRules.find(r => r.id === ruleIdInput.value)?.enabled ?? true,
         };
         
         if (ruleData.trigger.type === 'time') {
-            const selectedDays = Array.from(document.querySelectorAll('.day-selector input:checked')).map(cb => parseInt(cb.value));
+            const selectedDays = Array.from(document.querySelectorAll('.day-selector input:checked')).map(cb => parseInt(cb.value, 10));
             ruleData.trigger.time = ruleTimeInput.value;
             ruleData.trigger.days = selectedDays;
-        } else { // URL trigger
+        } else {
             ruleData.trigger.url = ruleUrlInput.value.trim();
         }
         
-        const conflictMessage = checkRuleConflicts(ruleData);
-        if (conflictMessage) {
-            showToast(`Conflict detected: ${conflictMessage}`, 'error');
-            return;
+        const conflicts = findConflictingRules(ruleData);
+        if (conflicts.length > 0) {
+            if (settings.autoDisableConflicts) {
+                conflicts.forEach(r => {
+                    const idx = allRules.findIndex(rule => rule.id === r.id);
+                    if (idx !== -1) allRules[idx].enabled = false;
+                });
+                showToast(`Auto-disabled ${conflicts.length} conflicting rule(s).`, 'info');
+            } else {
+                const names = conflicts.map(r => `"${sanitizeText(r.name)}"`).join(', ');
+                showToast(`Conflicts with: ${names}. Disable them or enable auto-disable in Settings.`, 'error');
+                return;
+            }
         }
 
         const existingRuleIndex = allRules.findIndex(r => r.id === ruleData.id);
@@ -790,15 +762,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updatedRules }, () => {
             refreshUI();
-            showToast("Rule saved successfully!", "success");
+            showToast('Rule saved successfully!', 'success');
             setActivePanel('rules-list-panel');
         });
     };
     
     rulesListContainer.addEventListener('click', async (e) => {
-        const ruleItem = e.target.closest('.rule-item');
-        if (!ruleItem) return;
-        const ruleId = ruleItem.dataset.ruleId;
+        const ruleRow = e.target.closest('tr[data-rule-id]');
+        if (!ruleRow) return;
+        const ruleId = ruleRow.dataset.ruleId;
 
         if (e.target.closest('.edit-rule-btn')) {
             const ruleToEdit = allRules.find(r => r.id === ruleId);
@@ -807,15 +779,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         else if (e.target.closest('.delete-rule-btn')) {
             const ruleToDelete = allRules.find(r => r.id === ruleId);
             if (!ruleToDelete) return;
-            const confirmed = await showConfirmDialog(`Are you sure you want to delete the rule "${sanitizeText(ruleToDelete.name)}"?`);
-            if (confirmed) {
-                const updatedRules = allRules.filter(r => r.id !== ruleId);
-                selectedRuleIds.delete(ruleId);
-                chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updatedRules }, () => {
-                    refreshUI();
-                    showToast("Rule deleted.", "success");
-                });
+            
+            if (settings.confirmBeforeDelete) {
+                const confirmed = await showConfirmDialog(`Are you sure you want to delete the rule "${sanitizeText(ruleToDelete.name)}"?`);
+                if (!confirmed) return;
             }
+            
+            const updatedRules = allRules.filter(r => r.id !== ruleId);
+            selectedRuleIds.delete(ruleId);
+            chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updatedRules }, () => {
+                refreshUI();
+                showToast('Rule deleted.', 'success');
+            });
         }
         else if (e.target.classList.contains('toggle-rule-btn')) {
             const toggleInput = e.target;
@@ -824,8 +799,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ruleToToggle.enabled = toggleInput.checked;
                 toggleInput.setAttribute('aria-checked', toggleInput.checked);
                 chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: allRules }, () => {
-                    refreshUI(); // Re-render to update status count if any
-                    showToast(`Rule "${sanitizeText(ruleToToggle.name)}" ${ruleToToggle.enabled ? 'enabled' : 'disabled'}.`, "success");
+                    refreshUI();
+                    showToast(`Rule "${sanitizeText(ruleToToggle.name)}" ${ruleToToggle.enabled ? 'enabled' : 'disabled'}.`, 'success');
                 });
             }
         }
@@ -835,31 +810,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     ruleSearchInput.addEventListener('input', () => {
-        currentFilters.query = ruleSearchInput.value;
-        applyFiltersAndRender();
-    });
-    
-    filterStatusSelect.addEventListener('change', () => {
-        currentFilters.status = filterStatusSelect.value;
-        applyFiltersAndRender();
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(() => {
+            currentFilters.query = ruleSearchInput.value;
+            applyFiltersAndRender();
+        }, 150);
     });
 
-    filterTriggerSelect.addEventListener('change', () => {
-        currentFilters.trigger = filterTriggerSelect.value;
-        applyFiltersAndRender();
-    });
-
-    filterTargetTypeSelect.addEventListener('change', () => { // NEW listener
-        currentFilters.targetType = filterTargetTypeSelect.value;
-        applyFiltersAndRender();
-    });
-
-    ruleTargetTypeSelect.addEventListener('change', () => { // NEW listener
+    ruleTargetTypeSelect.addEventListener('change', () => {
         const selectedType = ruleTargetTypeSelect.value;
         populateTargetSelector(selectedType);
-        populateActionTypeSelect(selectedType); // Update actions based on target type
-        clearValidationError(targetSelectorError); // Clear error when type changes
-        clearValidationError(ruleActionError); // Clear action error too
+        populateActionTypeSelect(selectedType);
+        clearValidationError(targetSelectorError);
+        clearValidationError(ruleActionError);
     });
 
     triggerTypeSelect.addEventListener('change', () => {
@@ -867,6 +830,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         timeConditionFields.style.display = isTime ? 'block' : 'none';
         urlConditionFields.style.display = isTime ? 'none' : 'block';
         clearAllValidationErrors();
+    });
+
+    // Filter Side Sheet
+    const openFilterSheet = () => filterSideSheet.classList.add('active');
+    const closeFilterSheet = () => filterSideSheet.classList.remove('active');
+
+    filterBtn.addEventListener('click', openFilterSheet);
+    closeFilterSheetBtn.addEventListener('click', closeFilterSheet);
+    filterSheetOverlay.addEventListener('click', closeFilterSheet);
+
+    applyFiltersBtn.addEventListener('click', () => {
+        currentFilters.status = filterStatusSelect.value;
+        currentFilters.trigger = filterTriggerSelect.value;
+        currentFilters.targetType = filterTargetTypeSelect.value;
+        applyFiltersAndRender();
+        closeFilterSheet();
+    });
+
+    resetFiltersBtn.addEventListener('click', () => {
+        filterStatusSelect.value = 'all';
+        filterTriggerSelect.value = 'all';
+        filterTargetTypeSelect.value = 'all';
+        currentFilters = { query: currentFilters.query, status: 'all', trigger: 'all', targetType: 'all' };
+        applyFiltersAndRender();
     });
 
     // --- Panel Navigation Logic ---
@@ -900,12 +887,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const showRuleForm = (ruleToEdit = null) => {
         ruleForm.reset();
         clearAllValidationErrors();
+        showStep(1);
         
-        // Default visibility for condition fields
         timeConditionFields.style.display = 'block';
         urlConditionFields.style.display = 'none';
         
-        // Clear all target selectors and day checkboxes
         while (targetSelectorContainer.firstChild) {
             targetSelectorContainer.removeChild(targetSelectorContainer.firstChild);
         }
@@ -917,10 +903,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             ruleNameInput.value = ruleToEdit.name;
             ruleTagsInput.value = (ruleToEdit.tags || []).map(tag => sanitizeText(tag)).join(', ');
             
-            ruleTargetTypeSelect.value = ruleToEdit.targetType; // Set target type
-            populateTargetSelector(ruleToEdit.targetType, ruleToEdit.targetIds); // Populate based on type and selected IDs
-            populateActionTypeSelect(ruleToEdit.targetType, ruleToEdit.action); // Populate actions based on type
-            ruleActionSelect.value = ruleToEdit.action; // Set specific action
+            ruleTargetTypeSelect.value = ruleToEdit.targetType;
+            populateTargetSelector(ruleToEdit.targetType, ruleToEdit.targetIds);
+            populateActionTypeSelect(ruleToEdit.targetType, ruleToEdit.action);
+            ruleActionSelect.value = ruleToEdit.action;
 
             triggerTypeSelect.value = ruleToEdit.trigger.type;
             
@@ -937,13 +923,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             formPanelTitle.textContent = 'Create New Rule';
             ruleIdInput.value = '';
             ruleTagsInput.value = '';
-            ruleTargetTypeSelect.value = 'extension'; // Default to extensions
-            populateTargetSelector('extension'); // Populate with extensions initially
-            populateActionTypeSelect('extension'); // Populate actions for extensions
+            
+            ruleTargetTypeSelect.value = settings.defaultTargetType;
+            populateTargetSelector(settings.defaultTargetType);
+            populateActionTypeSelect(settings.defaultTargetType);
+            
+            triggerTypeSelect.value = settings.defaultTriggerType;
         }
         
-        triggerTypeSelect.dispatchEvent(new Event('change')); // Trigger change to show/hide condition fields correctly
-        ruleTargetTypeSelect.dispatchEvent(new Event('change')); // Trigger change to populate target selector
+        triggerTypeSelect.dispatchEvent(new Event('change'));
+        ruleTargetTypeSelect.dispatchEvent(new Event('change'));
         setActivePanel('add-rule-panel');
         ruleNameInput.focus();
     };
@@ -953,86 +942,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         const toast = createElement('div', `toast ${type}`, message);
         toastContainer.appendChild(toast);
 
-        setTimeout(() => toast.classList.add('show'), 10); 
+        requestAnimationFrame(() => toast.classList.add('show')); 
         setTimeout(() => {
             toast.classList.remove('show');
-            toast.addEventListener('transitionend', () => toast.remove());
+            toast.addEventListener('transitionend', () => toast.remove(), { once: true });
         }, 3000);
-    };
-
-    // --- NEW: Import/Export Logic ---
-
-    const handleExportRules = () => {
-        if (allRules.length === 0) {
-            showToast("No rules to export.", "info");
-            return;
-        }
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(allRules, null, 2));
-        const downloadAnchorNode = document.createElement('a');
-        downloadAnchorNode.setAttribute("href", dataStr);
-        downloadAnchorNode.setAttribute("download", `modcore_rules_backup_${new Date().toISOString().split('T')[0]}.json`);
-        document.body.appendChild(downloadAnchorNode);
-        downloadAnchorNode.click();
-        downloadAnchorNode.remove();
-        showToast("Rules exported successfully.", "success");
-    };
-
-    const handleImportRules = (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            try {
-                const importedRules = JSON.parse(e.target.result);
-                // Basic validation for imported rules structure
-                if (!Array.isArray(importedRules) || (importedRules.length > 0 && !importedRules[0].id)) {
-                    throw new Error("Invalid or corrupted rules file: Must be an array of rule objects with 'id'.");
-                }
-                // Further validation could check for targetType, action etc.
-
-                const ruleMap = new Map(allRules.map(rule => [rule.id, rule]));
-                importedRules.forEach(rule => {
-                    // Ensure new properties are set if missing from older imported rules
-                    rule.targetType = rule.targetType || 'extension';
-                    // For backward compatibility: if old `extensionIds` exist, use them for `targetIds`
-                    rule.targetIds = rule.targetIds || rule.extensionIds || []; 
-                    if (rule.extensionIds) delete rule.extensionIds; // Clean up old property if present
-
-                    // Ensure action is valid for the target type
-                    rule.action = rule.action || 'enable'; // Default to 'enable'
-                    if (rule.targetType === 'profile' && rule.action !== 'apply') {
-                        rule.action = 'apply'; // Force 'apply' for profiles if imported incorrectly
-                    } else if (rule.targetType === 'extension' && !['enable', 'disable'].includes(rule.action)) {
-                        rule.action = 'enable'; // Default to enable for extensions if unknown action
-                    }
-
-                    ruleMap.set(rule.id, rule);
-                });
-                const updatedRules = Array.from(ruleMap.values());
-
-                const confirmed = await showConfirmDialog(`Import ${importedRules.length} rules? This will merge with existing rules, overwriting those with the same ID.`);
-                if (confirmed) {
-                    chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updatedRules }, () => {
-                        refreshUI();
-                        showToast("Rules imported successfully!", "success");
-                    });
-                }
-            } catch (error) {
-                console.error("Import error:", error);
-                showToast(`Import failed: ${sanitizeText(error.message)}`, "error");
-            } finally {
-                importFileInput.value = '';
-            }
-        };
-        reader.readAsText(file);
     };
 
     // --- Initial Load & Event Listeners ---
     
     navButtons.forEach(button => {
-        button.addEventListener('click', () => {
+        button.addEventListener('click', (e) => {
+            if (button.tagName === 'A') return; // Let external links navigate naturally
             const panelId = button.getAttribute('aria-controls');
+            if (!panelId) return;
             if (panelId === 'add-rule-panel') showRuleForm();
             else setActivePanel(panelId);
         });
@@ -1046,17 +969,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     bulkEnableBtn.addEventListener('click', () => bulkToggleSelected(true));
     bulkDisableBtn.addEventListener('click', () => bulkToggleSelected(false));
     bulkDeleteBtn.addEventListener('click', bulkDeleteSelected);
-    viewToggleBtn.addEventListener('click', toggleViewMode);
-
-    exportRulesBtn.addEventListener('click', handleExportRules);
-    importRulesBtn.addEventListener('click', () => importFileInput.click());
-    importFileInput.addEventListener('change', handleImportRules);
-
-    // Initial population of the target type and action type selects
-    // These will be properly set when showRuleForm is called for new rules or edits
-    populateTargetSelector('extension'); // Default populate for extensions
-    populateActionTypeSelect('extension'); // Default populate for extensions
-
 
     document.addEventListener('keydown', (e) => {
         if (e.key === '/' && currentActivePanelId === 'rules-list-panel') {
@@ -1073,6 +985,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    await loadSettings();
     refreshUI();
-    setActivePanel('rules-list-panel'); // Ensure rules list is visible on load
+    setActivePanel('rules-list-panel');
 });
