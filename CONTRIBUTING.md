@@ -29,7 +29,7 @@ Whether it’s fixing bugs, suggesting new features, improving documentation, or
 
 If you’re unsure about anything or just want guidance, you can reach out:
 
-- Email: [NGDE@WEB.DE](mailto:NGDE@WEB.DE)
+- Email: [modcoretech@proton.me](mailto:modcoretech@proton.me)
 
 We’re happy to help and guide new contributors.
 

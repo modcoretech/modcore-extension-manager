@@ -8,7 +8,7 @@ At **modcore**, the security and privacy of our users are our top priorities. If
 
 Please report vulnerabilities **privately** via email:
 
-**Email:** [ngde@web.de](mailto:ngde@web.de)  
+**Email:** [modcoretech@proton.me](mailto:modcoretech@proton.me)  
 
 When reporting, include as much of the following as possible:  
 
@@ -47,5 +47,5 @@ While we work to address issues:
 
 **Thank you for helping keep modcore Extension Manager safe!**
 
-**Contact:** [ngde@web.de](mailto:ngde@web.de)  
+**Contact:** [modcoretech@proton.me](mailto:modcoretech@proton.me)  
 **Repository:** [modcore Extension Manager on GitHub](https://github.com/modcoretech/modcore-extension-manager)

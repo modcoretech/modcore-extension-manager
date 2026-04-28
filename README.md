@@ -96,7 +96,7 @@ For questions, bugs, or feature requests, visit our [GitHub Issues](https://gith
 
 ## Contact
 
-**Email:** [NGDE@WEB.DE](mailto:NGDE@WEB.DE)  
+**Email:** [modcoretech@proton.me](mailto:modcoretech@proton.me)  
 **X (formerly Twitter):** [@modcoretech](https://x.com/modcoretech)  
 
 ---
