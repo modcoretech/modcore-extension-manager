@@ -1284,7 +1284,7 @@ async function renderExtensionList(page = 1) {
             toggleButton.title = `${extension.enabled ? 'Disable' : 'Enable'} ${sanitizeText(extension.name)}`;
             toggleButton.setAttribute('aria-pressed', String(extension.enabled));
 
-            const detailsButton = createButton('Details', ICON_PATHS.details);
+            const detailsButton = createButton(null, ICON_PATHS.details);
             detailsButton.className = 'details-button button-small';
             detailsButton.dataset.action = 'details';
             detailsButton.dataset.extensionId = extension.id;
