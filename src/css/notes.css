@@ -88,27 +88,32 @@ body {
     transition: var(--transition-fast);
 }
 
-.dark-mode .icon-btn img,
+.dark-mode .icon-btn img {
+    filter: invert(0.8);
+}
+
 @media (prefers-color-scheme: dark) {
     .icon-btn img {
         filter: invert(0.8);
     }
 }
 
-/* Master Password Button Highlight */
-#masterPassBtn.active::after {
-    content: '';
-    position: absolute;
-    bottom: 2px;
-    right: 2px;
-    width: 8px;
-    height: 8px;
-    background-color: var(--color-success);
-    border-radius: 50%;
+/* Shield / Settings button indicator */
+#shieldBtn img {
+    filter: invert(0.5);
+}
+#shieldBtn:hover img {
+    filter: invert(0.2);
+}
+.dark-mode #shieldBtn img {
+    filter: invert(0.7);
+}
+.dark-mode #shieldBtn:hover img {
+    filter: invert(1);
 }
 
 /* ============================================
-   LOCK SCREEN
+   LOCK SCREEN  (Passkey-based)
    ============================================ */
 
 .lock-screen {
@@ -131,8 +136,8 @@ body {
 
 .lock-screen-content {
     width: 100%;
-    max-width: 400px;
-    padding: 40px;
+    max-width: 420px;
+    padding: 40px 32px;
     text-align: center;
 }
 
@@ -152,13 +157,7 @@ body {
     height: 40px;
     filter: invert(0.3);
 }
-
-.dark-mode .lock-icon img,
-@media (prefers-color-scheme: dark) {
-    .lock-icon img {
-        filter: invert(0.7);
-    }
-}
+.dark-mode .lock-icon img { filter: invert(0.7); }
 
 .lock-screen-content h2 {
     font-size: 1.5rem;
@@ -168,37 +167,257 @@ body {
 
 .lock-screen-content > p {
     color: var(--color-text-secondary);
-    margin-bottom: 24px;
+    margin-bottom: 28px;
+    line-height: 1.6;
 }
 
-.lock-form {
+.lock-actions {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    align-items: center;
 }
 
-.lock-form input {
+.passkey-btn {
     width: 100%;
-    padding: 12px 16px;
+    max-width: 280px;
+    justify-content: center;
+    font-size: 1rem;
+    padding: 14px 24px;
+    gap: 8px;
+}
+
+.recovery-toggle-btn {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    text-decoration: underline;
+    padding: 4px 8px;
+}
+.recovery-toggle-btn:hover { color: var(--color-primary); }
+
+/* Recovery code unlock section */
+.lock-recovery-section {
+    margin-top: 20px;
+    padding: 20px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    text-align: left;
+    animation: lockRecoverySlideDown 0.2s ease;
+}
+
+@keyframes lockRecoverySlideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.recovery-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.recovery-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-text-primary);
+}
+
+.recovery-input {
+    font-family: var(--font-mono, monospace);
+    letter-spacing: 0.1em;
+    width: 100%;
+    padding: 10px 14px;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-    background-color: var(--color-surface);
+    background: var(--color-bg);
     color: var(--color-text-primary);
-    font-family: inherit;
     font-size: 1rem;
-    transition: var(--transition-fast);
+    text-transform: uppercase;
 }
-
-.lock-form input:focus {
+.recovery-input:focus {
     outline: none;
     border-color: var(--color-primary);
     box-shadow: 0 0 0 3px var(--color-primary-container);
 }
 
-.lock-form button {
-    margin-top: 8px;
-    justify-content: center;
+.lock-recovery-section .modcore-btn {
     width: 100%;
+    justify-content: center;
+}
+
+.recovery-hint {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin-top: 10px;
+}
+
+/* ============================================
+   SETTINGS MODAL
+   ============================================ */
+
+.settings-modal {
+    max-width: 520px;
+    width: 100%;
+}
+
+.settings-header-icon {
+    width: 20px;
+    height: 20px;
+    vertical-align: middle;
+    margin-right: 6px;
+    filter: invert(0.4);
+}
+.dark-mode .settings-header-icon { filter: invert(0.7); }
+
+.settings-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0 !important;   /* override .modal-body { padding: 24px } */
+    overflow-y: auto;
+    max-height: calc(90vh - 80px);
+}
+
+.settings-section {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--color-border);
+}
+.settings-section:last-child { border-bottom: none; }
+
+.settings-section-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: 6px;
+}
+
+.settings-section-desc {
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+    margin-bottom: 14px;
+    line-height: 1.5;
+}
+
+.settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--color-bg);
+    border-radius: var(--radius-md);
+    margin-bottom: 12px;
+}
+
+.settings-row-info { display: flex; flex-direction: column; }
+
+.settings-row-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--color-text-primary);
+}
+
+.settings-row-sub {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    font-family: var(--font-mono, monospace);
+    margin-top: 2px;
+}
+
+.settings-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+}
+.settings-badge.active {
+    background: var(--color-success, #22c55e);
+    color: white;
+    opacity: 0.9;
+}
+
+.settings-recovery-status {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+
+.recovery-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 20px;
+}
+.recovery-status-badge.status-ok   { background: color-mix(in srgb, var(--color-success,#22c55e) 15%, transparent); color: var(--color-success,#22c55e); }
+.recovery-status-badge.status-warn { background: color-mix(in srgb, #f59e0b 15%, transparent); color: #d97706; }
+
+.status-alert {
+    font-size: 0.8rem;
+    color: #d97706;
+    margin: 0;
+}
+
+.settings-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.danger-section .settings-section-title { color: var(--color-error, #ef4444); }
+
+.modcore-btn-danger {
+    background-color: var(--color-error, #ef4444);
+    color: white;
+    border: 1px solid transparent;
+}
+.modcore-btn-danger:hover {
+    background-color: color-mix(in srgb, var(--color-error,#ef4444) 85%, black);
+}
+
+/* ============================================
+   RECOVERY CODES DISPLAY MODAL
+   ============================================ */
+
+.recovery-codes-modal {
+    max-width: 480px;
+    width: 100%;
+}
+
+.recovery-warning {
+    font-size: 0.85rem;
+    background: color-mix(in srgb, #f59e0b 12%, transparent);
+    border: 1px solid color-mix(in srgb, #f59e0b 40%, transparent);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    color: #92400e;
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+.dark-mode .recovery-warning { color: #fcd34d; }
+
+.recovery-codes-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.recovery-code-item {
+    display: block;
+    font-family: var(--font-mono, monospace);
+    font-size: 0.9rem;
+    letter-spacing: 0.08em;
+    padding: 10px 14px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-primary);
+    text-align: center;
+    user-select: all;
 }
 
 /* ============================================
@@ -1464,8 +1683,260 @@ kbd {
 }
 
 /* ============================================
-   RESPONSIVE DESIGN
+   PASSKEY BUTTON STATES
    ============================================ */
+
+.passkey-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+.passkey-btn:disabled:hover {
+    transform: none !important;
+}
+
+/* Pulse ring on the lock icon when waiting for passkey */
+.lock-icon.waiting {
+    animation: passkeyPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes passkeyPulse {
+    0%, 100% { box-shadow: 0 0 0 0 var(--color-primary-container); }
+    50%       { box-shadow: 0 0 0 12px transparent; }
+}
+
+/* ============================================
+   SETTINGS MODAL — OVERFLOW & SCROLL FIX
+   ============================================ */
+
+.settings-modal {
+    max-width: 520px;
+    width: 100%;
+    overflow: hidden;          /* clip content to rounded corners */
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+}
+
+.settings-modal .modal-header {
+    flex-shrink: 0;            /* header never scrolls away */
+}
+
+/* ============================================
+   SETTINGS DARK-MODE OVERRIDES
+   ============================================ */
+
+.dark-mode .settings-row {
+    background: var(--color-surface-high);
+}
+
+.dark-mode .recovery-status-badge.status-ok {
+    background: rgba(34, 197, 94, 0.18);
+}
+
+.dark-mode .recovery-status-badge.status-warn {
+    background: rgba(245, 158, 11, 0.18);
+    color: #fbbf24;
+}
+
+.dark-mode .status-alert {
+    color: #fbbf24;
+}
+
+.dark-mode .danger-section {
+    background: rgba(239, 68, 68, 0.04);
+}
+
+/* ============================================
+   DANGER BUTTON — COMPLETE STATES
+   ============================================ */
+
+.modcore-btn-danger {
+    background-color: var(--color-error, #ef4444);
+    color: white;
+    border: 1px solid transparent;
+}
+
+.modcore-btn-danger:hover {
+    background-color: #dc2626;
+    transform: translateY(-1px);
+}
+
+.modcore-btn-danger:active {
+    transform: translateY(0);
+    background-color: #b91c1c;
+}
+
+.modcore-btn-danger:focus-visible {
+    outline: 2px solid var(--color-error, #ef4444);
+    outline-offset: 2px;
+}
+
+/* ============================================
+   RECOVERY CODES DISPLAY MODAL — FULL STYLES
+   ============================================ */
+
+.recovery-codes-modal {
+    max-width: 480px;
+    width: 100%;
+}
+
+.recovery-codes-modal .modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.recovery-warning {
+    font-size: 0.85rem;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    color: #92400e;
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+
+.dark-mode .recovery-warning {
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.4);
+    color: #fcd34d;
+}
+
+.recovery-codes-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.recovery-code-item {
+    display: block;
+    font-family: var(--font-mono, 'Courier New', monospace);
+    font-size: 0.9rem;
+    letter-spacing: 0.08em;
+    padding: 10px 14px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-primary);
+    text-align: center;
+    user-select: all;
+    cursor: text;
+}
+
+.recovery-code-item:hover {
+    border-color: var(--color-primary);
+    background: var(--color-primary-container);
+}
+
+/* Copy button inside recovery modal */
+.recovery-codes-modal .modcore-btn-secondary {
+    margin-bottom: 4px;
+    align-self: flex-start;
+}
+
+/* ============================================
+   SETTINGS RECOVERY STATUS — EMPTY STATE
+   ============================================ */
+
+.settings-recovery-status:empty::before {
+    content: 'Loading…';
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+
+/* ============================================
+   DANGER SECTION — VISUAL SEPARATOR
+   ============================================ */
+
+.danger-section {
+    border-top: 2px solid rgba(239, 68, 68, 0.2) !important;
+    border-bottom: none !important;
+}
+
+.danger-section .settings-section-title {
+    color: var(--color-error, #ef4444);
+}
+
+/* ============================================
+   SETTINGS BADGE — COMPLETE VARIANTS
+   ============================================ */
+
+.settings-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+}
+
+.settings-badge.active {
+    background: rgba(34, 197, 94, 0.15);
+    color: #16a34a;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.dark-mode .settings-badge.active {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+    border-color: rgba(34, 197, 94, 0.4);
+}
+
+.settings-badge.inactive {
+    background: var(--color-surface-high);
+    color: var(--color-text-muted);
+}
+
+/* ============================================
+   RECOVERY INPUT — AUTO-FORMAT VISUAL HELP
+   ============================================ */
+
+.recovery-input::placeholder {
+    color: var(--color-text-muted);
+    letter-spacing: 0.05em;
+}
+
+/* Focus ring matches primary colour for consistency */
+.recovery-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-container);
+}
+
+@media (max-width: 768px) {
+    .recovery-codes-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .settings-modal {
+        max-height: 100vh;
+        border-radius: 0;
+    }
+
+    .settings-body {
+        max-height: calc(100vh - 80px);
+    }
+
+    .settings-actions {
+        flex-direction: column;
+    }
+
+    .settings-actions .modcore-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .lock-screen-content {
+        padding: 32px 20px;
+    }
+
+    .passkey-btn {
+        max-width: 100%;
+    }
+}
 
 @media (max-width: 768px) {
     .sidebar {

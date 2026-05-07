@@ -15,6 +15,7 @@
     const CACHE_VERSION = 'v2';
     const CACHE_KEY_PREFIX = `modcore_em_${CACHE_VERSION}_`;
     const SUPPORT_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+    const SIDEBAR_STATE_KEY = 'modcore_em_right_sidebar_closed';
 
     // == State Variables ==
     let extensionId = null;
@@ -22,13 +23,14 @@
     let supportInfo = null;
     let permissionsData = null;
     let isLoading = true;
-    let currentPanel = 'panel-details';
+    let currentPanel = 'panel-permissions';
     let currentPermissionsLayout = 'list';
     let searchDebounceTimeout = null;
     let uninstallConfirmResolver = null;
     let activePermissionPopup = null;
     let isPermissionsLoaded = false;
     let isSupportLoaded = false;
+    let isRightSidebarClosed = false;
     
     // Filter state
     const filterState = {
@@ -59,7 +61,7 @@
         };
     };
 
-    // Safe DOM manipulation
+    // Safe DOM manipulation - NO innerHTML
     const clearElement = (el) => {
         while (el.firstChild) {
             el.removeChild(el.firstChild);
@@ -128,6 +130,53 @@
         }
     };
 
+    // == Sidebar State Management ==
+    async function loadSidebarState() {
+        try {
+            const result = await chrome.storage.local.get([SIDEBAR_STATE_KEY]);
+            isRightSidebarClosed = result[SIDEBAR_STATE_KEY] === true;
+            applySidebarState();
+        } catch (err) {
+            warn('Failed to load sidebar state:', err);
+            isRightSidebarClosed = false;
+            applySidebarState();
+        }
+    }
+
+    async function saveSidebarState(closed) {
+        try {
+            await chrome.storage.local.set({ [SIDEBAR_STATE_KEY]: closed });
+            isRightSidebarClosed = closed;
+            applySidebarState();
+        } catch (err) {
+            warn('Failed to save sidebar state:', err);
+        }
+    }
+
+    function applySidebarState() {
+        const rightSidebar = dom.rightSidebar;
+        const reopenBtn = dom.rightSidebarReopen;
+        const contentArea = dom.contentArea;
+        
+        if (!rightSidebar || !reopenBtn) return;
+        
+        if (isRightSidebarClosed) {
+            rightSidebar.classList.add('collapsed');
+            rightSidebar.hidden = true;
+            reopenBtn.hidden = false;
+            if (contentArea) contentArea.classList.add('right-sidebar-collapsed');
+        } else {
+            rightSidebar.classList.remove('collapsed');
+            rightSidebar.hidden = false;
+            reopenBtn.hidden = true;
+            if (contentArea) contentArea.classList.remove('right-sidebar-collapsed');
+        }
+    }
+
+    function toggleRightSidebar() {
+        saveSidebarState(!isRightSidebarClosed);
+    }
+
     // == Initialization ==
     async function initializeApp() {
         const startTime = performance.now();
@@ -150,6 +199,9 @@
             }
             log("Target Extension ID:", extensionId);
 
+            // Load sidebar state first
+            await loadSidebarState();
+
             // Load permissions data first (no caching)
             await loadPermissionsData();
 
@@ -158,12 +210,11 @@
             
             if (extensionDataLoaded) {
                 log("Extension data loaded successfully.");
-                updateHeader();
-                populateDetailsPanel();
+                updateSidebars();
+                populateRightSidebar();
                 setupAllListeners();
-                setupDropdowns();
+                setupSidebarNavigation();
                 setupTooltipPositioning();
-                setupDisclaimerToggle();
                 
                 // Defer support data loading until panel is viewed
                 requestAnimationFrame(() => {
@@ -189,7 +240,8 @@
     function validateEssentialElements() {
         return dom.initialLoadingOverlay && dom.contentArea && dom.errorContainer &&
                dom.customConfirmModal && dom.modalTitle && dom.modalMessage &&
-               dom.modalCancelButton && dom.modalConfirmButton;
+               dom.modalCancelButton && dom.modalConfirmButton &&
+               dom.leftSidebar && dom.rightSidebar;
     }
 
     function setPageLoading(loading) {
@@ -198,35 +250,27 @@
     }
 
     function initDomElements() {
-        // Header
-        dom.headerIcon = getElem('header-extension-icon');
-        dom.headerTitle = getElem('header-extension-title');
+        // Left Sidebar
+        dom.leftSidebar = getElem('left-sidebar');
+        dom.sidebarIcon = getElem('sidebar-extension-icon');
+        dom.sidebarTitle = getElem('sidebar-extension-title');
         dom.currentYearSpan = getElem('current-year');
+
+        // Right Sidebar
+        dom.rightSidebar = getElem('right-sidebar');
+        dom.rightSidebarToggle = getElem('right-sidebar-toggle');
+        dom.rightSidebarReopen = getElem('right-sidebar-reopen');
         
-        // Dropdowns
-        dom.sectionDropdownBtn = getElem('section-dropdown-btn');
-        dom.sectionDropdownMenu = getElem('section-dropdown-menu');
-        dom.currentSectionLabel = getElem('current-section-label');
-        dom.actionsDropdownBtn = getElem('actions-dropdown-btn');
-        dom.actionsDropdownMenu = getElem('actions-dropdown-menu');
-        dom.dropdownEnableToggle = getElem('dropdown-enable-toggle');
-        dom.dropdownOptions = getElem('dropdown-options');
-        dom.dropdownStore = getElem('dropdown-store');
-        dom.dropdownRefresh = getElem('dropdown-refresh');
-        dom.dropdownUninstall = getElem('dropdown-uninstall');
+        // Right Sidebar - Status
+        dom.detailStatus = getElem('detail-status');
+        dom.actionEnableToggle = getElem('action-enable-toggle');
+        
+        // Right Sidebar - Actions
+        dom.actionOptions = getElem('action-options');
+        dom.actionStore = getElem('action-store');
+        dom.actionUninstall = getElem('action-uninstall');
 
-        // Content
-        dom.contentArea = getQuery('.content-area');
-        dom.initialLoadingOverlay = getElem('initial-loading-indicator');
-        dom.errorContainer = getElem('error-container');
-
-        // Panels
-        dom.detailsPanel = getElem('panel-details');
-        dom.permissionsPanel = getElem('panel-permissions');
-        dom.supportPanel = getElem('panel-support');
-
-        // Details Panel
-        dom.detailsContentWrapper = getElem('details-content-wrapper');
+        // Right Sidebar - Metadata
         dom.detailName = getElem('detail-name');
         dom.detailShortName = getElem('detail-shortName-text');
         dom.copyShortNameButton = getElem('copy-shortname-button');
@@ -235,14 +279,11 @@
         dom.detailId = getElem('detail-id');
         dom.copyIdButton = getElem('copy-id-button');
         dom.detailType = getElem('detail-type');
-        dom.detailStatus = getElem('detail-status');
         dom.detailInstallType = getElem('detail-install-type');
         dom.detailMayDisable = getElem('detail-mayDisable');
         dom.detailDescription = getElem('detail-description');
         dom.detailHomepageUrl = getElem('detail-homepage-url');
         dom.copyHomepageButton = getElem('copy-homepage-button');
-        
-        // Additional metadata elements
         dom.detailOfflineEnabled = getElem('detail-offline-enabled');
         dom.detailOfflineEnabledWrapper = getElem('detail-offline-enabled-wrapper');
         dom.detailUpdateUrl = getElem('detail-update-url');
@@ -250,6 +291,15 @@
         dom.copyUpdateUrlButton = getElem('copy-update-url-button');
         dom.detailIconsContainer = getElem('detail-icons-container');
         dom.detailIconsWrapper = getElem('detail-icons-wrapper');
+
+        // Content
+        dom.contentArea = getQuery('.content-area');
+        dom.initialLoadingOverlay = getElem('initial-loading-indicator');
+        dom.errorContainer = getElem('error-container');
+
+        // Panels
+        dom.permissionsPanel = getElem('panel-permissions');
+        dom.supportPanel = getElem('panel-support');
 
         // Permissions Panel
         dom.permissionsContentWrapper = getElem('permissions-content-wrapper');
@@ -268,8 +318,6 @@
         dom.supportContentWrapper = getElem('support-content-wrapper');
         dom.supportEmptyState = getElem('support-empty-state');
         dom.supportDynamicContent = getElem('support-dynamic-content');
-        dom.disclaimerToggle = getElem('disclaimer-toggle');
-        dom.disclaimerContent = getElem('disclaimer-content');
 
         // Modal & Toast
         dom.toastContainer = getElem('toast-container');
@@ -304,7 +352,6 @@
 
     // == Data Loading ==
     async function loadPermissionsData() {
-        // No caching - fetch fresh every time to avoid storage bloat
         try {
             const response = await fetch(PERMISSIONS_JSON_URL, { cache: 'no-cache' });
             if (!response.ok) {
@@ -348,7 +395,6 @@
         const cacheKey = CacheManager.getKey(extensionId, 'support');
         const cached = CacheManager.get(cacheKey);
 
-        // Check if we have cached support data for this specific extension
         if (cached && CacheManager.isValid(cached, SUPPORT_CACHE_TTL_MS)) {
             log('Support data loaded from cache for extension:', extensionId);
             supportInfo = cached.data;
@@ -366,7 +412,6 @@
             }
             const data = await response.json();
             
-            // Only cache data relevant to this extension
             const extSupport = data.extensions?.find(ext => ext.id === extensionId);
             supportInfo = extSupport ? { extensions: [extSupport], meta: data.meta } : { extensions: [], meta: data.meta };
             
@@ -384,58 +429,59 @@
     }
 
     // == UI Population & State ==
-    function updateHeader() {
+    function updateSidebars() {
         if (!extensionInfo) return;
         const bestIcon = findBestIconUrl(extensionInfo.icons);
-        dom.headerIcon.src = bestIcon || '../../public/icons/svg/code.svg';
-        dom.headerIcon.alt = `${extensionInfo.name || 'Extension'} icon`;
-        dom.headerTitle.textContent = extensionInfo.name || 'Extension Details';
+        
+        // Update left sidebar
+        dom.sidebarIcon.src = bestIcon || '../../public/icons/svg/code.svg';
+        dom.sidebarIcon.alt = `${extensionInfo.name || 'Extension'} icon`;
+        dom.sidebarTitle.textContent = extensionInfo.name || 'Extension';
+        
+        // Update document title
         document.title = `${extensionInfo.name || 'Extension'} Details | modcore EM`;
-        
-        updateActionDropdownItems();
     }
 
-    function updateActionDropdownItems() {
+    function populateRightSidebar() {
         if (!extensionInfo) return;
-        
-        const isEnabled = extensionInfo.enabled;
-        setText(dom.dropdownEnableToggle.querySelector('span:not(.icon)'), isEnabled ? 'Disable Extension' : 'Enable Extension');
-        const toggleIcon = dom.dropdownEnableToggle.querySelector('.icon');
-        toggleIcon.className = `icon ${isEnabled ? 'icon-toggle-on' : 'icon-toggle-off'}`;
-        dom.dropdownEnableToggle.classList.toggle('enabled', isEnabled);
-        
-        dom.dropdownOptions.disabled = !extensionInfo.optionsUrl;
-        
-        const isWebStore = extensionInfo.id && /^[a-z]{32}$/.test(extensionInfo.id) && extensionInfo.installType === 'normal';
-        dom.dropdownStore.disabled = !isWebStore;
-        if (isWebStore) {
-            dom.dropdownStore.dataset.storeUrl = `https://chrome.google.com/webstore/detail/${extensionInfo.id}`;
-        }
-        
-        dom.dropdownUninstall.disabled = !extensionInfo.mayDisable;
-    }
-
-    function findBestIconUrl(icons, preferredSize = 128) {
-        if (!icons || icons.length === 0) return null;
-        icons.sort((a, b) => b.size - a.size);
-        const suitableIcon = icons.find(icon => icon.size >= preferredSize);
-        return suitableIcon ? suitableIcon.url : icons[0].url;
-    }
-
-    function populateDetailsPanel() {
-        if (!dom.detailsPanel || !extensionInfo) return;
-        setBusyState(dom.detailsContentWrapper, true);
+        setBusyState(dom.rightSidebar, true);
 
         requestAnimationFrame(() => {
             try {
+                // Status
+                const isEnabled = extensionInfo.enabled;
+                setText(dom.detailStatus, isEnabled ? 'Enabled' : 'Disabled');
+                dom.detailStatus.classList.toggle('status-enabled', isEnabled);
+                dom.detailStatus.classList.toggle('status-disabled', !isEnabled);
+                
+                // Update enable toggle button
+                const toggleIcon = dom.actionEnableToggle.querySelector('.icon');
+                const toggleText = dom.actionEnableToggle.querySelector('span:not(.icon)');
+                if (toggleIcon) {
+                    toggleIcon.className = `icon ${isEnabled ? 'icon-toggle-on' : 'icon-toggle-off'}`;
+                }
+                if (toggleText) {
+                    toggleText.textContent = isEnabled ? 'Disable' : 'Enable';
+                }
+                dom.actionEnableToggle.classList.toggle('enabled', isEnabled);
+
+                // Actions
+                dom.actionOptions.disabled = !extensionInfo.optionsUrl;
+                
+                const isWebStore = extensionInfo.id && /^[a-z]{32}$/.test(extensionInfo.id) && extensionInfo.installType === 'normal';
+                dom.actionStore.disabled = !isWebStore;
+                if (isWebStore) {
+                    dom.actionStore.dataset.storeUrl = `https://chrome.google.com/webstore/detail/${extensionInfo.id}`;
+                }
+                
+                dom.actionUninstall.disabled = !extensionInfo.mayDisable;
+
+                // Metadata
                 setText(dom.detailName, extensionInfo.name);
                 setText(dom.detailShortName, extensionInfo.shortName || 'N/A');
                 setText(dom.detailVersion, extensionInfo.version);
                 setText(dom.detailId, extensionInfo.id);
                 setText(dom.detailType, formatExtensionType(extensionInfo.type));
-                setText(dom.detailStatus, extensionInfo.enabled ? 'Enabled' : 'Disabled');
-                dom.detailStatus.classList.toggle('status-enabled', extensionInfo.enabled);
-                dom.detailStatus.classList.toggle('status-disabled', !extensionInfo.enabled);
                 setText(dom.detailInstallType, getInstallTypeDescription(extensionInfo.installType));
                 setText(dom.detailMayDisable, formatBoolean(extensionInfo.mayDisable));
                 setText(dom.detailDescription, extensionInfo.description || 'No description provided.');
@@ -443,19 +489,13 @@
                 updateLink(dom.detailHomepageUrl, extensionInfo.homepageUrl, extensionInfo.homepageUrl || 'N/A');
                 dom.copyHomepageButton.disabled = !extensionInfo.homepageUrl;
 
-                // Update tooltips
-                const typeTooltip = getQuery('#tooltip-type');
-                if (typeTooltip) setText(typeTooltip, getExtensionTypeTooltip(extensionInfo.type));
-                
-                const installTooltip = getQuery('#tooltip-install');
-                if (installTooltip) setText(installTooltip, getInstallTypeTooltip(extensionInfo.installType));
-
+                // Additional metadata
                 populateAdditionalMetadata();
 
             } catch(err) {
-                error("Error populating details panel:", err);
+                error("Error populating right sidebar:", err);
             } finally {
-                setBusyState(dom.detailsContentWrapper, false);
+                setBusyState(dom.rightSidebar, false);
             }
         });
     }
@@ -500,8 +540,15 @@
         }
     }
 
+    function findBestIconUrl(icons, preferredSize = 128) {
+        if (!icons || icons.length === 0) return null;
+        icons.sort((a, b) => b.size - a.size);
+        const suitableIcon = icons.find(icon => icon.size >= preferredSize);
+        return suitableIcon ? suitableIcon.url : icons[0].url;
+    }
+
     function formatLaunchType(type) {
-        return type ? type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A';
+        return type ? type.replace(/_/g, ' ').replace(/\\b\\w/g, l => l.toUpperCase()) : 'N/A';
     }
 
     function getInstallTypeDescription(installType) {
@@ -521,27 +568,6 @@
 
     function formatBoolean(value) {
         return typeof value === 'boolean' ? (value ? 'Yes' : 'No') : 'N/A';
-    }
-
-    function getExtensionTypeTooltip(type) {
-        const tooltips = {
-            extension: 'A standard browser extension that adds new features or functionality.',
-            theme: 'A special extension that changes the look and feel of the browser.',
-            hosted_app: 'A legacy packaged application that is hosted on the web.',
-            packaged_app: 'A legacy Chrome App that runs in its own window.'
-        };
-        return tooltips[type] || `The category of the installed item is '${type}'.`;
-    }
-
-    function getInstallTypeTooltip(installType) {
-        const tooltips = {
-            admin: "Installed and managed by an organization's administrator via enterprise policy.",
-            development: 'Loaded manually by a developer from a local folder for testing purposes.',
-            normal: 'Installed from the official Chrome Web Store.',
-            sideload: 'Installed from a .crx file outside of the Chrome Web Store.',
-            other: 'Installed through another method not covered by other categories.'
-        };
-        return tooltips[installType] || 'Indicates how the extension was installed.';
     }
 
     // == Permissions Panel ==
@@ -715,22 +741,18 @@
     function showPermissionPopup(name, type, def) {
         if (!dom.permissionPopup) return;
         
-        // Close existing popup
         closePermissionPopup();
         
         activePermissionPopup = { name, type, def };
         
-        // Populate popup content
         setText(dom.permissionPopupTitle, type === 'host' ? `Host: ${name}` : name);
         
-        // Risk badge
         const riskConfig = permissionsData?.riskLevels?.[def.riskLevel.toLowerCase()];
         dom.permissionPopupRisk.className = `permission-popup-risk risk-${def.riskLevel.toLowerCase()}`;
         setText(dom.permissionPopupRisk, riskConfig?.name || `${def.riskLevel} Risk`);
         dom.permissionPopupRisk.style.backgroundColor = riskConfig?.containerColor || '';
         dom.permissionPopupRisk.style.color = riskConfig?.color || '';
         
-        // Categories
         clearElement(dom.permissionPopupCategory);
         if (def.category && def.category.length > 0) {
             def.category.forEach(cat => {
@@ -748,11 +770,9 @@
             });
         }
         
-        // Descriptions
         setText(dom.permissionPopupShortDesc, def.shortDescription);
         setText(dom.permissionPopupDetailedDesc, def.detailedDescription || 'No detailed description available.');
         
-        // Use cases
         clearElement(dom.permissionPopupUseCases);
         if (def.commonUseCases && def.commonUseCases.length > 0) {
             def.commonUseCases.forEach(useCase => {
@@ -764,7 +784,6 @@
             dom.permissionPopupUseCases.appendChild(li);
         }
         
-        // Mitigation tips
         clearElement(dom.permissionPopupMitigation);
         if (def.mitigationTips && def.mitigationTips.length > 0) {
             def.mitigationTips.forEach(tip => {
@@ -776,7 +795,6 @@
             dom.permissionPopupMitigation.appendChild(li);
         }
         
-        // Documentation link
         if (def.chromeLink) {
             dom.permissionPopupLink.href = def.chromeLink;
             dom.permissionPopupLink.hidden = false;
@@ -784,12 +802,10 @@
             dom.permissionPopupLink.hidden = true;
         }
         
-        // Show popup
         dom.permissionPopupOverlay.classList.add('visible');
         dom.permissionPopup.classList.add('visible');
         document.body.style.overflow = 'hidden';
         
-        // Focus trap
         dom.permissionPopupClose.focus();
     }
 
@@ -811,18 +827,25 @@
         
         // Handle error state
         if (supportInfo?.error) {
-            emptyState.hidden = false;
-            dynamicContent.hidden = true;
+            emptyState.hidden = true;
+            dynamicContent.hidden = false;
+            
             const errorDiv = createElement('div', { className: 'support-message support-error' });
-            errorDiv.innerHTML = `
-                <span class="icon icon-error" aria-hidden="true"></span>
-                <div>
-                    <h4>Could Not Load Support Information</h4>
-                    <p>Error: ${supportInfo.error}</p>
-                </div>
-            `;
-            // Show error inside empty state area
-            emptyState.after(errorDiv);
+            
+            const iconSpan = createElement('span', {
+                className: 'icon icon-error',
+                attributes: { 'aria-hidden': 'true' }
+            });
+            errorDiv.appendChild(iconSpan);
+            
+            const contentDiv = createElement('div');
+            const errorTitle = createElement('h4', { textContent: 'Could Not Load Support Information' });
+            const errorText = createElement('p', { textContent: `Error: ${supportInfo.error}` });
+            contentDiv.appendChild(errorTitle);
+            contentDiv.appendChild(errorText);
+            errorDiv.appendChild(contentDiv);
+            
+            dynamicContent.appendChild(errorDiv);
             return;
         }
         
@@ -912,14 +935,14 @@
             supportCard.appendChild(statsSection);
         }
         
-        // Support Buttons - Use API keys directly as button text
+        // Support Buttons
         const actionsDiv = createElement('div', { className: 'support-actions' });
         
         Object.entries(extSupport.support).forEach(([platform, url]) => {
             const button = createElement('a', {
-                className: `btn support-button`,
+                className: `btn secondary support-button`,
                 attributes: {
-                    'href': url,
+                    'href': url.trim(),
                     'target': '_blank',
                     'rel': 'noopener noreferrer',
                     'data-platform': platform,
@@ -928,25 +951,10 @@
             });
             button.textContent = platform;
             
-            // Add appropriate icon based on platform name
             const icon = createElement('span', {
-                className: 'icon',
+                className: 'icon icon-link',
                 attributes: { 'aria-hidden': 'true' }
             });
-            
-            const platformLower = platform.toLowerCase();
-            if (platformLower.includes('github')) {
-                icon.classList.add('icon-code');
-            } else if (platformLower.includes('mail') || platformLower.includes('contact')) {
-                icon.classList.add('icon-info');
-            } else if (platformLower.includes('doc')) {
-                icon.classList.add('icon-link');
-            } else if (platformLower.includes('patreon') || platformLower.includes('kofi') || platformLower.includes('ko-fi') || platformLower.includes('paypal') || platformLower.includes('coffee')) {
-                icon.classList.add('icon-support');
-            } else {
-                icon.classList.add('icon-link');
-            }
-            
             button.insertBefore(icon, button.firstChild);
             actionsDiv.appendChild(button);
         });
@@ -956,27 +964,8 @@
         dynamicContent.appendChild(fragment);
     }
 
-    function setupDisclaimerToggle() {
-        if (!dom.disclaimerToggle || !dom.disclaimerContent) return;
-        
-        dom.disclaimerToggle.addEventListener('click', () => {
-            const isExpanded = dom.disclaimerToggle.getAttribute('aria-expanded') === 'true';
-            dom.disclaimerToggle.setAttribute('aria-expanded', String(!isExpanded));
-            dom.disclaimerContent.hidden = isExpanded;
-        });
-        
-        // Keyboard accessibility
-        dom.disclaimerToggle.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                dom.disclaimerToggle.click();
-            }
-        });
-    }
-
     // == Event Listeners & Handlers ==
     function setupAllListeners() {
-        setupDropdownListeners();
         setupActionListeners();
         setupPermissionControlsListeners();
         setupModalListeners();
@@ -984,48 +973,62 @@
         setupPermissionPopupListeners();
         setupPanelSwitchListeners();
         setupKeyboardNavigation();
+        setupSidebarToggleListeners();
+    }
+
+    function setupSidebarToggleListeners() {
+        if (dom.rightSidebarToggle) {
+            dom.rightSidebarToggle.addEventListener('click', toggleRightSidebar);
+        }
+        if (dom.rightSidebarReopen) {
+            dom.rightSidebarReopen.addEventListener('click', toggleRightSidebar);
+        }
+    }
+
+    function setupSidebarNavigation() {
+        getAllQuery('.nav-item[data-panel-target]', dom.leftSidebar).forEach(item => {
+            item.addEventListener('click', () => {
+                const target = item.dataset.panelTarget;
+                switchPanel(target);
+                updateSidebarActiveState(target);
+            });
+        });
+    }
+
+    function updateSidebarActiveState(targetId) {
+        getAllQuery('.nav-item[data-panel-target]', dom.leftSidebar).forEach(item => {
+            const isActive = item.dataset.panelTarget === targetId;
+            item.classList.toggle('active', isActive);
+            item.setAttribute('aria-current', isActive ? 'true' : 'false');
+        });
     }
 
     function setupKeyboardNavigation() {
-        // Enhanced keyboard navigation for dropdowns
-        [dom.sectionDropdownMenu, dom.actionsDropdownMenu].forEach(menu => {
-            if (!menu) return;
+        // Keyboard navigation for left sidebar
+        dom.leftSidebar.addEventListener('keydown', (e) => {
+            const items = Array.from(dom.leftSidebar.querySelectorAll('.nav-item:not([disabled])'));
+            const currentIndex = items.indexOf(document.activeElement);
             
-            menu.addEventListener('keydown', (e) => {
-                const items = Array.from(menu.querySelectorAll('.dropdown-item:not([disabled])'));
-                const currentIndex = items.indexOf(document.activeElement);
-                
-                switch(e.key) {
-                    case 'ArrowDown':
-                        e.preventDefault();
-                        const nextIndex = currentIndex < items.length - 1 ? currentIndex + 1 : 0;
-                        items[nextIndex]?.focus();
-                        break;
-                    case 'ArrowUp':
-                        e.preventDefault();
-                        const prevIndex = currentIndex > 0 ? currentIndex - 1 : items.length - 1;
-                        items[prevIndex]?.focus();
-                        break;
-                    case 'Home':
-                        e.preventDefault();
-                        items[0]?.focus();
-                        break;
-                    case 'End':
-                        e.preventDefault();
-                        items[items.length - 1]?.focus();
-                        break;
-                    case 'Escape':
-                        e.preventDefault();
-                        closeAllDropdowns();
-                        // Return focus to dropdown button
-                        if (menu === dom.sectionDropdownMenu) {
-                            dom.sectionDropdownBtn?.focus();
-                        } else if (menu === dom.actionsDropdownMenu) {
-                            dom.actionsDropdownBtn?.focus();
-                        }
-                        break;
-                }
-            });
+            switch(e.key) {
+                case 'ArrowDown':
+                    e.preventDefault();
+                    const nextIndex = currentIndex < items.length - 1 ? currentIndex + 1 : 0;
+                    items[nextIndex]?.focus();
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    const prevIndex = currentIndex > 0 ? currentIndex - 1 : items.length - 1;
+                    items[prevIndex]?.focus();
+                    break;
+                case 'Home':
+                    e.preventDefault();
+                    items[0]?.focus();
+                    break;
+                case 'End':
+                    e.preventDefault();
+                    items[items.length - 1]?.focus();
+                    break;
+            }
         });
 
         // Trap focus in modal
@@ -1053,7 +1056,6 @@
     }
 
     function setupPanelSwitchListeners() {
-        // Listen for panel switches to lazy-load data
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
@@ -1071,7 +1073,7 @@
             });
         });
 
-        [dom.detailsPanel, dom.permissionsPanel, dom.supportPanel].forEach(panel => {
+        [dom.permissionsPanel, dom.supportPanel].forEach(panel => {
             if (panel) {
                 observer.observe(panel, { attributes: true });
             }
@@ -1092,104 +1094,17 @@
         });
     }
 
-    function setupDropdowns() {
-        getAllQuery('.dropdown-item[data-panel-target]', dom.sectionDropdownMenu).forEach(item => {
-            item.addEventListener('click', () => {
-                const target = item.dataset.panelTarget;
-                switchPanel(target);
-                updateSectionDropdownLabel(target);
-                closeAllDropdowns();
-            });
-        });
-
-        dom.dropdownEnableToggle.addEventListener('click', () => {
-            handleEnableToggleClick();
-            closeAllDropdowns();
-        });
-        
-        dom.dropdownOptions.addEventListener('click', () => {
-            handleOptionsClick();
-            closeAllDropdowns();
-        });
-        
-        dom.dropdownStore.addEventListener('click', () => {
-            if (dom.dropdownStore.dataset.storeUrl) {
-                chrome.tabs.create({ url: dom.dropdownStore.dataset.storeUrl });
-            }
-            closeAllDropdowns();
-        });
-        
-        dom.dropdownRefresh.addEventListener('click', () => {
-            handleRefreshClick();
-            closeAllDropdowns();
-        });
-        
-        dom.dropdownUninstall.addEventListener('click', () => {
-            handleUninstallClick();
-            closeAllDropdowns();
-        });
-    }
-
-    function setupDropdownListeners() {
-        dom.sectionDropdownBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const isOpen = dom.sectionDropdownMenu.classList.contains('open');
-            closeAllDropdowns();
-            if (!isOpen) {
-                dom.sectionDropdownMenu.classList.add('open');
-                dom.sectionDropdownBtn.setAttribute('aria-expanded', 'true');
-                // Focus first item
-                const firstItem = dom.sectionDropdownMenu.querySelector('.dropdown-item:not([disabled])');
-                firstItem?.focus();
-            }
-        });
-
-        dom.actionsDropdownBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const isOpen = dom.actionsDropdownMenu.classList.contains('open');
-            closeAllDropdowns();
-            if (!isOpen) {
-                dom.actionsDropdownMenu.classList.add('open');
-                dom.actionsDropdownBtn.setAttribute('aria-expanded', 'true');
-                // Focus first item
-                const firstItem = dom.actionsDropdownMenu.querySelector('.dropdown-item:not([disabled])');
-                firstItem?.focus();
-            }
-        });
-
-        document.addEventListener('click', closeAllDropdowns);
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') closeAllDropdowns();
-        });
-    }
-
-    function closeAllDropdowns() {
-        dom.sectionDropdownMenu.classList.remove('open');
-        dom.sectionDropdownBtn.setAttribute('aria-expanded', 'false');
-        dom.actionsDropdownMenu.classList.remove('open');
-        dom.actionsDropdownBtn.setAttribute('aria-expanded', 'false');
-        if (dom.filterDropdown) {
-            dom.filterDropdown.classList.remove('open');
-            dom.filterBtn.setAttribute('aria-expanded', 'false');
-        }
-    }
-
-    function updateSectionDropdownLabel(targetId) {
-        const labels = {
-            'panel-details': 'Overview',
-            'panel-permissions': 'Permissions',
-            'panel-support': 'Support Developer'
-        };
-        setText(dom.currentSectionLabel, labels[targetId] || 'Overview');
-        
-        getAllQuery('.dropdown-item', dom.sectionDropdownMenu).forEach(item => {
-            item.classList.toggle('active', item.dataset.panelTarget === targetId);
-            item.setAttribute('aria-current', item.dataset.panelTarget === targetId ? 'true' : 'false');
-        });
-    }
-
     function setupActionListeners() {
-        // Actions handled in dropdown setup
+        dom.actionEnableToggle.addEventListener('click', handleEnableToggleClick);
+        dom.actionOptions.addEventListener('click', handleOptionsClick);
+        dom.actionStore.addEventListener('click', handleStoreClick);
+        dom.actionUninstall.addEventListener('click', handleUninstallClick);
+    }
+
+    function handleStoreClick() {
+        if (dom.actionStore.dataset.storeUrl) {
+            chrome.tabs.create({ url: dom.actionStore.dataset.storeUrl });
+        }
     }
 
     function setupPermissionControlsListeners() {
@@ -1325,37 +1240,20 @@
             await chrome.management.setEnabled(extensionId, newState);
             const refreshed = await loadExtensionData();
             if (refreshed) {
-                populateDetailsPanel();
-                updateHeader();
+                populateRightSidebar();
                 showToast(`Extension ${newState ? 'enabled' : 'disabled'}.`, 'success');
             }
         } catch (err) {
             error("Error toggling state:", err);
             showToast(`Failed to toggle state: ${err.message}`, 'error');
             loadExtensionData().then(() => {
-                populateDetailsPanel();
-                updateHeader();
+                populateRightSidebar();
             });
         }
     }
 
     function handleOptionsClick() {
         if (extensionInfo?.optionsUrl) chrome.tabs.create({ url: extensionInfo.optionsUrl });
-    }
-
-    async function handleRefreshClick() {
-        const refreshIcon = dom.dropdownRefresh.querySelector('.icon');
-        refreshIcon.classList.add('loading');
-        
-        showToast('Refreshing...', 'info', 1500);
-        
-        // Clear support cache so it's fresh on reload
-        CacheManager.clearExtensionCache(extensionId);
-        
-        // Brief delay so toast is visible, then reload the page
-        setTimeout(() => {
-            window.location.reload();
-        }, 600);
     }
 
     async function handleUninstallClick() {
@@ -1370,10 +1268,7 @@
         
         try {
             await chrome.management.uninstall(extensionId, { showConfirmDialog: false });
-            
-            // Clear cache for this extension
             CacheManager.clearExtensionCache(extensionId);
-            
             showToast(`"${extensionInfo.name}" uninstalled.`, 'success');
             displayGlobalError(`"${extensionInfo.name}" has been uninstalled. You may close this page.`);
             disableUIOnError();
@@ -1440,16 +1335,21 @@
         }
     }
 
+    function closeAllDropdowns() {
+        if (dom.filterDropdown) {
+            dom.filterDropdown.classList.remove('open');
+            dom.filterBtn.setAttribute('aria-expanded', 'false');
+        }
+    }
+
     function setupTooltipPositioning() {
         const positionTooltip = (tooltip) => {
             const trigger = tooltip.parentElement;
             if (!trigger) return;
             
-            // Reset to defaults so we can measure natural position
             tooltip.removeAttribute('data-position');
             tooltip.style.removeProperty('max-width');
             
-            // Force a reflow so getBoundingClientRect is accurate
             tooltip.style.visibility = 'hidden';
             tooltip.style.opacity = '0';
             
@@ -1459,13 +1359,11 @@
             const vh = window.innerHeight;
             const margin = 10;
             
-            // Clamp max-width to available horizontal space
             const maxAllowedWidth = vw - margin * 2;
             if (tooltipRect.width > maxAllowedWidth) {
                 tooltip.style.maxWidth = `${maxAllowedWidth}px`;
             }
             
-            // Horizontal: check centering overflow
             const centeredLeft = triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2;
             const centeredRight = centeredLeft + tooltipRect.width;
             
@@ -1475,8 +1373,7 @@
                 tooltip.setAttribute('data-position', 'right');
             }
             
-            // Vertical: if tooltip goes above viewport, show below instead
-            const topEdge = triggerRect.top - tooltipRect.height - 8; // 8px gap
+            const topEdge = triggerRect.top - tooltipRect.height - 8;
             if (topEdge < margin) {
                 tooltip.setAttribute('data-position', (tooltip.getAttribute('data-position') || '') + ' below');
                 tooltip.classList.add('tooltip-below');

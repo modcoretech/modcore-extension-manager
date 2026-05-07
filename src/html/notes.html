@@ -10,14 +10,16 @@
 </head>
 <body>
     <div id="app" class="modcore-notes-app">
+
         <!-- Header -->
         <header class="app-header">
             <div class="header-left">
                 <h1>Extension Notes</h1>
             </div>
             <div class="header-actions">
-                <button class="icon-btn" id="masterPassBtn" aria-label="Lock Application">
-                    <img src="../../public/icons/svg/shield.svg" alt="Lock">
+                <!-- Shield = Settings (now working) -->
+                <button class="icon-btn" id="shieldBtn" aria-label="Settings & Security">
+                    <img src="../../public/icons/svg/shield.svg" alt="Settings">
                 </button>
                 <button class="icon-btn" id="keyboardShortcutsBtn" aria-label="Keyboard shortcuts">
                     <img src="../../public/icons/svg/keyboard.svg" alt="Shortcuts">
@@ -34,15 +36,16 @@
 
         <!-- Main Layout -->
         <div class="app-layout">
+
             <!-- Sidebar: Extension List -->
             <aside class="sidebar" id="sidebar">
                 <div class="sidebar-header">
                     <div class="search-box">
                         <img src="../../public/icons/svg/search.svg" alt="Search" class="search-icon">
-                        <input 
-                            type="text" 
-                            id="extensionSearch" 
-                            placeholder="Search extensions..." 
+                        <input
+                            type="text"
+                            id="extensionSearch"
+                            placeholder="Search extensions..."
                             aria-label="Search extensions"
                         >
                         <button class="clear-search" id="clearExtSearch" aria-label="Clear search">
@@ -50,14 +53,14 @@
                         </button>
                     </div>
                     <div class="filter-chips" id="filterChips">
-                        <button class="chip" data-filter="all" aria-pressed="true">All</button>
+                        <button class="chip" data-filter="all"       aria-pressed="true">All</button>
                         <button class="chip" data-filter="has-notes" aria-pressed="false">Has Notes</button>
-                        <button class="chip" data-filter="pinned" aria-pressed="false">Pinned</button>
+                        <button class="chip" data-filter="pinned"    aria-pressed="false">Pinned</button>
                     </div>
                 </div>
-                
+
                 <div class="extensions-list" id="extensionsList" role="list"></div>
-                
+
                 <div class="empty-state-sidebar" id="emptySidebar">
                     <img src="../../public/icons/svg/search-off.svg" alt="No results">
                     <p>No extensions found</p>
@@ -65,8 +68,9 @@
                 </div>
             </aside>
 
-            <!-- Main Content: Notes Area -->
+            <!-- Main Content -->
             <main class="main-content" id="mainContent">
+
                 <!-- Welcome State -->
                 <div class="welcome-state" id="welcomeState">
                     <div class="welcome-illustration">
@@ -76,16 +80,16 @@
                     <p>Select an extension from the sidebar to view, create, and manage your notes.</p>
                     <div class="welcome-features">
                         <div class="feature">
-                            <img src="../../public/icons/svg/tag.svg" alt="Tags">
+                            <img src="../../public/icons/svg/tag.svg"    alt="Tags">
                             <span>Organize with tags</span>
                         </div>
                         <div class="feature">
-                            <img src="../../public/icons/svg/pin.svg" alt="Pin">
+                            <img src="../../public/icons/svg/pin.svg"    alt="Pin">
                             <span>Pin important notes</span>
                         </div>
                         <div class="feature">
                             <img src="../../public/icons/svg/shield.svg" alt="Security">
-                            <span>Secure with encryption</span>
+                            <span>Passkey encryption</span>
                         </div>
                     </div>
                 </div>
@@ -112,14 +116,13 @@
                         </div>
                     </div>
 
-                    <!-- Global Search within Extension -->
                     <div class="notes-search-container">
                         <div class="search-box">
                             <img src="../../public/icons/svg/search.svg" alt="Search" class="search-icon">
-                            <input 
-                                type="text" 
-                                id="notesSearch" 
-                                placeholder="Search notes in this extension..." 
+                            <input
+                                type="text"
+                                id="notesSearch"
+                                placeholder="Search notes in this extension..."
                                 aria-label="Search notes"
                             >
                             <button class="clear-search" id="clearNotesSearch" aria-label="Clear search">
@@ -129,10 +132,8 @@
                         <div class="tags-filter" id="tagsFilter"></div>
                     </div>
 
-                    <!-- Notes List -->
                     <div class="notes-container" id="notesContainer"></div>
 
-                    <!-- Empty State for No Notes -->
                     <div class="empty-state-notes" id="emptyNotes">
                         <img src="../../public/icons/svg/empty-notes.svg" alt="No notes">
                         <h3>No notes yet</h3>
@@ -145,23 +146,55 @@
             </main>
         </div>
 
-        <!-- Lock Screen -->
-        <div class="lock-screen" id="lockScreen">
+        <!-- ============================================
+             LOCK SCREEN (Passkey-based)
+             ============================================ -->
+        <div class="lock-screen" id="lockScreen" role="dialog" aria-modal="true" aria-labelledby="lockScreenTitle">
             <div class="lock-screen-content">
-                <div class="lock-icon">
+                <div class="lock-icon passkey-icon">
                     <img src="../../public/icons/svg/shield.svg" alt="">
                 </div>
-                <h2 id="lockScreenTitle">Welcome to Extension Notes</h2>
-                <p id="lockScreenText">A Master Password is required to protect your notes.</p>
-                <div class="lock-form">
-                    <input type="password" id="lockScreenPass" placeholder="Master Password" minlength="6" autocomplete="off">
-                    <input type="password" id="lockScreenConfirm" placeholder="Confirm Password" style="display: none;" autocomplete="off">
-                    <button class="modcore-btn modcore-btn-primary" id="lockScreenBtn">Set Password</button>
+                <h2 id="lockScreenTitle">Unlock Extension Notes</h2>
+                <p id="lockScreenText">Authenticate with your passkey to continue.</p>
+
+                <div class="lock-actions">
+                    <button class="modcore-btn modcore-btn-primary passkey-btn" id="lockScreenPasskeyBtn">
+                        🔑 Use Passkey
+                    </button>
+                    <button class="modcore-btn modcore-btn-text recovery-toggle-btn" id="lockScreenRecoveryBtn">
+                        Use recovery code instead
+                    </button>
+                </div>
+
+                <!-- Recovery code section (hidden by default) -->
+                <div class="lock-recovery-section" id="lockScreenRecoverySection" style="display:none;">
+                    <div class="recovery-input-group">
+                        <label for="lockScreenRecoveryInput" class="recovery-label">
+                            🔐 Enter Recovery Code
+                        </label>
+                        <input
+                            type="text"
+                            id="lockScreenRecoveryInput"
+                            placeholder="XXXX-XXXX-XXXX"
+                            class="recovery-input"
+                            autocomplete="off"
+                            spellcheck="false"
+                            autocorrect="off"
+                            autocapitalize="characters"
+                            maxlength="14"
+                        >
+                        <button class="modcore-btn modcore-btn-secondary" id="lockScreenRecoverySubmit">
+                            Unlock with Code
+                        </button>
+                    </div>
+                    <p class="recovery-hint">Each code can only be used once. Manage codes in Settings after unlocking.</p>
                 </div>
             </div>
         </div>
 
-        <!-- Note Editor Modal -->
+        <!-- ============================================
+             NOTE EDITOR MODAL
+             ============================================ -->
         <div class="modal-overlay" id="noteEditorModal" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
             <div class="modal-content note-editor">
                 <div class="modal-header">
@@ -170,14 +203,14 @@
                         <img src="../../public/icons/svg/close.svg" alt="Close">
                     </button>
                 </div>
-                
+
                 <div class="modal-body">
                     <div class="form-group">
                         <label for="noteTitle">Title <span class="required">*</span></label>
-                        <input 
-                            type="text" 
-                            id="noteTitle" 
-                            placeholder="Enter note title..." 
+                        <input
+                            type="text"
+                            id="noteTitle"
+                            placeholder="Enter note title..."
                             maxlength="100"
                             required
                         >
@@ -185,9 +218,9 @@
 
                     <div class="form-group">
                         <label for="noteContent">Content</label>
-                        <textarea 
-                            id="noteContent" 
-                            placeholder="Write your notes here..." 
+                        <textarea
+                            id="noteContent"
+                            placeholder="Write your notes here..."
                             rows="8"
                         ></textarea>
                     </div>
@@ -196,9 +229,9 @@
                         <label for="noteTags">Tags</label>
                         <div class="tags-input-container" id="tagsInputContainer">
                             <div class="tags-list" id="editorTagsList"></div>
-                            <input 
-                                type="text" 
-                                id="noteTags" 
+                            <input
+                                type="text"
+                                id="noteTags"
                                 placeholder="Add tags (press Enter or comma to add)..."
                                 list="existingTags"
                             >
@@ -213,7 +246,6 @@
                             <span class="checkmark"></span>
                             Pin this note
                         </label>
-                        
                         <label class="checkbox-label security-checkbox">
                             <input type="checkbox" id="noteSecure">
                             <span class="checkmark"></span>
@@ -222,26 +254,27 @@
                         </label>
                     </div>
 
-                    <!-- Security Panel (shown when secure is checked) -->
                     <div class="security-panel" id="securityPanel">
                         <div class="security-banner">
                             <img src="../../public/icons/svg/shield.svg" alt="Security">
                             <div>
                                 <strong>Secure Note</strong>
-                                <p>This note will be encrypted with your Master Password.</p>
+                                <p>This note will be individually encrypted with your vault key (passkey-protected).</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="modal-footer">
-                    <button class="modcore-btn modcore-btn-text" id="cancelNote">Cancel</button>
-                    <button class="modcore-btn modcore-btn-primary" id="saveNote">Save Note</button>
+                    <button class="modcore-btn modcore-btn-text"    id="cancelNote">Cancel</button>
+                    <button class="modcore-btn modcore-btn-primary"  id="saveNote">Save Note</button>
                 </div>
             </div>
         </div>
 
-        <!-- Note Viewer Modal -->
+        <!-- ============================================
+             NOTE VIEWER MODAL
+             ============================================ -->
         <div class="modal-overlay" id="noteViewerModal" role="dialog" aria-modal="true">
             <div class="modal-content note-viewer">
                 <div class="modal-header">
@@ -251,17 +284,19 @@
                     </button>
                 </div>
                 <div class="modal-body">
-                    <div class="note-view-meta" id="viewerMeta"></div>
-                    <div class="note-view-content" id="viewerContent"></div>
+                    <div class="note-view-meta"     id="viewerMeta"></div>
+                    <div class="note-view-content"  id="viewerContent"></div>
                 </div>
                 <div class="modal-footer">
-                    <button class="modcore-btn modcore-btn-text" id="viewerCloseBtn">Close</button>
+                    <button class="modcore-btn modcore-btn-text"   id="viewerCloseBtn">Close</button>
                     <button class="modcore-btn modcore-btn-primary" id="viewerEditBtn">Edit</button>
                 </div>
             </div>
         </div>
 
-        <!-- Global Search Modal -->
+        <!-- ============================================
+             GLOBAL SEARCH MODAL
+             ============================================ -->
         <div class="modal-overlay" id="globalSearchModal" role="dialog" aria-modal="true">
             <div class="modal-content global-search-modal">
                 <div class="modal-header">
@@ -273,10 +308,10 @@
                 <div class="global-search-container">
                     <div class="search-box large">
                         <img src="../../public/icons/svg/search.svg" alt="Search" class="search-icon">
-                        <input 
-                            type="text" 
-                            id="globalSearchInput" 
-                            placeholder="Search across all extension notes..." 
+                        <input
+                            type="text"
+                            id="globalSearchInput"
+                            placeholder="Search across all extension notes..."
                             aria-label="Global search"
                             autofocus
                         >
@@ -303,7 +338,93 @@
             </div>
         </div>
 
-        <!-- Keyboard Shortcuts Modal -->
+        <!-- ============================================
+             SETTINGS MODAL (Shield icon)
+             ============================================ -->
+        <div class="modal-overlay" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+            <div class="modal-content settings-modal">
+                <div class="modal-header">
+                    <h2 id="settingsTitle">
+                        <img src="../../public/icons/svg/shield.svg" alt="" class="settings-header-icon">
+                        Security &amp; Settings
+                    </h2>
+                    <button class="close-btn" id="closeSettings" aria-label="Close settings">
+                        <img src="../../public/icons/svg/close.svg" alt="Close">
+                    </button>
+                </div>
+
+                <div class="modal-body settings-body">
+
+                    <!-- Section: Passkey -->
+                    <section class="settings-section">
+                        <h3 class="settings-section-title">🔑 Passkey Authentication</h3>
+                        <p class="settings-section-desc">
+                            Your notes vault is protected by a passkey stored on this device.
+                            Biometric authentication (fingerprint, face, PIN) unlocks the vault key.
+                        </p>
+                        <div class="settings-row">
+                            <div class="settings-row-info">
+                                <span class="settings-row-label">Vault encryption</span>
+                                <span class="settings-row-sub">AES-256-GCM · Passkey-wrapped vault key</span>
+                            </div>
+                            <span class="settings-badge active">Active</span>
+                        </div>
+                    </section>
+
+                    <!-- Section: Recovery Codes -->
+                    <section class="settings-section">
+                        <h3 class="settings-section-title">🔐 Recovery Codes</h3>
+                        <p class="settings-section-desc">
+                            Recovery codes let you unlock the vault if your passkey is unavailable.
+                            Each code can only be used once.
+                        </p>
+                        <div class="settings-recovery-status" id="settingsRecoveryStatus">
+                            <!-- Filled dynamically -->
+                        </div>
+                        <div class="settings-actions">
+                            <button class="modcore-btn modcore-btn-secondary" id="settingsViewCodes">
+                                View Status
+                            </button>
+                            <button class="modcore-btn modcore-btn-secondary" id="settingsRegenCodes">
+                                ↺ Regenerate Codes
+                            </button>
+                        </div>
+                    </section>
+
+                    <!-- Section: Session -->
+                    <section class="settings-section">
+                        <h3 class="settings-section-title">🔒 Session</h3>
+                        <p class="settings-section-desc">
+                            Lock the app to clear the vault key from memory. You'll need to re-authenticate with your passkey.
+                        </p>
+                        <div class="settings-actions">
+                            <button class="modcore-btn modcore-btn-secondary" id="settingsLockBtn">
+                                Lock App Now
+                            </button>
+                        </div>
+                    </section>
+
+                    <!-- Section: Danger Zone -->
+                    <section class="settings-section danger-section">
+                        <h3 class="settings-section-title">⚠️ Danger Zone</h3>
+                        <p class="settings-section-desc">
+                            Permanently delete all notes, the passkey registration, and all recovery codes.
+                            This cannot be undone.
+                        </p>
+                        <div class="settings-actions">
+                            <button class="modcore-btn modcore-btn-danger" id="settingsResetBtn">
+                                Reset Everything
+                            </button>
+                        </div>
+                    </section>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================
+             KEYBOARD SHORTCUTS MODAL
+             ============================================ -->
         <div class="modal-overlay" id="shortcutsModal" role="dialog" aria-modal="true">
             <div class="modal-content shortcuts-modal">
                 <div class="modal-header">
@@ -313,26 +434,11 @@
                     </button>
                 </div>
                 <div class="shortcuts-list">
-                    <div class="shortcut">
-                        <kbd>Ctrl</kbd> + <kbd>K</kbd>
-                        <span>Search extensions</span>
-                    </div>
-                    <div class="shortcut">
-                        <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd>
-                        <span>Global note search</span>
-                    </div>
-                    <div class="shortcut">
-                        <kbd>Ctrl</kbd> + <kbd>N</kbd>
-                        <span>New note</span>
-                    </div>
-                    <div class="shortcut">
-                        <kbd>Escape</kbd>
-                        <span>Close modal</span>
-                    </div>
-                    <div class="shortcut">
-                        <kbd>?</kbd>
-                        <span>Show this help</span>
-                    </div>
+                    <div class="shortcut"><kbd>Ctrl</kbd> + <kbd>K</kbd>               <span>Search extensions</span></div>
+                    <div class="shortcut"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd> <span>Global note search</span></div>
+                    <div class="shortcut"><kbd>Ctrl</kbd> + <kbd>N</kbd>               <span>New note</span></div>
+                    <div class="shortcut"><kbd>Escape</kbd>                             <span>Close modal</span></div>
+                    <div class="shortcut"><kbd>?</kbd>                                  <span>Show this help</span></div>
                 </div>
             </div>
         </div>
@@ -344,13 +450,14 @@
         <div class="modal-overlay" id="confirmModal" role="dialog" aria-modal="true">
             <div class="modal-content confirm-modal">
                 <h3 id="confirmTitle">Confirm</h3>
-                <p id="confirmMessage">Are you sure?</p>
+                <p  id="confirmMessage">Are you sure?</p>
                 <div class="modal-footer">
-                    <button class="modcore-btn modcore-btn-text" id="confirmCancel">Cancel</button>
+                    <button class="modcore-btn modcore-btn-text"   id="confirmCancel">Cancel</button>
                     <button class="modcore-btn modcore-btn-primary" id="confirmAction">Confirm</button>
                 </div>
             </div>
         </div>
+
     </div>
 
     <script src="../js/features/notes.js"></script>
