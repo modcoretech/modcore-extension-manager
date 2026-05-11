@@ -17,5 +17,48 @@
 
   "get_crx_menu": { "message": "この拡張機能の CRX を取得する" },
   "donate_menu": { "message": "Patreon で modcore を支援する" },
-  "command_download_crx": { "message": "現在の拡張機能の CRX をダウンロードする" }
+  "command_download_crx": { "message": "現在の拡張機能の CRX をダウンロードする" },
+
+
+
+
+  "report_dialog_title": { "message": "modcore 問題レポーター" },
+  "report_step_status": { "message": "ステップ $1 / $2" },
+  "report_cancel": { "message": "キャンセル" },
+  "report_back": { "message": "← 戻る" },
+  "report_next": { "message": "次へ →" },
+  "report_submit": { "message": "🚀 GitHub に送信" },
+  "report_opening_github": { "message": "GitHub を開いています" },
+  "report_privacy": {
+    "message": "⚠ プライバシー: レポートは $REPO$ の公開 GitHub ページで開かれます。概要と説明に個人情報や機密情報が含まれていないことを確認してください。",
+    "placeholders": { "repo": { "content": "$1" } }
+  },
+  "report_validation_fill_all": { "message": "続行する前にすべての必須項目を入力してください。" },
+  "report_type_label": { "message": "1. どの種類のレポートを送信しますか？" },
+  "report_summary_label": { "message": "2. 簡単な概要 / タイトル" },
+  "report_description_label": { "message": "3. 詳細な説明" },
+  "report_type_bug_name": { "message": "🐛 不具合がある (バグ報告)" },
+  "report_type_feature_name": { "message": "✨ アイデアがある (機能提案)" },
+  "report_type_general_name": { "message": "💬 一般的な質問・フィードバック" },
+  "report_bug_instructions": { "message": "すぐに修正できるよう、再現手順を明確に記述してください。" },
+  "report_bug_summary_placeholder": { "message": "例: ページを再読み込みすると設定ボタンが消える。" },
+  "report_bug_description_placeholder": { "message": "1. 明確で再現可能な手順は？\n2. 期待される結果は？\n3. 実際の結果は？" },
+  "report_feature_instructions": { "message": "提案の価値と使用目的を説明してください。" },
+  "report_feature_summary_placeholder": { "message": "例: ダークモード切り替えボタンを追加する。" },
+  "report_feature_description_placeholder": { "message": "機能の内容、必要性、拡張機能をどのように改善するかを説明してください。" },
+  "report_general_instructions": { "message": "質問やフィードバックの完全な背景情報を提供してください。" },
+  "report_general_summary_placeholder": { "message": "例: インストール手順に関する質問。" },
+  "report_general_description_placeholder": { "message": "詳細な質問や一般的なフィードバックを、背景を含めて記入してください。" },
+  "report_include_tech_info_label": { "message": "技術環境の詳細を含める" },
+  "report_include_tech_info_desc": { "message": "ブラウザ、OS、アーキテクチャ、画面、読み込み時間など。バグ報告には強く推奨。" },
+  "report_include_ext_list_label": { "message": "インストール済み拡張機能一覧を含める" },
+  "report_include_ext_list_desc": { "message": "他のインストール済み拡張機能を一覧表示します。互換性の問題に役立ちます。" },
+  "report_include_console_logs_label": { "message": "最近のコンソールログとエラーを含める" },
+  "report_include_console_logs_desc": {
+    "message": "最大 $MAX$ 件のキャプチャ済みコンソールメッセージを添付します。現在 $COUNT$ 件のエントリをキャプチャ済み。",
+    "placeholders": { "max": { "content": "$1" }, "count": { "content": "$2" } }
+  },
+  "report_badge_recommended": { "message": "推奨" },
+  "report_badge_optional": { "message": "任意" },
+  "report_badge_captured_count": { "message": "$COUNT$ 件キャプチャ済み", "placeholders": { "count": { "content": "$1" } } }
 }

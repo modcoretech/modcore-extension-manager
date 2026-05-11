@@ -16,5 +16,48 @@
   
   "get_crx_menu": { "message": "CRX dieser Erweiterung herunterladen" },
   "donate_menu": { "message": "Unterstütze modcore auf Patreon" },
-  "command_download_crx": { "message": "CRX-Paket herunterladen", "description": "Beschreibung für die Tastenkombination zum CRX-Download" }
+  "command_download_crx": { "message": "CRX-Paket herunterladen", "description": "Beschreibung für die Tastenkombination zum CRX-Download" },
+
+
+
+
+  "report_dialog_title": { "message": "modcore Issue-Reporter" },
+  "report_step_status": { "message": "Schritt $1 von $2" },
+  "report_cancel": { "message": "Abbrechen" },
+  "report_back": { "message": "← Zurück" },
+  "report_next": { "message": "Weiter →" },
+  "report_submit": { "message": "🚀 An GitHub senden" },
+  "report_opening_github": { "message": "Öffne GitHub" },
+  "report_privacy": {
+    "message": "⚠ Datenschutz: Dein Bericht wird auf der öffentlichen GitHub‑Seite von $REPO$ geöffnet. Stelle sicher, dass Zusammenfassung und Beschreibung keine persönlichen oder sensiblen Daten enthalten.",
+    "placeholders": { "repo": { "content": "$1" } }
+  },
+  "report_validation_fill_all": { "message": "Bitte fülle alle Pflichtfelder aus, bevor du fortfährst." },
+  "report_type_label": { "message": "1. Welche Art von Bericht reichst du ein?" },
+  "report_summary_label": { "message": "2. Kurze Zusammenfassung / Titel" },
+  "report_description_label": { "message": "3. Detaillierte Beschreibung" },
+  "report_type_bug_name": { "message": "🐛 Etwas ist kaputt (Fehlerbericht)" },
+  "report_type_feature_name": { "message": "✨ Ich habe eine Idee (Feature‑Vorschlag)" },
+  "report_type_general_name": { "message": "💬 Allgemeine Frage oder Feedback" },
+  "report_bug_instructions": { "message": "Gib klare Schritte zur Reproduktion an, damit wir ihn schnell beheben können." },
+  "report_bug_summary_placeholder": { "message": "z. B. Der Einstellungs-Button verschwindet beim Neuladen der Seite." },
+  "report_bug_description_placeholder": { "message": "1. Klare, reproduzierbare Schritte?\n2. Erwartetes Ergebnis?\n3. Tatsächliches Ergebnis?" },
+  "report_feature_instructions": { "message": "Erkläre den Nutzen und die geplante Verwendung deines Vorschlags." },
+  "report_feature_summary_placeholder": { "message": "z. B. Einen Dark‑Mode‑Schalter hinzufügen." },
+  "report_feature_description_placeholder": { "message": "Beschreibe die Funktion, warum sie benötigt wird und wie sie die Erweiterung verbessert." },
+  "report_general_instructions": { "message": "Gib den vollständigen Kontext für deine Frage oder dein Feedback an." },
+  "report_general_summary_placeholder": { "message": "z. B. Frage zum Installationsprozess." },
+  "report_general_description_placeholder": { "message": "Stelle deine ausführliche Frage oder gib dein Feedback mit entsprechendem Kontext." },
+  "report_include_tech_info_label": { "message": "Technische Umgebungsdaten beifügen" },
+  "report_include_tech_info_desc": { "message": "Browser, Betriebssystem, Architektur, Bildschirm, Ladezeit usw. Besonders empfohlen für Fehlerberichte." },
+  "report_include_ext_list_label": { "message": "Liste installierter Erweiterungen beifügen" },
+  "report_include_ext_list_desc": { "message": "Zeigt deine anderen installierten Erweiterungen an. Nützlich bei Kompatibilitätsproblemen." },
+  "report_include_console_logs_label": { "message": "Aktuelle Konsolen-Logs & Fehler beifügen" },
+  "report_include_console_logs_desc": {
+    "message": "Fügt bis zu $MAX$ erfasste Konsolennachrichten bei. $COUNT$ Einträge bisher erfasst.",
+    "placeholders": { "max": { "content": "$1" }, "count": { "content": "$2" } }
+  },
+  "report_badge_recommended": { "message": "Empfohlen" },
+  "report_badge_optional": { "message": "Optional" },
+  "report_badge_captured_count": { "message": "$COUNT$ erfasst", "placeholders": { "count": { "content": "$1" } } }
 }

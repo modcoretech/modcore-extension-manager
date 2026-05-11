@@ -16,5 +16,53 @@
   
   "get_crx_menu": { "message": "Get CRX of this extension", "description": "Context menu item to download the CRX file of an extension" },
   "donate_menu": { "message": "Support modcore on Patreon", "description": "Context menu item to donate to modcore via Patreon" },
-  "command_download_crx": { "message": "Download CRX package", "description": "Command description for CRX download shortcut" }
+  "command_download_crx": { "message": "Download CRX package", "description": "Command description for CRX download shortcut" },
+
+
+
+  "report_dialog_title": { "message": "modcore Issue Reporter" },
+  "report_step_status": { "message": "Step $1 of $2" },
+  "report_cancel": { "message": "Cancel" },
+  "report_back": { "message": "← Back" },
+  "report_next": { "message": "Next →" },
+  "report_submit": { "message": "🚀 Send to GitHub" },
+  "report_opening_github": { "message": "Opening GitHub" },
+  "report_privacy": {
+    "message": "⚠ Privacy: Your report will open on the $REPO$ public GitHub page. Ensure your summary and description contain no personal or sensitive information.",
+    "placeholders": { "repo": { "content": "$1" } }
+  },
+  "report_validation_fill_all": { "message": "Please fill in all required fields before continuing." },
+  "report_type_label": { "message": "1. What kind of report are you submitting?" },
+  "report_summary_label": { "message": "2. Short Summary / Title" },
+  "report_description_label": { "message": "3. Detailed Description" },
+  "report_type_bug_name": { "message": "🐛 Something is broken (Bug Report)" },
+  "report_type_feature_name": { "message": "✨ I have an idea (Feature Suggestion)" },
+  "report_type_general_name": { "message": "💬 General question or feedback" },
+  "report_bug_instructions": { "message": "Provide clear steps to reproduce so we can fix it quickly." },
+  "report_bug_summary_placeholder": { "message": "e.g., The settings button disappears on page reload." },
+  "report_bug_description_placeholder": { "message": "1. What are the clear, repeatable steps?\n2. Expected result?\n3. Actual result?" },
+  "report_feature_instructions": { "message": "Explain the value and intended usage of your suggestion." },
+  "report_feature_summary_placeholder": { "message": "e.g., Add a dark mode toggle button." },
+  "report_feature_description_placeholder": { "message": "Describe the feature, why it is needed, and how it improves the extension." },
+  "report_general_instructions": { "message": "Provide full context for your question or feedback." },
+  "report_general_summary_placeholder": { "message": "e.g., Question about installation process." },
+  "report_general_description_placeholder": { "message": "Provide your detailed question or general feedback, including context." },
+  "report_include_tech_info_label": { "message": "Include technical environment details" },
+  "report_include_tech_info_desc": { "message": "Browser, OS, architecture, screen, performance timing, and more. Highly recommended for bug reports." },
+  "report_include_ext_list_label": { "message": "Include installed extensions list" },
+  "report_include_ext_list_desc": { "message": "Lists your other installed extensions. Useful for compatibility issues." },
+  "report_include_console_logs_label": { "message": "Include recent console logs & errors" },
+  "report_include_console_logs_desc": {
+    "message": "Attaches up to $MAX$ captured console messages. $COUNT$ entrie(s) captured so far.",
+    "placeholders": {
+      "max": { "content": "$1" },
+      "count": { "content": "$2" }
+    }
+  },
+  "report_badge_recommended": { "message": "Recommended" },
+  "report_badge_optional": { "message": "Optional" },
+  "report_badge_captured_count": {
+    "message": "$COUNT$ captured",
+    "placeholders": { "count": { "content": "$1" } }
+  }
 }

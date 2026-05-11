@@ -1197,13 +1197,11 @@ function createHelpSheet() {
             'aria-label': 'Open full documentation in new tab'
         },
         children: [
-            makeImg('../../public/icons/svg/external-link.svg'),
             el('span', { text: 'Full Documentation' })
         ]
     });
     // Remove the text from the anchor itself since children handle it
     docLink.textContent = '';
-    docLink.appendChild(makeImg('../../public/icons/svg/external-link.svg'));
     docLink.appendChild(el('span', { text: 'Full Documentation' }));
     sheet.appendChild(docLink);
 

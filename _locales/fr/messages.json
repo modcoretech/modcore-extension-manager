@@ -17,5 +17,48 @@
   
   "get_crx_menu": { "message": "Obtenir le CRX de cette extension" },
   "donate_menu": { "message": "Soutenir modcore sur Patreon" },
-  "command_download_crx": { "message": "Télécharger le CRX de l'extension actuelle" }
+  "command_download_crx": { "message": "Télécharger le CRX de l'extension actuelle" },
+
+
+
+
+  "report_dialog_title": { "message": "modcore Rapporteur d'incidents" },
+  "report_step_status": { "message": "Étape $1 sur $2" },
+  "report_cancel": { "message": "Annuler" },
+  "report_back": { "message": "← Retour" },
+  "report_next": { "message": "Suivant →" },
+  "report_submit": { "message": "🚀 Envoyer à GitHub" },
+  "report_opening_github": { "message": "Ouverture de GitHub" },
+  "report_privacy": {
+    "message": "⚠ Confidentialité : votre rapport s'ouvrira sur la page GitHub publique de $REPO$. Assurez-vous que le résumé et la description ne contiennent aucune information personnelle ou sensible.",
+    "placeholders": { "repo": { "content": "$1" } }
+  },
+  "report_validation_fill_all": { "message": "Veuillez remplir tous les champs obligatoires avant de continuer." },
+  "report_type_label": { "message": "1. Quel type de rapport soumettez-vous ?" },
+  "report_summary_label": { "message": "2. Résumé / Titre court" },
+  "report_description_label": { "message": "3. Description détaillée" },
+  "report_type_bug_name": { "message": "🐛 Quelque chose est cassé (Rapport de bug)" },
+  "report_type_feature_name": { "message": "✨ J'ai une idée (Suggestion de fonctionnalité)" },
+  "report_type_general_name": { "message": "💬 Question générale ou commentaire" },
+  "report_bug_instructions": { "message": "Fournissez des étapes claires pour reproduire le problème afin que nous puissions le corriger rapidement." },
+  "report_bug_summary_placeholder": { "message": "ex. : Le bouton des paramètres disparaît lors du rechargement de la page." },
+  "report_bug_description_placeholder": { "message": "1. Quelles sont les étapes claires et reproductibles ?\n2. Résultat attendu ?\n3. Résultat réel ?" },
+  "report_feature_instructions": { "message": "Expliquez la valeur et l'utilisation prévue de votre suggestion." },
+  "report_feature_summary_placeholder": { "message": "ex. : Ajouter un bouton de mode sombre." },
+  "report_feature_description_placeholder": { "message": "Décrivez la fonctionnalité, pourquoi elle est nécessaire et comment elle améliore l'extension." },
+  "report_general_instructions": { "message": "Fournissez le contexte complet de votre question ou commentaire." },
+  "report_general_summary_placeholder": { "message": "ex. : Question sur le processus d'installation." },
+  "report_general_description_placeholder": { "message": "Posez votre question détaillée ou donnez votre avis général, en incluant le contexte." },
+  "report_include_tech_info_label": { "message": "Inclure les détails de l'environnement technique" },
+  "report_include_tech_info_desc": { "message": "Navigateur, système d'exploitation, architecture, écran, temps de chargement, etc. Recommandé pour les rapports de bugs." },
+  "report_include_ext_list_label": { "message": "Inclure la liste des extensions installées" },
+  "report_include_ext_list_desc": { "message": "Liste vos autres extensions installées. Utile pour les problèmes de compatibilité." },
+  "report_include_console_logs_label": { "message": "Inclure les journaux et erreurs récents de la console" },
+  "report_include_console_logs_desc": {
+    "message": "Joint jusqu'à $MAX$ messages de console capturés. $COUNT$ entrée(s) capturée(s) jusqu'à présent.",
+    "placeholders": { "max": { "content": "$1" }, "count": { "content": "$2" } }
+  },
+  "report_badge_recommended": { "message": "Recommandé" },
+  "report_badge_optional": { "message": "Optionnel" },
+  "report_badge_captured_count": { "message": "$COUNT$ capturés", "placeholders": { "count": { "content": "$1" } } }
 }

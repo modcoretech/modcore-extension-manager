@@ -17,5 +17,48 @@
   
   "get_crx_menu": { "message": "Ottieni il CRX di questa estensione" },
   "donate_menu": { "message": "Supporta modcore su Patreon" },
-  "command_download_crx": { "message": "Scarica il CRX dell'estensione attuale" }
+  "command_download_crx": { "message": "Scarica il CRX dell'estensione attuale" },
+
+
+
+
+  "report_dialog_title": { "message": "modcore Segnalazione problemi" },
+  "report_step_status": { "message": "Passo $1 di $2" },
+  "report_cancel": { "message": "Annulla" },
+  "report_back": { "message": "← Indietro" },
+  "report_next": { "message": "Avanti →" },
+  "report_submit": { "message": "🚀 Invia a GitHub" },
+  "report_opening_github": { "message": "Apertura di GitHub" },
+  "report_privacy": {
+    "message": "⚠ Privacy: il tuo report verrà aperto sulla pagina GitHub pubblica di $REPO$. Assicurati che il riepilogo e la descrizione non contengano informazioni personali o sensibili.",
+    "placeholders": { "repo": { "content": "$1" } }
+  },
+  "report_validation_fill_all": { "message": "Compila tutti i campi obbligatori prima di continuare." },
+  "report_type_label": { "message": "1. Che tipo di segnalazione stai inviando?" },
+  "report_summary_label": { "message": "2. Breve riepilogo / Titolo" },
+  "report_description_label": { "message": "3. Descrizione dettagliata" },
+  "report_type_bug_name": { "message": "🐛 Qualcosa non funziona (Segnalazione bug)" },
+  "report_type_feature_name": { "message": "✨ Ho un'idea (Suggerimento)" },
+  "report_type_general_name": { "message": "💬 Domanda generale o feedback" },
+  "report_bug_instructions": { "message": "Fornisci passaggi chiari per riprodurre il problema in modo da risolverlo rapidamente." },
+  "report_bug_summary_placeholder": { "message": "es. Il pulsante delle impostazioni scompare al ricaricamento della pagina." },
+  "report_bug_description_placeholder": { "message": "1. Quali sono i passaggi chiari e ripetibili?\n2. Risultato atteso?\n3. Risultato effettivo?" },
+  "report_feature_instructions": { "message": "Spiega il valore e l'uso previsto del tuo suggerimento." },
+  "report_feature_summary_placeholder": { "message": "es. Aggiungere un interruttore per la modalità scura." },
+  "report_feature_description_placeholder": { "message": "Descrivi la funzionalità, perché è necessaria e come migliora l'estensione." },
+  "report_general_instructions": { "message": "Fornisci il contesto completo per la tua domanda o feedback." },
+  "report_general_summary_placeholder": { "message": "es. Domanda sul processo di installazione." },
+  "report_general_description_placeholder": { "message": "Scrivi la tua domanda dettagliata o il feedback generale, incluso il contesto." },
+  "report_include_tech_info_label": { "message": "Includi dettagli dell'ambiente tecnico" },
+  "report_include_tech_info_desc": { "message": "Browser, SO, architettura, schermo, tempi di caricamento e altro. Consigliato per le segnalazioni di bug." },
+  "report_include_ext_list_label": { "message": "Includi elenco estensioni installate" },
+  "report_include_ext_list_desc": { "message": "Elenca le altre estensioni installate. Utile per problemi di compatibilità." },
+  "report_include_console_logs_label": { "message": "Includi log recenti della console ed errori" },
+  "report_include_console_logs_desc": {
+    "message": "Allega fino a $MAX$ messaggi della console catturati. $COUNT$ voce(i) catturata(e) finora.",
+    "placeholders": { "max": { "content": "$1" }, "count": { "content": "$2" } }
+  },
+  "report_badge_recommended": { "message": "Consigliato" },
+  "report_badge_optional": { "message": "Opzionale" },
+  "report_badge_captured_count": { "message": "$COUNT$ catturati", "placeholders": { "count": { "content": "$1" } } }
 }

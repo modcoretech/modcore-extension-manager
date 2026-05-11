@@ -17,5 +17,47 @@
   
   "get_crx_menu": { "message": "Получить CRX этого расширения" },
   "donate_menu": { "message": "Поддержать modcore на Patreon" },
-  "command_download_crx": { "message": "Скачать CRX текущего расширения" }
+  "command_download_crx": { "message": "Скачать CRX текущего расширения" },
+
+
+  
+  "report_dialog_title": { "message": "modcore Репортер проблем" },
+  "report_step_status": { "message": "Шаг $1 из $2" },
+  "report_cancel": { "message": "Отмена" },
+  "report_back": { "message": "← Назад" },
+  "report_next": { "message": "Далее →" },
+  "report_submit": { "message": "🚀 Отправить на GitHub" },
+  "report_opening_github": { "message": "Открытие GitHub" },
+  "report_privacy": {
+    "message": "⚠ Конфиденциальность: ваш отчёт откроется на публичной странице GitHub репозитория $REPO$. Убедитесь, что сводка и описание не содержат личной или конфиденциальной информации.",
+    "placeholders": { "repo": { "content": "$1" } }
+  },
+  "report_validation_fill_all": { "message": "Пожалуйста, заполните все обязательные поля перед продолжением." },
+  "report_type_label": { "message": "1. Какой тип отчёта вы отправляете?" },
+  "report_summary_label": { "message": "2. Краткое описание / Заголовок" },
+  "report_description_label": { "message": "3. Подробное описание" },
+  "report_type_bug_name": { "message": "🐛 Что-то сломано (Отчёт об ошибке)" },
+  "report_type_feature_name": { "message": "✨ У меня есть идея (Предложение функции)" },
+  "report_type_general_name": { "message": "💬 Общий вопрос или отзыв" },
+  "report_bug_instructions": { "message": "Опишите чёткие шаги для воспроизведения, чтобы мы могли быстро исправить проблему." },
+  "report_bug_summary_placeholder": { "message": "напр., Кнопка настроек исчезает при перезагрузке страницы." },
+  "report_bug_description_placeholder": { "message": "1. Чёткие воспроизводимые шаги?\n2. Ожидаемый результат?\n3. Фактический результат?" },
+  "report_feature_instructions": { "message": "Объясните ценность и предполагаемое использование вашего предложения." },
+  "report_feature_summary_placeholder": { "message": "напр., Добавить переключатель тёмной темы." },
+  "report_feature_description_placeholder": { "message": "Опишите функцию, зачем она нужна и как она улучшает расширение." },
+  "report_general_instructions": { "message": "Предоставьте полный контекст для вашего вопроса или отзыва." },
+  "report_general_summary_placeholder": { "message": "напр., Вопрос о процессе установки." },
+  "report_general_description_placeholder": { "message": "Задайте подробный вопрос или оставьте общий отзыв, включая контекст." },
+  "report_include_tech_info_label": { "message": "Включить сведения о техническом окружении" },
+  "report_include_tech_info_desc": { "message": "Браузер, ОС, архитектура, экран, время загрузки и другое. Настоятельно рекомендуется для отчётов об ошибках." },
+  "report_include_ext_list_label": { "message": "Включить список установленных расширений" },
+  "report_include_ext_list_desc": { "message": "Показывает другие установленные расширения. Полезно при проблемах совместимости." },
+  "report_include_console_logs_label": { "message": "Включить недавние журналы консоли и ошибки" },
+  "report_include_console_logs_desc": {
+    "message": "Прикрепляет до $MAX$ захваченных сообщений консоли. На данный момент захвачено $COUNT$ записей.",
+    "placeholders": { "max": { "content": "$1" }, "count": { "content": "$2" } }
+  },
+  "report_badge_recommended": { "message": "Рекомендуется" },
+  "report_badge_optional": { "message": "Необязательно" },
+  "report_badge_captured_count": { "message": "$COUNT$ захвачено", "placeholders": { "count": { "content": "$1" } } }
 }

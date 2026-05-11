@@ -6,19 +6,37 @@ let previousActiveElement = null;
 const _capturedConsoleLogs = [];
 const MAX_CONSOLE_ENTRIES = 50;
 
+// i18n wrapper
+function t(key, substitutions) {
+    try {
+        return chrome.i18n.getMessage(key, substitutions) || key;
+    } catch {
+        return key;
+    }
+}
+
 // Capture console output early for debugging context.
 (function installConsoleCapture() {
     const _origLog = console.log.bind(console);
     const _origError = console.error.bind(console);
     const _origWarn = console.warn.bind(console);
 
+    function _formatArg(a) {
+        if (a instanceof Error) return a.stack || a.toString();
+        if (typeof a === 'object' && a !== null) {
+            try {
+                return JSON.stringify(a);
+            } catch {
+                return String(a);
+            }
+        }
+        return String(a);
+    }
+
     function _capture(type, args) {
         if (_capturedConsoleLogs.length >= MAX_CONSOLE_ENTRIES) _capturedConsoleLogs.shift();
         try {
-            const message = args
-                .map(a => (typeof a === 'string' ? a : JSON.stringify(a)))
-                .join(' ')
-                .slice(0, 300);
+            const message = args.map(_formatArg).join(' ');
             _capturedConsoleLogs.push({
                 type,
                 message,
@@ -41,31 +59,41 @@ const MAX_BODY_CHARS = 6500;
 
 const ISSUE_TEMPLATES = {
     BUG: {
-        name: '🐛 Something is broken (Bug Report)',
+        nameKey: 'report_type_bug_name',
         titlePrefix: '[BUG]',
         label: 'bug',
-        summaryPlaceholder: 'e.g., The settings button disappears on page reload.',
-        descriptionPlaceholder: '1. What are the clear, repeatable steps?\n2. Expected result?\n3. Actual result?',
-        instructions: 'Provide clear steps to reproduce so we can fix it quickly.'
+        summaryPlaceholderKey: 'report_bug_summary_placeholder',
+        descriptionPlaceholderKey: 'report_bug_description_placeholder',
+        instructionsKey: 'report_bug_instructions'
     },
     FEATURE: {
-        name: '✨ I have an idea (Feature Suggestion)',
+        nameKey: 'report_type_feature_name',
         titlePrefix: '[FEATURE]',
         label: 'enhancement',
-        summaryPlaceholder: 'e.g., Add a dark mode toggle button.',
-        descriptionPlaceholder: 'Describe the feature, why it is needed, and how it improves the extension.',
-        instructions: 'Explain the value and intended usage of your suggestion.'
+        summaryPlaceholderKey: 'report_feature_summary_placeholder',
+        descriptionPlaceholderKey: 'report_feature_description_placeholder',
+        instructionsKey: 'report_feature_instructions'
     },
     GENERAL: {
-        name: '💬 General question or feedback',
+        nameKey: 'report_type_general_name',
         titlePrefix: '[FEEDBACK]',
         label: 'feedback',
-        summaryPlaceholder: 'e.g., Question about installation process.',
-        descriptionPlaceholder: 'Provide your detailed question or general feedback, including context.',
-        instructions: 'Provide full context for your question or feedback.',
+        summaryPlaceholderKey: 'report_general_summary_placeholder',
+        descriptionPlaceholderKey: 'report_general_description_placeholder',
+        instructionsKey: 'report_general_instructions',
         useDiscussions: true
     }
 };
+
+// Safely escapes text for a Markdown table cell
+function escapeMarkdownTable(str) {
+    return String(str)
+        .replace(/\\/g, '\\\\')
+        .replace(/\|/g, '\\|')
+        .replace(/[\n\r]+/g, ' ')
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
+        .trim();
+}
 
 function createElement(tag, className = '', attributes = {}) {
     const el = document.createElement(tag);
@@ -191,8 +219,8 @@ async function getInstalledExtensionsInfo() {
 
         const MAX_EXT = 30;
         const rows = list.slice(0, MAX_EXT).map(e => {
-            const name = e.name.slice(0, 40).replace(/\|/g, '\\|');
-            const version = (e.version ?? 'N/A').slice(0, 10);
+            const name = escapeMarkdownTable(e.name.slice(0, 40));
+            const version = escapeMarkdownTable((e.version ?? 'N/A').slice(0, 10));
             const state = e.enabled ? '✅ Enabled' : '⛔ Disabled';
             const type = e.type ?? 'extension';
             return `| ${name} | ${version} | ${state} | ${type} |`;
@@ -321,7 +349,7 @@ function createReportDialog() {
             box-shadow: 0 0 10px rgba(var(--color-primary-rgb), 0.35);
         }
 
-        .modcore-dialog-content label {
+        .modcore-dialog-content label:not(.modcore-type-option) {
             display: block;
             margin-bottom: 4px;
             font-size: var(--text-body-md);
@@ -504,11 +532,11 @@ function createReportDialog() {
             transition: all 0.15s;
             cursor: pointer;
         }
+        .mc-checkbox-row:hover { background: var(--color-surface-hover); }
         .mc-checkbox-row:has(input:checked) {
             border-color: var(--color-primary);
             background: var(--color-primary-container);
         }
-        .mc-checkbox-row:hover { background: var(--color-surface-hover); }
         .mc-checkbox-header {
             display: flex;
             align-items: center;
@@ -521,7 +549,7 @@ function createReportDialog() {
             accent-color: var(--color-primary);
             cursor: pointer;
         }
-        .mc-checkbox-header label {
+        .mc-checkbox-header span.mc-checkbox-label {
             font-weight: var(--weight-semibold);
             font-size: var(--text-body-md);
             margin-bottom: 0;
@@ -613,9 +641,9 @@ function createReportDialog() {
     const content = createElement('div', 'modcore-dialog-content', { 'aria-live': 'polite' });
 
     const header = createElement('div', 'modcore-form-header', { id: 'modcore-dialog-title' });
-    header.textContent = 'modcore Issue Reporter';
+    header.textContent = t('report_dialog_title');
     const stepStatus = createElement('span', 'modcore-form-step-status', { id: 'step-status', 'aria-live': 'polite' });
-    stepStatus.textContent = `Step 1 of ${TOTAL_STEPS}`;
+    stepStatus.textContent = t('report_step_status', ['1', String(TOTAL_STEPS)]);
     header.appendChild(stepStatus);
 
     const progressTrack = createElement('div', 'modcore-progress-bar-track', {
@@ -632,7 +660,7 @@ function createReportDialog() {
     const step1 = createStepElement('step-1');
     const typeHeading = createElement('label');
     typeHeading.setAttribute('id', 'type-heading');
-    typeHeading.textContent = '1. What kind of report are you submitting?';
+    typeHeading.textContent = t('report_type_label');
 
     const typeOptionsGroup = createElement('div', 'modcore-type-options-group', {
         role: 'radiogroup', 'aria-labelledby': 'type-heading'
@@ -647,7 +675,7 @@ function createReportDialog() {
             type: 'radio', id: `issue-type-${key}`, name: 'issue-type', value: key, 'aria-required': 'true'
         });
         const optionText = createElement('span', 'modcore-type-option-text');
-        optionText.textContent = template.name;
+        optionText.textContent = t(template.nameKey);
 
         optionLabel.appendChild(radio);
         optionLabel.appendChild(optionText);
@@ -682,17 +710,17 @@ function createReportDialog() {
     // Step 2
     const step2 = createStepElement('step-2');
     const summaryLabel = createElement('label', '', { for: 'issue-summary' });
-    summaryLabel.textContent = '2. Short Summary / Title';
+    summaryLabel.textContent = t('report_summary_label');
     const summaryInput = createElement('input', '', {
         type: 'text', id: 'issue-summary', name: 'issue-summary', required: 'true',
-        'aria-required': 'true', 'aria-label': 'Short summary or title', maxlength: '120', autocomplete: 'off'
+        'aria-required': 'true', 'aria-label': t('report_summary_label'), maxlength: '120', autocomplete: 'off'
     });
 
     const descriptionLabel = createElement('label', '', { for: 'issue-description' });
-    descriptionLabel.textContent = '3. Detailed Description';
+    descriptionLabel.textContent = t('report_description_label');
     const descriptionTextarea = createElement('textarea', '', {
         id: 'issue-description', name: 'issue-description', required: 'true',
-        'aria-required': 'true', 'aria-label': 'Detailed description', maxlength: '2000'
+        'aria-required': 'true', 'aria-label': t('report_description_label'), maxlength: '2000'
     });
 
     const instructionsNote = createElement('div', 'modcore-modal-note', { id: 'instructions-note', role: 'note' });
@@ -706,18 +734,21 @@ function createReportDialog() {
     // Step 3
     const step3 = createStepElement('step-3');
 
-    function makeCheckboxRow({ id, label, description, badge, defaultChecked = false }) {
-        const row = createElement('div', 'mc-checkbox-row');
-        row.setAttribute('role', 'group');
+    function makeCheckboxRow({ id, labelKey, descKey, descSubstitutions, badge, defaultChecked = false }) {
+        const row = createElement('label', 'mc-checkbox-row');
+        row.setAttribute('for', id);
 
         const headerDiv = createElement('div', 'mc-checkbox-header');
         const checkbox = createElement('input', '', {
             type: 'checkbox', id, name: id, 'aria-describedby': `${id}-desc`
         });
-        if (defaultChecked) checkbox.setAttribute('checked', 'true');
+        if (defaultChecked) {
+            checkbox.setAttribute('checked', 'true');
+            checkbox.checked = true;
+        }
 
-        const lbl = createElement('label', '', { for: id });
-        lbl.textContent = label;
+        const lbl = createElement('span', 'mc-checkbox-label');
+        lbl.textContent = t(labelKey);
 
         headerDiv.appendChild(checkbox);
         headerDiv.appendChild(lbl);
@@ -729,47 +760,45 @@ function createReportDialog() {
         }
 
         const desc = createElement('div', 'mc-checkbox-desc', { id: `${id}-desc` });
-        desc.textContent = description;
+        desc.textContent = t(descKey, descSubstitutions || []);
 
         row.appendChild(headerDiv);
         row.appendChild(desc);
 
-        row.addEventListener('click', e => {
-            if (e.target !== checkbox && e.target !== lbl) checkbox.checked = !checkbox.checked;
-        });
-
         return { row, checkbox };
     }
 
+    const logCount = _capturedConsoleLogs.length;
+    const capturedBadge = logCount > 0 ? t('report_badge_captured_count', [String(logCount)]) : t('report_badge_optional');
+
     const { row: techRow, checkbox: techInfoCheckbox } = makeCheckboxRow({
-        id: 'include-tech-info', label: 'Include technical environment details',
-        description: 'Browser, OS, architecture, screen, performance timing, and more. Highly recommended for bug reports.',
-        badge: 'Recommended', defaultChecked: true
+        id: 'include-tech-info',
+        labelKey: 'report_include_tech_info_label',
+        descKey: 'report_include_tech_info_desc',
+        badge: t('report_badge_recommended'),
+        defaultChecked: true
     });
     techInfoCheckbox.checked = true;
 
     const { row: extRow, checkbox: extListCheckbox } = makeCheckboxRow({
-        id: 'include-ext-list', label: 'Include installed extensions list',
-        description: 'Lists your other installed extensions. Useful for compatibility issues.',
-        badge: 'Optional', defaultChecked: false
+        id: 'include-ext-list',
+        labelKey: 'report_include_ext_list_label',
+        descKey: 'report_include_ext_list_desc',
+        badge: t('report_badge_optional'),
+        defaultChecked: false
     });
 
-    const logCount = _capturedConsoleLogs.length;
     const { row: consoleRow, checkbox: consoleLogsCheckbox } = makeCheckboxRow({
-        id: 'include-console-logs', label: 'Include recent console logs & errors',
-        description: `Attaches up to ${MAX_CONSOLE_ENTRIES} captured console messages. ${logCount} entr${logCount === 1 ? 'y' : 'ies'} captured so far.`,
-        badge: logCount > 0 ? `${logCount} captured` : 'Optional', defaultChecked: false
+        id: 'include-console-logs',
+        labelKey: 'report_include_console_logs_label',
+        descKey: 'report_include_console_logs_desc',
+        descSubstitutions: [String(MAX_CONSOLE_ENTRIES), String(logCount)],
+        badge: capturedBadge,
+        defaultChecked: false
     });
 
     const privacyNote = createElement('div', 'modcore-privacy-note', { role: 'note' });
-    const privacyStrong = createElement('strong');
-    privacyStrong.textContent = '⚠ Privacy: ';
-    privacyNote.appendChild(privacyStrong);
-    privacyNote.appendChild(document.createTextNode('Your report will open on the '));
-    const privacyEm = createElement('em');
-    privacyEm.textContent = 'public';
-    privacyNote.appendChild(privacyEm);
-    privacyNote.appendChild(document.createTextNode(` ${GITHUB_REPO_NAME} GitHub page. Ensure your summary and description contain no personal or sensitive information.`));
+    privacyNote.textContent = t('report_privacy', [GITHUB_REPO_NAME]);
 
     step3.appendChild(techRow);
     step3.appendChild(extRow);
@@ -780,21 +809,21 @@ function createReportDialog() {
     const actionsDiv = createElement('div', 'modcore-form-actions');
     const rightActions = createElement('div', 'mc-right-actions');
 
-    const cancelButton = createElement('button', 'btn-secondary', { type: 'button', 'aria-label': 'Cancel and close' });
-    cancelButton.textContent = 'Cancel';
+    const cancelButton = createElement('button', 'btn-secondary', { type: 'button', 'aria-label': t('report_cancel') });
+    cancelButton.textContent = t('report_cancel');
     cancelButton.addEventListener('click', removeModal);
 
     const backButton = createElement('button', 'btn-secondary', {
-        type: 'button', id: 'back-button', disabled: 'true', 'aria-label': 'Go to previous step'
+        type: 'button', id: 'back-button', disabled: 'true', 'aria-label': t('report_back')
     });
-    backButton.textContent = '← Back';
+    backButton.textContent = t('report_back');
     backButton.style.visibility = 'hidden';
     backButton.addEventListener('click', () => navigateStep(-1));
 
     const nextButton = createElement('button', 'btn-primary', {
-        type: 'button', id: 'next-button', 'aria-label': 'Go to next step'
+        type: 'button', id: 'next-button', 'aria-label': t('report_next')
     });
-    nextButton.textContent = 'Next →';
+    nextButton.textContent = t('report_next');
     nextButton.addEventListener('click', () => navigateStep(1));
 
     rightActions.appendChild(backButton);
@@ -842,9 +871,9 @@ function createReportDialog() {
 
     function updateStep2Template(type) {
         const template = ISSUE_TEMPLATES[type] || ISSUE_TEMPLATES.BUG;
-        summaryInput.placeholder = template.summaryPlaceholder;
-        descriptionTextarea.placeholder = template.descriptionPlaceholder;
-        instructionsNote.textContent = template.instructions;
+        summaryInput.placeholder = t(template.summaryPlaceholderKey);
+        descriptionTextarea.placeholder = t(template.descriptionPlaceholderKey);
+        instructionsNote.textContent = t(template.instructionsKey);
     }
 
     function updateProgress(stepIndex) {
@@ -871,7 +900,7 @@ function createReportDialog() {
                     errorDiv = createElement('div', 'modcore-error-note', { id: 'validation-error', role: 'alert' });
                     form.insertBefore(errorDiv, actionsDiv);
                 }
-                errorDiv.textContent = 'Please fill in all required fields before continuing.';
+                errorDiv.textContent = t('report_validation_fill_all');
                 setTimeout(() => errorDiv?.remove(), 4500);
                 (isSummaryEmpty ? summaryInput : descriptionTextarea).focus();
                 return;
@@ -894,11 +923,11 @@ function createReportDialog() {
                 backButton.disabled = newStepIndex === 0;
 
                 const isLast = newStepIndex === steps.length - 1;
-                nextButton.textContent = isLast ? '🚀 Send to GitHub' : 'Next →';
+                nextButton.textContent = isLast ? t('report_submit') : t('report_next');
                 nextButton.className = isLast ? 'btn-success' : 'btn-primary';
-                nextButton.setAttribute('aria-label', isLast ? 'Submit report to GitHub' : 'Go to next step');
+                nextButton.setAttribute('aria-label', isLast ? t('report_submit') : t('report_next'));
 
-                stepStatus.textContent = `Step ${newStepIndex + 1} of ${TOTAL_STEPS}`;
+                stepStatus.textContent = t('report_step_status', [String(newStepIndex + 1), String(TOTAL_STEPS)]);
                 updateProgress(newStepIndex);
 
                 const firstFocusable = steps[newStepIndex].querySelector(
@@ -912,7 +941,7 @@ function createReportDialog() {
             nextButton.classList.add('btn-loading');
             nextButton.textContent = '';
             const loadingSpan = createElement('span', 'btn-loading-text');
-            loadingSpan.textContent = 'Opening GitHub';
+            loadingSpan.textContent = t('report_opening_github');
             nextButton.appendChild(loadingSpan);
             handleFormSubmission(form);
         }
