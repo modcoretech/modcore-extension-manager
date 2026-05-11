@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', async () => {
-    const PROFILES_STORAGE_KEY = 'profiles';
+    const PROFILES_STORAGE_KEY = 'em_profiles';
     const DEFAULT_ICON_PLACEHOLDER = '../../public/icons/svg/updatelogo.svg';
     const SETTINGS_KEY = 'automations_settings';
 
