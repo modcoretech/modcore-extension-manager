@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const PROFILES_STORAGE_KEY = 'em_profiles';
     const DEFAULT_ICON_PLACEHOLDER = '../../public/icons/svg/updatelogo.svg';
     const SETTINGS_KEY = 'automations_settings';
+    const RULES_STORAGE_KEY = 'rules';
 
     const DEFAULT_SETTINGS = {
         confirmBeforeDelete: true,
@@ -19,80 +20,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentFilters = { query: '', status: 'all', trigger: 'all', targetType: 'all' };
     let settings = { ...DEFAULT_SETTINGS };
     let searchDebounceTimer = null;
+    let isRefreshing = false;
+    let ruleElementsCache = new Map(); // Cache for DOM elements
 
-    // --- DOM Element Selection ---
-    const rulesListContainer = document.getElementById('rules-list-container');
-    const noRulesPlaceholder = document.getElementById('no-rules-placeholder');
-    const noResultsPlaceholder = document.getElementById('no-results-placeholder');
-    const ruleSearchInput = document.getElementById('rule-search-input');
-    const selectAllRulesCheckbox = document.getElementById('select-all-rules');
-    const filterBtn = document.getElementById('filter-btn');
-
-    // Filter Side Sheet
-    const filterSideSheet = document.getElementById('filter-side-sheet');
-    const filterSheetOverlay = document.getElementById('filter-sheet-overlay');
-    const closeFilterSheetBtn = document.getElementById('close-filter-sheet');
-    const applyFiltersBtn = document.getElementById('apply-filters-btn');
-    const resetFiltersBtn = document.getElementById('reset-filters-btn');
-    const filterStatusSelect = document.getElementById('filter-status-select');
-    const filterTriggerSelect = document.getElementById('filter-trigger-select');
-    const filterTargetTypeSelect = document.getElementById('filter-target-type-select');
-
-    // Bulk Actions Bar elements
-    const bulkActionsBar = document.getElementById('bulk-actions-bar');
-    const selectedRulesCountSpan = document.getElementById('selected-rules-count');
-    const bulkEnableBtn = document.getElementById('bulk-enable-btn');
-    const bulkDisableBtn = document.getElementById('bulk-disable-btn');
-    const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
-
-    // Add Rule Panel elements
-    const addRulePanel = document.getElementById('add-rule-panel');
-    const ruleForm = document.getElementById('rule-form');
-    const formPanelTitle = document.getElementById('form-panel-title');
-    const ruleIdInput = document.getElementById('rule-id-input');
-    const ruleNameInput = document.getElementById('rule-name-input');
-    const ruleTagsInput = document.getElementById('rule-tags-input');
-    const ruleTargetTypeSelect = document.getElementById('rule-target-type-select');
-    const targetSelectorContainer = document.getElementById('target-selector-container');
-    const targetSelectorLabel = document.getElementById('target-selector-label');
-    const ruleActionSelect = document.getElementById('rule-action-select');
-    const triggerTypeSelect = document.getElementById('trigger-type-select');
-    const timeConditionFields = document.getElementById('time-condition-fields');
-    const urlConditionFields = document.getElementById('url-condition-fields');
-    const ruleTimeInput = document.getElementById('rule-time-input');
-    const ruleUrlInput = document.getElementById('rule-url-input');
-
-    // Stepper buttons
-    const step1Next = document.getElementById('step-1-next');
-    const step2Back = document.getElementById('step-2-back');
-    const step2Next = document.getElementById('step-2-next');
-    const step3Back = document.getElementById('step-3-back');
-
-    // Error message elements
-    const ruleNameError = document.getElementById('rule-name-error');
-    const targetSelectorError = document.getElementById('target-selector-error');
-    const ruleActionError = document.getElementById('rule-action-error');
-    const ruleTimeError = document.getElementById('rule-time-error');
-    const daySelectorError = document.getElementById('day-selector-error');
-    const ruleUrlError = document.getElementById('rule-url-error');
-
-    const toastContainer = document.getElementById('toast-container');
-    const panels = document.querySelectorAll('.content-panel');
-    const navButtons = document.querySelectorAll('.sidebar-button');
-    const backToRulesListBtn = document.getElementById('back-to-rules-list');
-    const cancelRuleFormBtn = document.getElementById('cancel-rule-form');
-
-    // Settings elements
-    const settingConfirmDelete = document.getElementById('setting-confirm-delete');
-    const settingAutoDisableConflicts = document.getElementById('setting-auto-disable-conflicts');
-    const settingDefaultTargetType = document.getElementById('setting-default-target-type');
-    const settingDefaultTriggerType = document.getElementById('setting-default-trigger-type');
-
-    // Custom Confirmation Dialog Elements
-    const confirmDialogOverlay = document.getElementById('confirm-dialog-overlay');
-    const confirmDialogMessage = document.getElementById('confirm-dialog-message');
-    const confirmOkBtn = document.getElementById('confirm-ok-btn');
-    const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
+    // --- DOM Element Cache ---
+    const DOM = {};
+    
+    function cacheDOM() {
+        const ids = [
+            'rules-list-container', 'no-rules-placeholder', 'no-results-placeholder',
+            'rule-search-input', 'select-all-rules', 'filter-btn',
+            'filter-side-sheet', 'filter-sheet-overlay', 'close-filter-sheet',
+            'apply-filters-btn', 'reset-filters-btn', 'filter-status-select',
+            'filter-trigger-select', 'filter-target-type-select',
+            'bulk-actions-bar', 'selected-rules-count', 'bulk-enable-btn',
+            'bulk-disable-btn', 'bulk-delete-btn',
+            'add-rule-panel', 'rule-form', 'form-panel-title', 'rule-id-input',
+            'rule-name-input', 'rule-tags-input', 'rule-target-type-select',
+            'target-selector-container', 'target-selector-label', 'rule-action-select',
+            'trigger-type-select', 'time-condition-fields', 'url-condition-fields',
+            'rule-time-input', 'rule-url-input',
+            'step-1-next', 'step-2-back', 'step-2-next', 'step-3-back',
+            'rule-name-error', 'target-selector-error', 'rule-action-error',
+            'rule-time-error', 'day-selector-error', 'rule-url-error',
+            'toast-container', 'back-to-rules-list', 'cancel-rule-form',
+            'setting-confirm-delete', 'setting-auto-disable-conflicts',
+            'setting-default-target-type', 'setting-default-trigger-type',
+            'confirm-dialog-overlay', 'confirm-dialog-message', 'confirm-ok-btn', 'confirm-cancel-btn'
+        ];
+        
+        ids.forEach(id => {
+            DOM[id] = document.getElementById(id);
+        });
+        
+        DOM.panels = document.querySelectorAll('.content-panel');
+        DOM.navButtons = document.querySelectorAll('.sidebar-button');
+        DOM.daySelector = document.querySelector('.day-selector');
+        DOM.dayCheckboxes = document.querySelectorAll('.day-selector input');
+    }
 
     // --- Utility Functions ---
     function sanitizeText(str) {
@@ -105,9 +70,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const createElement = (tag, className, textContent) => {
         const element = document.createElement(tag);
         if (className) element.className = className;
-        if (textContent) element.textContent = textContent;
+        if (textContent !== undefined && textContent !== null) {
+            element.textContent = textContent;
+        }
         return element;
     };
+
+    const createFragment = () => document.createDocumentFragment();
 
     // --- Settings Logic ---
     async function loadSettings() {
@@ -116,10 +85,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const stored = result[SETTINGS_KEY] || {};
             settings = { ...DEFAULT_SETTINGS, ...stored };
 
-            settingConfirmDelete.checked = settings.confirmBeforeDelete;
-            settingAutoDisableConflicts.checked = settings.autoDisableConflicts;
-            settingDefaultTargetType.value = settings.defaultTargetType;
-            settingDefaultTriggerType.value = settings.defaultTriggerType;
+            if (DOM['setting-confirm-delete']) DOM['setting-confirm-delete'].checked = settings.confirmBeforeDelete;
+            if (DOM['setting-auto-disable-conflicts']) DOM['setting-auto-disable-conflicts'].checked = settings.autoDisableConflicts;
+            if (DOM['setting-default-target-type']) DOM['setting-default-target-type'].value = settings.defaultTargetType;
+            if (DOM['setting-default-trigger-type']) DOM['setting-default-trigger-type'].value = settings.defaultTriggerType;
         } catch (e) {
             console.error('Failed to load settings:', e);
         }
@@ -135,22 +104,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    settingConfirmDelete.addEventListener('change', (e) => {
-        settings.confirmBeforeDelete = e.target.checked;
-        saveSettings();
-    });
-    settingAutoDisableConflicts.addEventListener('change', (e) => {
-        settings.autoDisableConflicts = e.target.checked;
-        saveSettings();
-    });
-    settingDefaultTargetType.addEventListener('change', (e) => {
-        settings.defaultTargetType = e.target.value;
-        saveSettings();
-    });
-    settingDefaultTriggerType.addEventListener('change', (e) => {
-        settings.defaultTriggerType = e.target.value;
-        saveSettings();
-    });
+    // --- Profile Loading (FIXED) ---
+    async function loadProfiles() {
+        try {
+            const profilesData = await chrome.storage.local.get(PROFILES_STORAGE_KEY);
+            const raw = profilesData[PROFILES_STORAGE_KEY];
+            
+            // popup.js stores: { profiles: { [id]: Profile }, order: string[] }
+            // We need to extract the profiles object, not the wrapper
+            if (raw && typeof raw === 'object' && !Array.isArray(raw) && raw.profiles) {
+                allProfiles = Object.values(raw.profiles);
+            } else {
+                // Fallback: handle legacy format or empty storage
+                allProfiles = [];
+            }
+            
+            // Normalize and validate profiles
+            allProfiles = allProfiles.filter(p => p && typeof p === 'object').map(p => ({
+                id: p.id || '',
+                name: typeof p.name === 'string' ? p.name : 'Unnamed',
+                extensionStates: p.extensionStates || {},
+                shortcut: p.shortcut || null,
+                icons: p.icons || null
+            }));
+            
+            allProfiles.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        } catch (e) {
+            console.error('Failed to load profiles:', e);
+            allProfiles = [];
+        }
+    }
 
     // --- Helper Functions for DOM Manipulation & Validation ---
 
@@ -158,7 +141,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const button = createElement('button', `btn-icon ${buttonClass}`);
         button.setAttribute('aria-label', ariaLabel);
         button.type = 'button';
-        button.appendChild(createElement('span', `icon ${iconClass}`));
+        const icon = createElement('span', `icon ${iconClass}`);
+        button.appendChild(icon);
         return button;
     };
 
@@ -173,7 +157,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         input.setAttribute('role', 'switch');
         input.setAttribute('aria-checked', isEnabled);
         const slider = createElement('span', 'slider');
-        label.append(input, slider);
+        label.appendChild(input);
+        label.appendChild(slider);
         return label;
     };
 
@@ -181,13 +166,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         const condition = createElement('div', 'rule-condition');
         const icon = createElement('span', `icon ${iconClass}`);
         const textDiv = createElement('div', 'condition-text', sanitizeText(text));
-        condition.append(icon, textDiv);
+        condition.appendChild(icon);
+        condition.appendChild(textDiv);
         return condition;
     };
 
     /** Populates the target selector based on type. */
     const populateTargetSelector = (targetType, selectedIds = []) => {
-        targetSelectorContainer.textContent = '';
+        const container = DOM['target-selector-container'];
+        container.textContent = '';
         let items = [];
         let labelText = '';
 
@@ -207,10 +194,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             placeholder.style.textAlign = 'center';
             placeholder.style.color = 'var(--color-text-secondary)';
             placeholder.style.padding = 'var(--space-4)';
-            targetSelectorContainer.appendChild(placeholder);
+            container.appendChild(placeholder);
+            DOM['target-selector-label'].textContent = labelText + ' *';
             return;
         }
 
+        const fragment = createFragment();
         items.forEach(item => {
             const id = item.id;
             const name = item.name || 'Unnamed';
@@ -236,18 +225,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             img.alt = `Icon for ${sanitizeText(name)}`;
             img.onerror = function() { this.src = DEFAULT_ICON_PLACEHOLDER; };
 
-            label.append(img, createElement('span', null, sanitizeText(name)));
-            itemDiv.append(input, label);
-            targetSelectorContainer.appendChild(itemDiv);
+            label.appendChild(img);
+            label.appendChild(createElement('span', null, sanitizeText(name)));
+            itemDiv.appendChild(input);
+            itemDiv.appendChild(label);
+            fragment.appendChild(itemDiv);
         });
-        targetSelectorLabel.textContent = labelText + ' *';
+        
+        container.appendChild(fragment);
+        DOM['target-selector-label'].textContent = labelText + ' *';
     };
 
     /** Populates the action type select based on target type. */
     const populateActionTypeSelect = (targetType, selectedAction = 'enable') => {
-        while (ruleActionSelect.firstChild) {
-            ruleActionSelect.removeChild(ruleActionSelect.firstChild);
-        }
+        const select = DOM['rule-action-select'];
+        select.textContent = '';
         let options = [];
 
         if (targetType === 'extension') {
@@ -268,70 +260,88 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (optionData.value === selectedAction) {
                 option.selected = true;
             }
-            ruleActionSelect.appendChild(option);
+            select.appendChild(option);
         });
     };
 
     const showValidationError = (element, message) => {
+        if (!element) return;
         element.textContent = message;
-        const prev = element.previousElementSibling;
-        if (prev && (prev.tagName === 'INPUT' || prev.tagName === 'SELECT')) {
-            prev.classList.add('invalid');
-        } else if (element.id === 'target-selector-error') {
-            targetSelectorContainer.classList.add('invalid-border');
-        } else if (element.id === 'day-selector-error') {
-            // day selector container is the div, previous is the label
-            const daySelector = document.querySelector('.day-selector');
-            if (daySelector) daySelector.style.borderColor = 'var(--color-danger)';
-        }
         element.setAttribute('role', 'alert');
+        
+        // Add visual invalid state to related input
+        if (element.id === 'target-selector-error') {
+            DOM['target-selector-container'].classList.add('invalid-border');
+        } else if (element.id === 'day-selector-error') {
+            if (DOM.daySelector) DOM.daySelector.style.borderColor = 'var(--color-danger)';
+        } else {
+            const prev = element.previousElementSibling;
+            if (prev && (prev.tagName === 'INPUT' || prev.tagName === 'SELECT')) {
+                prev.classList.add('invalid');
+            }
+        }
     };
 
     const clearValidationError = (element) => {
+        if (!element) return;
         element.textContent = '';
-        const prev = element.previousElementSibling;
-        if (prev && (prev.tagName === 'INPUT' || prev.tagName === 'SELECT')) {
-            prev.classList.remove('invalid');
-        } else if (element.id === 'target-selector-error') {
-            targetSelectorContainer.classList.remove('invalid-border');
-        } else if (element.id === 'day-selector-error') {
-            const daySelector = document.querySelector('.day-selector');
-            if (daySelector) daySelector.style.borderColor = '';
-        }
         element.removeAttribute('role');
+        
+        if (element.id === 'target-selector-error') {
+            DOM['target-selector-container'].classList.remove('invalid-border');
+        } else if (element.id === 'day-selector-error') {
+            if (DOM.daySelector) DOM.daySelector.style.borderColor = '';
+        } else {
+            const prev = element.previousElementSibling;
+            if (prev && (prev.tagName === 'INPUT' || prev.tagName === 'SELECT')) {
+                prev.classList.remove('invalid');
+            }
+        }
     };
 
     const clearAllValidationErrors = () => {
-        [ruleNameError, targetSelectorError, ruleActionError, ruleTimeError, daySelectorError, ruleUrlError].forEach(clearValidationError);
-        targetSelectorContainer.classList.remove('invalid-border');
-        const daySelector = document.querySelector('.day-selector');
-        if (daySelector) daySelector.style.borderColor = '';
+        [
+            DOM['rule-name-error'], DOM['target-selector-error'], DOM['rule-action-error'],
+            DOM['rule-time-error'], DOM['day-selector-error'], DOM['rule-url-error']
+        ].forEach(clearValidationError);
+        
+        DOM['target-selector-container'].classList.remove('invalid-border');
+        if (DOM.daySelector) DOM.daySelector.style.borderColor = '';
     };
 
     /** Custom confirmation dialog. Returns a Promise. */
     const showConfirmDialog = (message) => {
         return new Promise((resolve) => {
-            confirmDialogMessage.textContent = message;
-            confirmDialogOverlay.classList.add('active');
-            confirmOkBtn.focus();
-
-            const onConfirm = () => cleanup(true);
-            const onCancel = () => cleanup(false);
+            const overlay = DOM['confirm-dialog-overlay'];
+            const msgEl = DOM['confirm-dialog-message'];
+            const okBtn = DOM['confirm-ok-btn'];
+            const cancelBtn = DOM['confirm-cancel-btn'];
+            
+            if (!overlay || !msgEl || !okBtn || !cancelBtn) {
+                resolve(confirm(message));
+                return;
+            }
+            
+            msgEl.textContent = message;
+            overlay.classList.add('active');
+            okBtn.focus();
 
             const cleanup = (result) => {
-                confirmDialogOverlay.classList.remove('active');
-                confirmOkBtn.removeEventListener('click', onConfirm);
-                confirmCancelBtn.removeEventListener('click', onCancel);
+                overlay.classList.remove('active');
+                okBtn.removeEventListener('click', onConfirm);
+                cancelBtn.removeEventListener('click', onCancel);
                 document.removeEventListener('keydown', handleEsc);
                 resolve(result);
             };
 
+            const onConfirm = () => cleanup(true);
+            const onCancel = () => cleanup(false);
             const handleEsc = (e) => {
                 if (e.key === 'Escape') onCancel();
             };
 
-            confirmOkBtn.addEventListener('click', onConfirm);
-            confirmCancelBtn.addEventListener('click', onCancel);
+            okBtn.addEventListener('click', onConfirm);
+            cancelBtn.addEventListener('click', onCancel);
             document.addEventListener('keydown', handleEsc);
         });
     };
@@ -355,85 +365,80 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const validateStep = (step) => {
         if (step === 1) {
-            const ruleName = ruleNameInput.value.trim();
+            const ruleName = DOM['rule-name-input'].value.trim();
             if (!ruleName) {
-                showValidationError(ruleNameError, 'Rule name is required.');
+                showValidationError(DOM['rule-name-error'], 'Rule name is required.');
                 return false;
             }
             const isNameTaken = allRules.some(r => 
-                sanitizeText(r.name).toLowerCase() === sanitizeText(ruleName).toLowerCase() && r.id !== ruleIdInput.value);
+                r.name.toLowerCase() === ruleName.toLowerCase() && r.id !== DOM['rule-id-input'].value);
             if (isNameTaken) {
-                showValidationError(ruleNameError, 'A rule with this name already exists.');
+                showValidationError(DOM['rule-name-error'], 'A rule with this name already exists.');
                 return false;
             }
-            clearValidationError(ruleNameError);
+            clearValidationError(DOM['rule-name-error']);
             return true;
         }
         if (step === 2) {
-            const selectedTargets = Array.from(targetSelectorContainer.querySelectorAll('input:checked')).map(cb => cb.value);
+            const selectedTargets = Array.from(DOM['target-selector-container'].querySelectorAll('input:checked')).map(cb => cb.value);
             if (selectedTargets.length === 0) {
-                showValidationError(targetSelectorError, 'Please select at least one target.');
+                showValidationError(DOM['target-selector-error'], 'Please select at least one target.');
                 return false;
             }
-            if (ruleTargetTypeSelect.value === 'profile' && selectedTargets.length > 1) {
-                showValidationError(targetSelectorError, 'Please select only one profile.');
+            if (DOM['rule-target-type-select'].value === 'profile' && selectedTargets.length > 1) {
+                showValidationError(DOM['target-selector-error'], 'Please select only one profile.');
                 return false;
             }
-            clearValidationError(targetSelectorError);
-            clearValidationError(ruleActionError);
+            clearValidationError(DOM['target-selector-error']);
+            clearValidationError(DOM['rule-action-error']);
             return true;
         }
         if (step === 3) {
-            if (triggerTypeSelect.value === 'time') {
-                if (!ruleTimeInput.value) {
-                    showValidationError(ruleTimeError, 'Please select a time.');
+            if (DOM['trigger-type-select'].value === 'time') {
+                if (!DOM['rule-time-input'].value) {
+                    showValidationError(DOM['rule-time-error'], 'Please select a time.');
                     return false;
                 }
                 const days = Array.from(document.querySelectorAll('.day-selector input:checked')).map(cb => parseInt(cb.value, 10));
                 if (days.length === 0) {
-                    showValidationError(daySelectorError, 'Please select at least one day.');
+                    showValidationError(DOM['day-selector-error'], 'Please select at least one day.');
                     return false;
                 }
-                clearValidationError(ruleTimeError);
-                clearValidationError(daySelectorError);
+                clearValidationError(DOM['rule-time-error']);
+                clearValidationError(DOM['day-selector-error']);
                 return true;
             } else {
-                if (!ruleUrlInput.value.trim()) {
-                    showValidationError(ruleUrlError, 'URL cannot be empty.');
+                if (!DOM['rule-url-input'].value.trim()) {
+                    showValidationError(DOM['rule-url-error'], 'URL cannot be empty.');
                     return false;
                 }
-                clearValidationError(ruleUrlError);
+                clearValidationError(DOM['rule-url-error']);
                 return true;
             }
         }
         return true;
     };
 
-    step1Next.addEventListener('click', () => {
-        if (validateStep(1)) showStep(2);
-    });
-    step2Back.addEventListener('click', () => showStep(1));
-    step2Next.addEventListener('click', () => {
-        if (validateStep(2)) showStep(3);
-    });
-    step3Back.addEventListener('click', () => showStep(2));
-
     // --- Data & UI Management ---
 
     const refreshUI = async () => {
+        if (isRefreshing) return;
+        isRefreshing = true;
+        
         try {
+            // Load extensions
             if (chrome.management && chrome.management.getSelf) {
                 const self = await chrome.management.getSelf();
                 const extensions = await chrome.management.getAll();
                 allExtensions = extensions.filter(ext => ext.type === 'extension' && ext.id !== self.id);
             }
             
-            const profilesData = await chrome.storage.local.get(PROFILES_STORAGE_KEY);
-            allProfiles = Object.values(profilesData[PROFILES_STORAGE_KEY] || {});
-            allProfiles.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            // Load profiles (FIXED)
+            await loadProfiles();
 
-            const data = await chrome.storage.local.get('rules');
-            allRules = data.rules || [];
+            // Load rules
+            const data = await chrome.storage.local.get(RULES_STORAGE_KEY);
+            allRules = data[RULES_STORAGE_KEY] || [];
             
             applyFiltersAndRender();
             updateBulkActionBarVisibility();
@@ -441,15 +446,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (error) {
             console.error('Error initializing the page:', error);
             showToast('Error loading data. Please refresh.', 'error');
+        } finally {
+            isRefreshing = false;
         }
     };
 
     const applyFiltersAndRender = () => {
         const queryLower = currentFilters.query.toLowerCase();
         const filtered = allRules.filter(rule => {
-            const searchMatch = rule.name.toLowerCase().includes(queryLower) ||
+            const searchMatch = !queryLower || 
+                rule.name.toLowerCase().includes(queryLower) ||
                 (rule.tags && rule.tags.some(tag => tag.toLowerCase().includes(queryLower)));
-            const statusMatch = currentFilters.status === 'all' || (currentFilters.status === 'enabled' && rule.enabled) || (currentFilters.status === 'disabled' && !rule.enabled);
+            const statusMatch = currentFilters.status === 'all' || 
+                (currentFilters.status === 'enabled' && rule.enabled) || 
+                (currentFilters.status === 'disabled' && !rule.enabled);
             const triggerMatch = currentFilters.trigger === 'all' || rule.trigger.type === currentFilters.trigger;
             const targetTypeMatch = currentFilters.targetType === 'all' || rule.targetType === currentFilters.targetType;
 
@@ -459,52 +469,68 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
     
     const renderRules = (rulesToRender) => {
+        const container = DOM['rules-list-container'];
         const hasRules = allRules.length > 0;
-        noRulesPlaceholder.style.display = !hasRules ? 'block' : 'none';
+        
+        DOM['no-rules-placeholder'].style.display = !hasRules ? 'block' : 'none';
+        
         if (!hasRules) {
-            noRulesPlaceholder.textContent = '';
-            noRulesPlaceholder.appendChild(createElement('span', 'icon icon-list'));
-            noRulesPlaceholder.appendChild(createElement('h3', null, 'No Automation Rules Found'));
-            noRulesPlaceholder.appendChild(createElement('p', null, 'Use the sidebar to "Add New Rule" and get started.'));
+            DOM['no-rules-placeholder'].textContent = '';
+            DOM['no-rules-placeholder'].appendChild(createElement('span', 'icon icon-list'));
+            DOM['no-rules-placeholder'].appendChild(createElement('h3', null, 'No Automation Rules Found'));
+            DOM['no-rules-placeholder'].appendChild(createElement('p', null, 'Use the sidebar to "Add New Rule" and get started.'));
             const learnMoreLink = createElement('a', null, 'Learn more about Automation Rules...');
             learnMoreLink.href = 'https://sites.google.com/view/modcore-em-help/manage-extensions/rules-page';
             learnMoreLink.target = '_blank';
             learnMoreLink.rel = 'noopener noreferrer';
             learnMoreLink.style.display = 'block';
             learnMoreLink.style.marginTop = '12px';
-            noRulesPlaceholder.appendChild(learnMoreLink);
+            DOM['no-rules-placeholder'].appendChild(learnMoreLink);
+            container.textContent = '';
+            ruleElementsCache.clear();
+            updateSelectAllCheckboxState();
+            return;
         }
 
-        const ruleElementsOnPage = new Map();
-        rulesListContainer.querySelectorAll('tr[data-rule-id]').forEach(el => {
-            ruleElementsOnPage.set(el.dataset.ruleId, el);
-        });
-
-        const rulesToRenderIds = new Set(rulesToRender.map(r => r.id));
-
-        for (const [ruleId, element] of ruleElementsOnPage.entries()) {
-            if (!rulesToRenderIds.has(ruleId)) {
-                element.remove();
-            }
-        }
-
+        // Use a DocumentFragment for batch DOM updates
+        const fragment = createFragment();
+        const newCache = new Map();
+        
         rulesToRender.forEach(rule => {
-            const existingElement = ruleElementsOnPage.get(rule.id);
+            const existingElement = ruleElementsCache.get(rule.id);
             const newElement = createRuleElement(rule);
-            if (existingElement) {
+            
+            if (existingElement && existingElement.isConnected) {
+                // Efficient replacement
                 existingElement.replaceWith(newElement);
             } else {
-                rulesListContainer.appendChild(newElement);
+                fragment.appendChild(newElement);
+            }
+            newCache.set(rule.id, newElement);
+        });
+        
+        // Remove elements for rules that are no longer rendered
+        ruleElementsCache.forEach((element, ruleId) => {
+            if (!newCache.has(ruleId) && element.isConnected) {
+                element.remove();
             }
         });
         
-        const hasResults = rulesListContainer.children.length > 0;
-        noResultsPlaceholder.style.display = hasRules && !hasResults ? 'block' : 'none';
+        // Append new elements
+        if (fragment.childNodes.length > 0) {
+            container.appendChild(fragment);
+        }
+        
+        ruleElementsCache = newCache;
+        
+        const hasResults = container.children.length > 0;
+        DOM['no-results-placeholder'].style.display = hasRules && !hasResults ? 'block' : 'none';
+        
         if (hasRules && !hasResults) {
-            noResultsPlaceholder.textContent = '';
-            noResultsPlaceholder.appendChild(createElement('span', 'icon icon-search'));
-            noResultsPlaceholder.appendChild(createElement('h3', null, 'No Rules Match Your Search'));
-            noResultsPlaceholder.appendChild(createElement('p', null, 'Try searching for a different name or adjusting your filters.'));
+            DOM['no-results-placeholder'].textContent = '';
+            DOM['no-results-placeholder'].appendChild(createElement('span', 'icon icon-search'));
+            DOM['no-results-placeholder'].appendChild(createElement('h3', null, 'No Rules Match Your Search'));
+            DOM['no-results-placeholder'].appendChild(createElement('p', null, 'Try searching for a different name or adjusting your filters.'));
         }
 
         updateSelectAllCheckboxState();
@@ -570,9 +596,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         const tdActions = createElement('td', 'col-actions');
         const editBtn = createIconButton('icon-edit', 'edit-rule-btn', `Edit ${sanitizeText(rule.name)}`);
         const deleteBtn = createIconButton('icon-trash', 'delete-rule-btn', `Delete ${sanitizeText(rule.name)}`);
-        tdActions.append(editBtn, deleteBtn);
+        tdActions.appendChild(editBtn);
+        tdActions.appendChild(deleteBtn);
 
-        tr.append(tdSelect, tdName, tdTrigger, tdTargets, tdStatus, tdActions);
+        tr.appendChild(tdSelect);
+        tr.appendChild(tdName);
+        tr.appendChild(tdTrigger);
+        tr.appendChild(tdTargets);
+        tr.appendChild(tdStatus);
+        tr.appendChild(tdActions);
         return tr;
     };
 
@@ -612,7 +644,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return conflicts;
     };
 
-    // --- Bulk Action Logic ---
+    // --- Bulk Action Logic (ENHANCED) ---
 
     const toggleRuleSelection = (ruleId, isChecked) => {
         if (isChecked) {
@@ -630,33 +662,52 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const updateBulkActionBarVisibility = () => {
         const count = selectedRuleIds.size;
-        selectedRulesCountSpan.textContent = `${count} selected`;
+        const bar = DOM['bulk-actions-bar'];
+        const countSpan = DOM['selected-rules-count'];
+        
+        if (countSpan) countSpan.textContent = `${count} selected`;
+        
         if (count > 0) {
-            bulkActionsBar.style.display = 'flex';
-            requestAnimationFrame(() => bulkActionsBar.classList.add('active'));
+            bar.style.display = 'flex';
+            requestAnimationFrame(() => bar.classList.add('active'));
         } else {
-            bulkActionsBar.classList.remove('active');
-            setTimeout(() => { bulkActionsBar.style.display = 'none'; }, 300);
+            bar.classList.remove('active');
+            // Use transitionend for smooth hide
+            const onTransitionEnd = () => {
+                if (!bar.classList.contains('active')) {
+                    bar.style.display = 'none';
+                }
+                bar.removeEventListener('transitionend', onTransitionEnd);
+            };
+            bar.addEventListener('transitionend', onTransitionEnd);
         }
     };
 
     const updateSelectAllCheckboxState = () => {
-        const visibleRuleIds = Array.from(rulesListContainer.querySelectorAll('tr[data-rule-id]')).map(el => el.dataset.ruleId);
+        const checkbox = DOM['select-all-rules'];
+        const visibleRuleIds = Array.from(DOM['rules-list-container'].querySelectorAll('tr[data-rule-id]')).map(el => el.dataset.ruleId);
+        
         if (visibleRuleIds.length === 0) {
-            selectAllRulesCheckbox.checked = false;
-            selectAllRulesCheckbox.indeterminate = false;
+            checkbox.checked = false;
+            checkbox.indeterminate = false;
+            checkbox.disabled = true;
             return;
         }
+        
+        checkbox.disabled = false;
         const allVisibleSelected = visibleRuleIds.every(id => selectedRuleIds.has(id));
-        selectAllRulesCheckbox.checked = allVisibleSelected;
-        selectAllRulesCheckbox.indeterminate = selectedRuleIds.size > 0 && !allVisibleSelected;
+        const someVisibleSelected = visibleRuleIds.some(id => selectedRuleIds.has(id));
+        
+        checkbox.checked = allVisibleSelected;
+        checkbox.indeterminate = someVisibleSelected && !allVisibleSelected;
     };
 
     const handleSelectAllChange = (isChecked) => {
         const visibleRuleCheckboxes = document.querySelectorAll('#rules-list-container .rule-select-checkbox');
         visibleRuleCheckboxes.forEach(checkbox => {
             checkbox.checked = isChecked;
-            toggleRuleSelection(checkbox.closest('tr')?.dataset.ruleId, isChecked);
+            const ruleId = checkbox.closest('tr')?.dataset.ruleId;
+            if (ruleId) toggleRuleSelection(ruleId, isChecked);
         });
     };
 
@@ -671,10 +722,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const updatedRules = allRules.filter(r => !selectedRuleIds.has(r.id));
+        const deletedCount = selectedRuleIds.size;
         selectedRuleIds.clear();
+        
         chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updatedRules }, () => {
             refreshUI();
-            showToast('Selected rules deleted.', 'success');
+            showToast(`${deletedCount} rule(s) deleted.`, 'success');
         });
     };
 
@@ -686,6 +739,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const actionText = enable ? 'enable' : 'disable';
         const confirmed = await showConfirmDialog(`Are you sure you want to ${actionText} ${selectedRuleIds.size} selected rule(s)?`);
+        
         if (confirmed) {
             const updatedRules = allRules.map(rule => {
                 if (selectedRuleIds.has(rule.id)) {
@@ -693,10 +747,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 return rule;
             });
+            const affectedCount = selectedRuleIds.size;
             selectedRuleIds.clear();
+            
             chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updatedRules }, () => {
                 refreshUI();
-                showToast(`Selected rules ${actionText}d.`, 'success');
+                showToast(`${affectedCount} rule(s) ${actionText}d.`, 'success');
             });
         }
     };
@@ -714,26 +770,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        const selectedTargetType = ruleTargetTypeSelect.value;
-        const selectedTargetIds = Array.from(targetSelectorContainer.querySelectorAll('input:checked')).map(cb => cb.value);
+        const selectedTargetType = DOM['rule-target-type-select'].value;
+        const selectedTargetIds = Array.from(DOM['target-selector-container'].querySelectorAll('input:checked')).map(cb => cb.value);
 
         const ruleData = {
-            id: ruleIdInput.value || `rule_${Date.now()}`,
-            name: ruleNameInput.value.trim(),
-            tags: ruleTagsInput.value.split(',').map(tag => tag.trim()).filter(Boolean),
+            id: DOM['rule-id-input'].value || `rule_${Date.now()}`,
+            name: DOM['rule-name-input'].value.trim(),
+            tags: DOM['rule-tags-input'].value.split(',').map(tag => tag.trim()).filter(Boolean),
             targetType: selectedTargetType,
             targetIds: selectedTargetIds,
-            action: ruleActionSelect.value,
-            trigger: { type: triggerTypeSelect.value },
-            enabled: allRules.find(r => r.id === ruleIdInput.value)?.enabled ?? true,
+            action: DOM['rule-action-select'].value,
+            trigger: { type: DOM['trigger-type-select'].value },
+            enabled: allRules.find(r => r.id === DOM['rule-id-input'].value)?.enabled ?? true,
         };
         
         if (ruleData.trigger.type === 'time') {
             const selectedDays = Array.from(document.querySelectorAll('.day-selector input:checked')).map(cb => parseInt(cb.value, 10));
-            ruleData.trigger.time = ruleTimeInput.value;
+            ruleData.trigger.time = DOM['rule-time-input'].value;
             ruleData.trigger.days = selectedDays;
         } else {
-            ruleData.trigger.url = ruleUrlInput.value.trim();
+            ruleData.trigger.url = DOM['rule-url-input'].value.trim();
         }
         
         const conflicts = findConflictingRules(ruleData);
@@ -767,7 +823,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     };
     
-    rulesListContainer.addEventListener('click', async (e) => {
+    const handleRulesListClick = async (e) => {
         const ruleRow = e.target.closest('tr[data-rule-id]');
         if (!ruleRow) return;
         const ruleId = ruleRow.dataset.ruleId;
@@ -807,63 +863,59 @@ document.addEventListener('DOMContentLoaded', async () => {
         else if (e.target.classList.contains('rule-select-checkbox')) {
             toggleRuleSelection(ruleId, e.target.checked);
         }
-    });
+    };
 
-    ruleSearchInput.addEventListener('input', () => {
+    const handleSearchInput = () => {
         clearTimeout(searchDebounceTimer);
         searchDebounceTimer = setTimeout(() => {
-            currentFilters.query = ruleSearchInput.value;
+            currentFilters.query = DOM['rule-search-input'].value;
             applyFiltersAndRender();
         }, 150);
-    });
+    };
 
-    ruleTargetTypeSelect.addEventListener('change', () => {
-        const selectedType = ruleTargetTypeSelect.value;
+    const handleTargetTypeChange = () => {
+        const selectedType = DOM['rule-target-type-select'].value;
         populateTargetSelector(selectedType);
         populateActionTypeSelect(selectedType);
-        clearValidationError(targetSelectorError);
-        clearValidationError(ruleActionError);
-    });
+        clearValidationError(DOM['target-selector-error']);
+        clearValidationError(DOM['rule-action-error']);
+    };
 
-    triggerTypeSelect.addEventListener('change', () => {
-        const isTime = triggerTypeSelect.value === 'time';
-        timeConditionFields.style.display = isTime ? 'block' : 'none';
-        urlConditionFields.style.display = isTime ? 'none' : 'block';
+    const handleTriggerTypeChange = () => {
+        const isTime = DOM['trigger-type-select'].value === 'time';
+        DOM['time-condition-fields'].style.display = isTime ? 'block' : 'none';
+        DOM['url-condition-fields'].style.display = isTime ? 'none' : 'block';
         clearAllValidationErrors();
-    });
+    };
 
     // Filter Side Sheet
-    const openFilterSheet = () => filterSideSheet.classList.add('active');
-    const closeFilterSheet = () => filterSideSheet.classList.remove('active');
+    const openFilterSheet = () => DOM['filter-side-sheet'].classList.add('active');
+    const closeFilterSheet = () => DOM['filter-side-sheet'].classList.remove('active');
 
-    filterBtn.addEventListener('click', openFilterSheet);
-    closeFilterSheetBtn.addEventListener('click', closeFilterSheet);
-    filterSheetOverlay.addEventListener('click', closeFilterSheet);
-
-    applyFiltersBtn.addEventListener('click', () => {
-        currentFilters.status = filterStatusSelect.value;
-        currentFilters.trigger = filterTriggerSelect.value;
-        currentFilters.targetType = filterTargetTypeSelect.value;
+    const handleApplyFilters = () => {
+        currentFilters.status = DOM['filter-status-select'].value;
+        currentFilters.trigger = DOM['filter-trigger-select'].value;
+        currentFilters.targetType = DOM['filter-target-type-select'].value;
         applyFiltersAndRender();
         closeFilterSheet();
-    });
+    };
 
-    resetFiltersBtn.addEventListener('click', () => {
-        filterStatusSelect.value = 'all';
-        filterTriggerSelect.value = 'all';
-        filterTargetTypeSelect.value = 'all';
+    const handleResetFilters = () => {
+        DOM['filter-status-select'].value = 'all';
+        DOM['filter-trigger-select'].value = 'all';
+        DOM['filter-target-type-select'].value = 'all';
         currentFilters = { query: currentFilters.query, status: 'all', trigger: 'all', targetType: 'all' };
         applyFiltersAndRender();
-    });
+    };
 
     // --- Panel Navigation Logic ---
 
     const setActivePanel = (panelId) => {
-        panels.forEach(panel => {
+        DOM.panels.forEach(panel => {
             panel.classList.remove('active');
             panel.setAttribute('aria-hidden', 'true');
         });
-        navButtons.forEach(btn => btn.classList.remove('active'));
+        DOM.navButtons.forEach(btn => btn.classList.remove('active'));
 
         const targetPanel = document.getElementById(panelId);
         if (targetPanel) {
@@ -876,116 +928,172 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (panelId === 'rules-list-panel') {
-            ruleSearchInput.focus();
+            DOM['rule-search-input']?.focus();
             selectedRuleIds.clear();
             updateBulkActionBarVisibility();
         } else if (panelId === 'add-rule-panel') {
-            ruleNameInput.focus();
+            DOM['rule-name-input']?.focus();
         }
     };
 
     const showRuleForm = (ruleToEdit = null) => {
-        ruleForm.reset();
+        DOM['rule-form'].reset();
         clearAllValidationErrors();
         showStep(1);
         
-        timeConditionFields.style.display = 'block';
-        urlConditionFields.style.display = 'none';
+        DOM['time-condition-fields'].style.display = 'block';
+        DOM['url-condition-fields'].style.display = 'none';
         
-        while (targetSelectorContainer.firstChild) {
-            targetSelectorContainer.removeChild(targetSelectorContainer.firstChild);
-        }
-        document.querySelectorAll('.day-selector input').forEach(cb => cb.checked = false);
+        DOM['target-selector-container'].textContent = '';
+        DOM.dayCheckboxes.forEach(cb => cb.checked = false);
 
         if (ruleToEdit) {
-            formPanelTitle.textContent = 'Edit Rule';
-            ruleIdInput.value = ruleToEdit.id;
-            ruleNameInput.value = ruleToEdit.name;
-            ruleTagsInput.value = (ruleToEdit.tags || []).map(tag => sanitizeText(tag)).join(', ');
+            DOM['form-panel-title'].textContent = 'Edit Rule';
+            DOM['rule-id-input'].value = ruleToEdit.id;
+            DOM['rule-name-input'].value = ruleToEdit.name;
+            DOM['rule-tags-input'].value = (ruleToEdit.tags || []).map(tag => sanitizeText(tag)).join(', ');
             
-            ruleTargetTypeSelect.value = ruleToEdit.targetType;
+            DOM['rule-target-type-select'].value = ruleToEdit.targetType;
             populateTargetSelector(ruleToEdit.targetType, ruleToEdit.targetIds);
             populateActionTypeSelect(ruleToEdit.targetType, ruleToEdit.action);
-            ruleActionSelect.value = ruleToEdit.action;
+            DOM['rule-action-select'].value = ruleToEdit.action;
 
-            triggerTypeSelect.value = ruleToEdit.trigger.type;
+            DOM['trigger-type-select'].value = ruleToEdit.trigger.type;
             
             if (ruleToEdit.trigger.type === 'time') {
-                ruleTimeInput.value = ruleToEdit.trigger.time;
+                DOM['rule-time-input'].value = ruleToEdit.trigger.time;
                 ruleToEdit.trigger.days.forEach(day => {
                     const checkbox = document.querySelector(`.day-selector input[value="${day}"]`);
                     if (checkbox) checkbox.checked = true;
                 });
             } else {
-                ruleUrlInput.value = ruleToEdit.trigger.url;
+                DOM['rule-url-input'].value = ruleToEdit.trigger.url;
             }
         } else {
-            formPanelTitle.textContent = 'Create New Rule';
-            ruleIdInput.value = '';
-            ruleTagsInput.value = '';
+            DOM['form-panel-title'].textContent = 'Create New Rule';
+            DOM['rule-id-input'].value = '';
+            DOM['rule-tags-input'].value = '';
             
-            ruleTargetTypeSelect.value = settings.defaultTargetType;
+            DOM['rule-target-type-select'].value = settings.defaultTargetType;
             populateTargetSelector(settings.defaultTargetType);
             populateActionTypeSelect(settings.defaultTargetType);
             
-            triggerTypeSelect.value = settings.defaultTriggerType;
+            DOM['trigger-type-select'].value = settings.defaultTriggerType;
         }
         
-        triggerTypeSelect.dispatchEvent(new Event('change'));
-        ruleTargetTypeSelect.dispatchEvent(new Event('change'));
+        handleTriggerTypeChange();
+        handleTargetTypeChange();
         setActivePanel('add-rule-panel');
-        ruleNameInput.focus();
+        DOM['rule-name-input']?.focus();
     };
 
     // --- Toast Notification ---
     const showToast = (message, type = 'info') => {
+        const container = DOM['toast-container'];
+        if (!container) return;
+        
         const toast = createElement('div', `toast ${type}`, message);
-        toastContainer.appendChild(toast);
+        container.appendChild(toast);
 
         requestAnimationFrame(() => toast.classList.add('show')); 
-        setTimeout(() => {
+        
+        const timer = setTimeout(() => {
             toast.classList.remove('show');
-            toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+            const onTransitionEnd = () => {
+                toast.remove();
+                toast.removeEventListener('transitionend', onTransitionEnd);
+            };
+            toast.addEventListener('transitionend', onTransitionEnd);
         }, 3000);
+        
+        // Store timer for potential early dismissal
+        toast._dismissTimer = timer;
     };
 
-    // --- Initial Load & Event Listeners ---
+    // --- Initialization & Event Wiring ---
     
-    navButtons.forEach(button => {
-        button.addEventListener('click', (e) => {
-            if (button.tagName === 'A') return; // Let external links navigate naturally
-            const panelId = button.getAttribute('aria-controls');
-            if (!panelId) return;
-            if (panelId === 'add-rule-panel') showRuleForm();
-            else setActivePanel(panelId);
+    function initEventListeners() {
+        // Navigation
+        DOM.navButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                if (button.tagName === 'A') return;
+                const panelId = button.getAttribute('aria-controls');
+                if (!panelId) return;
+                if (panelId === 'add-rule-panel') showRuleForm();
+                else setActivePanel(panelId);
+            });
         });
-    });
 
-    backToRulesListBtn.addEventListener('click', () => setActivePanel('rules-list-panel'));
-    cancelRuleFormBtn.addEventListener('click', () => setActivePanel('rules-list-panel'));
-    ruleForm.addEventListener('submit', handleFormSubmit);
+        DOM['back-to-rules-list']?.addEventListener('click', () => setActivePanel('rules-list-panel'));
+        DOM['cancel-rule-form']?.addEventListener('click', () => setActivePanel('rules-list-panel'));
+        DOM['rule-form']?.addEventListener('submit', handleFormSubmit);
 
-    selectAllRulesCheckbox.addEventListener('change', (e) => handleSelectAllChange(e.target.checked));
-    bulkEnableBtn.addEventListener('click', () => bulkToggleSelected(true));
-    bulkDisableBtn.addEventListener('click', () => bulkToggleSelected(false));
-    bulkDeleteBtn.addEventListener('click', bulkDeleteSelected);
+        // Stepper
+        DOM['step-1-next']?.addEventListener('click', () => { if (validateStep(1)) showStep(2); });
+        DOM['step-2-back']?.addEventListener('click', () => showStep(1));
+        DOM['step-2-next']?.addEventListener('click', () => { if (validateStep(2)) showStep(3); });
+        DOM['step-3-back']?.addEventListener('click', () => showStep(2));
 
-    document.addEventListener('keydown', (e) => {
-        if (e.key === '/' && currentActivePanelId === 'rules-list-panel') {
-            e.preventDefault(); 
-            ruleSearchInput.focus();
-        } 
-        else if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
-            e.preventDefault(); 
-            showRuleForm();
-        }
-        else if ((e.ctrlKey || e.metaKey) && e.key === 's' && currentActivePanelId === 'add-rule-panel') {
-            e.preventDefault();
-            ruleForm.requestSubmit();
-        }
-    });
+        // Search & Filters
+        DOM['rule-search-input']?.addEventListener('input', handleSearchInput);
+        DOM['rule-target-type-select']?.addEventListener('change', handleTargetTypeChange);
+        DOM['trigger-type-select']?.addEventListener('change', handleTriggerTypeChange);
 
+        // Filter Sheet
+        DOM['filter-btn']?.addEventListener('click', openFilterSheet);
+        DOM['close-filter-sheet']?.addEventListener('click', closeFilterSheet);
+        DOM['filter-sheet-overlay']?.addEventListener('click', closeFilterSheet);
+        DOM['apply-filters-btn']?.addEventListener('click', handleApplyFilters);
+        DOM['reset-filters-btn']?.addEventListener('click', handleResetFilters);
+
+        // Bulk Actions
+        DOM['select-all-rules']?.addEventListener('change', (e) => handleSelectAllChange(e.target.checked));
+        DOM['bulk-enable-btn']?.addEventListener('click', () => bulkToggleSelected(true));
+        DOM['bulk-disable-btn']?.addEventListener('click', () => bulkToggleSelected(false));
+        DOM['bulk-delete-btn']?.addEventListener('click', bulkDeleteSelected);
+
+        // Rules list delegation
+        DOM['rules-list-container']?.addEventListener('click', handleRulesListClick);
+
+        // Settings
+        DOM['setting-confirm-delete']?.addEventListener('change', (e) => {
+            settings.confirmBeforeDelete = e.target.checked;
+            saveSettings();
+        });
+        DOM['setting-auto-disable-conflicts']?.addEventListener('change', (e) => {
+            settings.autoDisableConflicts = e.target.checked;
+            saveSettings();
+        });
+        DOM['setting-default-target-type']?.addEventListener('change', (e) => {
+            settings.defaultTargetType = e.target.value;
+            saveSettings();
+        });
+        DOM['setting-default-trigger-type']?.addEventListener('change', (e) => {
+            settings.defaultTriggerType = e.target.value;
+            saveSettings();
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === '/' && currentActivePanelId === 'rules-list-panel') {
+                e.preventDefault(); 
+                DOM['rule-search-input']?.focus();
+            } 
+            else if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+                e.preventDefault(); 
+                showRuleForm();
+            }
+            else if ((e.ctrlKey || e.metaKey) && e.key === 's' && currentActivePanelId === 'add-rule-panel') {
+                e.preventDefault();
+                DOM['rule-form']?.requestSubmit();
+            }
+        });
+    }
+
+    // --- Main Initialization ---
+    cacheDOM();
+    initEventListeners();
     await loadSettings();
-    refreshUI();
+    await refreshUI();
     setActivePanel('rules-list-panel');
 });
