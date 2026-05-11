@@ -2,10 +2,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Constants & State ---
     const API_URL = 'https://raw.githubusercontent.com/modcoretech/api/main/modcoreEM/extensions.json';
     const DEFAULT_CACHE_TTL_HOURS = 24;
-    const IGNORED_EXTENSIONS_KEY = 'ignored_extensions';
-    const AUTO_SCAN_KEY = 'auto_scan_enabled';
-    const LAST_SCAN_KEY = 'last_scan_timestamp';
-    const SCAN_HISTORY_KEY = 'scan_history';
+    const IGNORED_EXTENSIONS_KEY = 'inspect_ignored_extensions';
+    const AUTO_SCAN_KEY = 'inspect_auto_scan_enabled';
+    const LAST_SCAN_KEY = 'inspect_last_scan_timestamp';
+    const SCAN_HISTORY_KEY = 'inspect_scan_history';
     const SETTINGS_KEY = 'inspect_settings';
     const GENERIC_EXTENSION_ICON = '../../public/icons/svg/info.svg';
     

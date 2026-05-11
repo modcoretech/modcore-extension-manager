@@ -266,26 +266,15 @@ select:disabled, input[type="text"]:disabled {
 .bulk-actions-dropdown-menu.visible {
     opacity: 1; transform: translateY(0); visibility: visible;
 }
-.dropdown-view {
-    display: none;
-    flex-direction: column;
-    animation: fadeIn 0.2s ease forwards;
-}
-.dropdown-view.active-view { display: flex; }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .submenu-header {
     display: flex; align-items: center; border-bottom: 1px solid var(--color-border);
-    margin-bottom: var(--space-1); padding-bottom: var(--space-1);
+    margin-bottom: var(--space-1); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-2);
+    gap: var(--space-2);
 }
-.submenu-header .back-button {
-    font-family: var(--font-sans);  /* Use the same font as the rest of the UI */
-    background: none; border: none; display: flex; align-items: center;
-    gap: var(--space-1); color: var(--color-text-primary); cursor: pointer;
-    font-size: 1em; padding: var(--space-1); font-weight: 600;
-    border-radius: var(--radius-sm);
+.submenu-title {
+    font-weight: 600; font-size: 0.9em; color: var(--color-text-primary);
+    white-space: nowrap; flex-grow: 1;
 }
-.submenu-header .back-button:hover { background-color: var(--color-surface-hover); }
-.submenu-header .back-button img { width: 16px; height: 16px; filter: var(--filter-icon); }
 .submenu { max-height: 150px; overflow-y: auto; padding-right: var(--space-1); }
 
 /* Submenu search & tools (Profiles) */
@@ -528,41 +517,105 @@ select:disabled, input[type="text"]:disabled {
   50% { transform: rotate(180deg) scale(1.05); }
   100% { transform: rotate(360deg) scale(1); }
 }
+/* ── Inline shortcut feedback (profile config only) ──────────────────────── */
 .feedback-message {
   display: flex; align-items: center; justify-content: center;
   gap: var(--space-2); padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md); margin: var(--space-3) 0;
-  font-size: 0.9em; text-align: center; border: 1px solid; font-weight: 500;
-  transition: all var(--transition-normal);
-  animation: fadeInSlideUp 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-  box-shadow: var(--shadow-sm);
-}
-.feedback-message.exit { animation: fadeOutSlideDown 0.3s cubic-bezier(0.4, 0, 1, 1) forwards; }
-@keyframes fadeInSlideUp {
-  0% { opacity: 0; transform: translateY(15px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-@keyframes fadeOutSlideDown {
-    0% { opacity: 1; transform: translateY(0); }
-    100% { opacity: 0; transform: translateY(15px); }
+  border-radius: var(--radius-md); font-size: 0.9em; border: 1px solid; font-weight: 500;
 }
 .error-message {
-  color: var(--color-danger); background-color: color-mix(in srgb, var(--color-danger) 10%, transparent);
+  color: var(--color-danger);
+  background-color: color-mix(in srgb, var(--color-danger) 10%, transparent);
   border-color: color-mix(in srgb, var(--color-danger) 30%, transparent);
 }
-@media (prefers-color-scheme: dark) { .error-message { color: var(--danger-dark); } }
 .success-message {
-  color: var(--color-success); background-color: color-mix(in srgb, var(--color-success) 10%, transparent);
+  color: var(--color-success);
+  background-color: color-mix(in srgb, var(--color-success) 10%, transparent);
   border-color: color-mix(in srgb, var(--color-success) 30%, transparent);
 }
-@media (prefers-color-scheme: dark) { .success-message { color: var(--success-dark); } }
-.action-feedback {
-  color: var(--color-feedback-text); background-color: var(--color-feedback-bg);
-  border-color: var(--color-feedback-border);
-}
 .info-message {
-  color: var(--color-text-secondary); background-color: color-mix(in srgb, var(--color-text-secondary) 5%, transparent);
+  color: var(--color-text-secondary);
+  background-color: color-mix(in srgb, var(--color-text-secondary) 5%, transparent);
   border-color: color-mix(in srgb, var(--color-text-secondary) 15%, transparent);
+}
+
+/* ── Toast notification system ───────────────────────────────────────────── */
+#toast-container {
+  position: fixed;
+  bottom: var(--space-4);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--space-2);
+  z-index: 9999;
+  pointer-events: none;
+  width: max-content;
+  max-width: calc(100vw - var(--space-8));
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  font-size: 0.875em;
+  font-weight: 500;
+  border: 1px solid transparent;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(10px) scale(0.97);
+  transition:
+    opacity var(--transition-fast),
+    transform var(--transition-fast);
+  will-change: opacity, transform;
+  min-width: 200px;
+  max-width: 380px;
+  text-align: center;
+  justify-content: center;
+}
+.toast.toast-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.toast.toast-exit {
+  animation: toastExit var(--duration-fast) var(--ease-standard) forwards;
+}
+@keyframes toastExit {
+  to { opacity: 0; transform: translateY(8px) scale(0.96); }
+}
+.toast-success {
+  background-color: color-mix(in srgb, var(--color-success) 15%, var(--color-modal-bg));
+  color: var(--color-success);
+  border-color: color-mix(in srgb, var(--color-success) 35%, transparent);
+}
+.toast-error {
+  background-color: color-mix(in srgb, var(--color-danger) 15%, var(--color-modal-bg));
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 35%, transparent);
+}
+.toast-info {
+  background-color: color-mix(in srgb, var(--color-primary) 12%, var(--color-modal-bg));
+  color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+.toast-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 1.1em;
+  line-height: 1;
+  padding: 0 0 0 var(--space-1);
+  flex-shrink: 0;
+  transition: opacity var(--transition-fast);
+}
+.toast-close:hover { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .toast { transition: none !important; animation: none !important; }
+  .toast.toast-visible { opacity: 1; transform: none; }
 }
 .modal-overlay {
   position: fixed; inset: 0; background-color: var(--color-backdrop);

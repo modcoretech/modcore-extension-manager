@@ -11,7 +11,7 @@
 
 const SYNC_QUOTA_BYTES  = 102400; // 100 KB
 const SYNC_DATA_KEY     = 'fullSyncData';
-const SYNC_SETTINGS_KEY = 'cloudSyncSettings';
+const SYNC_SETTINGS_KEY = 'cloud_settings';
 
 // Hard maximums — enforced regardless of user settings. Strict limits for efficiency.
 const HARD_MAX_VERSIONS    = 5;
@@ -29,8 +29,7 @@ const DEBOUNCE_DELAY = 300; // ms
 
 const DATA_KEYS_TO_SYNC = {
     rules:                       'Automation Rules',
-    extensionManagerProfiles_v2: 'Profiles',
-    extensionManagerPrefs:       'Preferences',
+    em_profiles:                    'Profiles'
 };
 
 // ==========================================================================

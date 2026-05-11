@@ -10,15 +10,14 @@
 // ==========================================================================
 
 const RULES_STORAGE_KEY    = 'rules';
-const PROFILES_STORAGE_KEY = 'extensionManagerProfiles_v2';
-const PREFS_STORAGE_KEY    = 'extensionManagerPrefs';
+const PROFILES_STORAGE_KEY = 'em_profiles';
 
-const SYNC_SETTINGS_KEY    = 'cloudSyncSettings';
+const SYNC_SETTINGS_KEY    = 'cloud_settings';
 const SYNC_DATA_KEY        = 'fullSyncData';
-const SYNC_ALARM_NAME      = 'cloudSyncAlarm_v2';
+const SYNC_ALARM_NAME      = 'cloud_syncalarm';
 
-const EXTENSION_HISTORY_KEY = 'extensionActivityHistory';
-const HISTORY_SETTINGS_KEY  = 'extensionHistorySettings';
+const EXTENSION_HISTORY_KEY = 'timeline_activity';
+const HISTORY_SETTINGS_KEY  = 'timeline_settings';
 
 // Hard limits - must match cloud.js constants!!
 const HARD_MAX_VERSIONS    = 5;
@@ -27,7 +26,6 @@ const HARD_MAX_LOG_ENTRIES = 100;
 const DATA_KEYS_TO_SYNC = {
     [RULES_STORAGE_KEY]:    'Automation Rules',
     [PROFILES_STORAGE_KEY]: 'Profiles',
-    [PREFS_STORAGE_KEY]:    'Preferences',
 };
 
 // ==========================================================================

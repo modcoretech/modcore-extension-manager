@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
-    const PROFILES_STORAGE_KEY = 'extensionManagerProfiles_v2';
+    const PROFILES_STORAGE_KEY = 'profiles';
     const DEFAULT_ICON_PLACEHOLDER = '../../public/icons/svg/updatelogo.svg';
-    const SETTINGS_KEY = 'automationsSettings';
+    const SETTINGS_KEY = 'automations_settings';
 
     const DEFAULT_SETTINGS = {
         confirmBeforeDelete: true,

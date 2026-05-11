@@ -4,7 +4,7 @@
 'use strict';
 
 // --- Storage Keys & Defaults ---
-const DISCOVERY_STORAGE_KEY = 'modcore_discovery_v3';
+const DISCOVERY_STORAGE_KEY = 'discovery_data';
 
 const defaultDiscovery = {
     featureOrder: ['inspect', 'safety', 'snapshot', 'timeline', 'automations', 'cloud', 'notes'],

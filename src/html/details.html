@@ -12,7 +12,7 @@
 </head>
 <body>
     <a href="#main-content" class="skip-link">Skip to main content</a>
-    
+
     <div class="page-wrapper">
         <!-- Left Sidebar Navigation -->
         <aside id="left-sidebar" class="left-sidebar" aria-label="Main navigation">
@@ -20,10 +20,10 @@
                 <img id="sidebar-extension-icon" src="../../public/icons/svg/code.svg" alt="" class="sidebar-logo">
                 <h1 id="sidebar-extension-title" class="sidebar-title">Extension</h1>
             </div>
-            
+
             <nav class="sidebar-nav" aria-label="Panel navigation">
                 <div class="nav-section">
-                    <span class="nav-section-label">Panels</span>
+                    <span class="nav-section-label" aria-hidden="true">Panels</span>
                     <button class="nav-item active" data-panel-target="panel-permissions" aria-current="true">
                         <span class="icon icon-shield" aria-hidden="true"></span>
                         <span class="nav-label">Permissions</span>
@@ -33,11 +33,11 @@
                         <span class="nav-label">Support Developer</span>
                     </button>
                 </div>
-                
+
                 <div class="nav-divider" role="separator"></div>
-                
+
                 <div class="nav-section">
-                    <span class="nav-section-label">Quick Links</span>
+                    <span class="nav-section-label" aria-hidden="true">Quick Links</span>
                     <a class="nav-item" href="safety-center.html" target="_blank" rel="noopener noreferrer">
                         <span class="icon icon-link" aria-hidden="true"></span>
                         <span class="nav-label">Safety Center</span>
@@ -60,33 +60,36 @@
                     </a>
                 </div>
             </nav>
-            
+
             <div class="sidebar-footer">
-                <p class="sidebar-footer-text">&copy; <span id="current-year"></span> modcore</p>
+                <p class="sidebar-footer-text">
+                    <span>&copy; <span id="current-year"></span> modcore</span>
+                    <a href="https://sites.google.com/view/modcore-em-help/manage-extensions/details-page-features" target="_blank" rel="noopener noreferrer" class="sidebar-help-link" aria-label="Details page help (opens in new tab)">Details page help</a>
+                </p>
             </div>
         </aside>
 
         <!-- Main Content Area -->
         <main id="main-content" class="content-area">
-            <div id="initial-loading-indicator" class="loading-overlay" role="status" aria-live="polite">
+            <div id="initial-loading-indicator" class="loading-overlay" role="status" aria-live="polite" aria-label="Loading extension details">
                 <div class="spinner" aria-hidden="true"></div>
                 <p>Loading Extension Details...</p>
             </div>
 
-            <div id="error-container" class="api-error-display" style="display: none;" role="alert" aria-atomic="true"></div>
+            <div id="error-container" class="api-error-display" hidden role="alert" aria-atomic="true"></div>
 
-            <!-- Permissions Panel (now the default/main panel) -->
+            <!-- Permissions Panel -->
             <section id="panel-permissions" class="content-panel active" aria-labelledby="permissions-panel-title" tabindex="-1">
                 <header class="panel-header">
-                    <h2 id="permissions-panel-title">Permissions & Site Access</h2>
+                    <h2 id="permissions-panel-title">Permissions &amp; Site Access</h2>
                     <p id="permissions-panel-description">Permissions are requests by an extension to access specific browser features (like bookmarks or notifications) or to read and modify data on websites. Carefully reviewing permissions is crucial for understanding what an extension can do and ensuring your online safety and privacy.</p>
                 </header>
                 <div class="panel-content">
                     <div class="permissions-controls">
                         <div class="permissions-search">
-                             <label for="permission-search-input" class="visually-hidden">Search permissions...</label>
-                             <span class="icon icon-search" aria-hidden="true"></span>
-                           <input type="search" id="permission-search-input" placeholder="Search permissions..." aria-controls="api-permissions-list host-permissions-list">
+                            <label for="permission-search-input" class="visually-hidden">Search permissions</label>
+                            <span class="icon icon-search" aria-hidden="true"></span>
+                            <input type="search" id="permission-search-input" placeholder="Search permissions..." autocomplete="off" aria-controls="api-permissions-list host-permissions-list">
                         </div>
                         <div class="permissions-filters">
                             <div class="filter-dropdown-wrapper">
@@ -94,62 +97,62 @@
                                     <span class="icon icon-filter" aria-hidden="true"></span>
                                     <span>Filter</span>
                                 </button>
-                                <div id="filter-dropdown-panel" class="filter-dropdown" role="menu" aria-labelledby="filter-btn">
+                                <div id="filter-dropdown-panel" class="filter-dropdown" role="dialog" aria-labelledby="filter-btn" aria-modal="false">
                                     <div class="filter-group">
-                                        <h4>Risk Level</h4>
+                                        <h4 id="risk-filter-label">Risk Level</h4>
                                         <label class="filter-option">
-                                            <input type="checkbox" name="risk-filter" value="high" checked>
-                                            <span class="risk-dot high"></span>
+                                            <input type="checkbox" name="risk-filter" value="high" checked aria-describedby="risk-filter-label">
+                                            <span class="risk-dot high" aria-hidden="true"></span>
                                             <span>High Risk</span>
                                         </label>
                                         <label class="filter-option">
-                                            <input type="checkbox" name="risk-filter" value="medium" checked>
-                                            <span class="risk-dot medium"></span>
+                                            <input type="checkbox" name="risk-filter" value="medium" checked aria-describedby="risk-filter-label">
+                                            <span class="risk-dot medium" aria-hidden="true"></span>
                                             <span>Medium Risk</span>
                                         </label>
                                         <label class="filter-option">
-                                            <input type="checkbox" name="risk-filter" value="low" checked>
-                                            <span class="risk-dot low"></span>
+                                            <input type="checkbox" name="risk-filter" value="low" checked aria-describedby="risk-filter-label">
+                                            <span class="risk-dot low" aria-hidden="true"></span>
                                             <span>Low Risk</span>
                                         </label>
                                         <label class="filter-option">
-                                            <input type="checkbox" name="risk-filter" value="varies" checked>
-                                            <span class="risk-dot varies"></span>
+                                            <input type="checkbox" name="risk-filter" value="varies" checked aria-describedby="risk-filter-label">
+                                            <span class="risk-dot varies" aria-hidden="true"></span>
                                             <span>Varies</span>
                                         </label>
                                     </div>
                                     <div class="filter-group">
-                                        <h4>Type</h4>
+                                        <h4 id="type-filter-label">Type</h4>
                                         <label class="filter-option">
-                                            <input type="checkbox" name="type-filter" value="api" checked>
+                                            <input type="checkbox" name="type-filter" value="api" checked aria-describedby="type-filter-label">
                                             <span>API Permissions</span>
                                         </label>
                                         <label class="filter-option">
-                                            <input type="checkbox" name="type-filter" value="host" checked>
+                                            <input type="checkbox" name="type-filter" value="host" checked aria-describedby="type-filter-label">
                                             <span>Host Permissions</span>
                                         </label>
                                     </div>
                                 </div>
                             </div>
                             <div class="permissions-layout-toggle" role="group" aria-label="Permissions view layout">
-                                 <button id="layout-list-btn" class="btn-icon active" data-layout="list" title="View as List" aria-pressed="true">
-                                     <span class="icon icon-list" aria-hidden="true"></span>
-                                 </button>
-                                 <button id="layout-grid-btn" class="btn-icon" data-layout="grid" title="View as Grid" aria-pressed="false">
-                                     <span class="icon icon-grid" aria-hidden="true"></span>
-                                 </button>
+                                <button id="layout-list-btn" class="btn-icon active" data-layout="list" title="View as List" aria-pressed="true" aria-label="View as list">
+                                    <span class="icon icon-list" aria-hidden="true"></span>
+                                </button>
+                                <button id="layout-grid-btn" class="btn-icon" data-layout="grid" title="View as Grid" aria-pressed="false" aria-label="View as grid">
+                                    <span class="icon icon-grid" aria-hidden="true"></span>
+                                </button>
                             </div>
                         </div>
                     </div>
                     <div id="permissions-content-wrapper" aria-live="polite" aria-busy="true">
-                         <div id="permissions-actual-content">
+                        <div id="permissions-actual-content">
                             <div class="content-section permissions-section">
                                 <h3 id="api-permissions-heading" class="section-title small-title">API Permissions (<span id="api-perm-count">0</span>)</h3>
-                                <div id="api-permissions-list" class="permissions-list list-view"></div>
+                                <div id="api-permissions-list" class="permissions-list list-view" role="list" aria-labelledby="api-permissions-heading"></div>
                             </div>
                             <div class="content-section permissions-section">
                                 <h3 id="host-permissions-heading" class="section-title small-title">Host Permissions (<span id="host-perm-count">0</span>)</h3>
-                                <div id="host-permissions-list" class="permissions-list list-view"></div>
+                                <div id="host-permissions-list" class="permissions-list list-view" role="list" aria-labelledby="host-permissions-heading"></div>
                             </div>
                             <div class="content-section permissions-section risk-legend">
                                 <h3 class="section-title small-title">Risk Level Guide</h3>
@@ -157,14 +160,14 @@
                                     <li><span class="risk-indicator low">Low Risk</span> Minimal access to non-sensitive features.</li>
                                     <li><span class="risk-indicator medium">Medium Risk</span> May access sensitive data or browser functions.</li>
                                     <li><span class="risk-indicator high">High Risk</span> Grants extensive access to data and browser behavior.</li>
-                                    <li><span class="risk-indicator varies">Varies Risk</span> Risk depends on the specific websites it can access.</li>
+                                    <li><span class="risk-indicator varies">Varies</span> Risk depends on the specific websites it can access.</li>
                                 </ul>
                             </div>
-                         </div>
+                        </div>
                     </div>
                 </div>
             </section>
-            
+
             <!-- Support Panel -->
             <section id="panel-support" class="content-panel" aria-labelledby="support-panel-title" hidden tabindex="-1">
                 <header class="panel-header">
@@ -174,8 +177,6 @@
                 <div class="panel-content">
                     <div id="support-content-wrapper" class="content-section" aria-live="polite" aria-busy="true">
                         <div id="support-actual-content">
-
-                            <!-- Empty state: shown when not in the program -->
                             <div id="support-empty-state" class="support-empty-state" hidden>
                                 <span class="icon icon-support support-empty-icon" aria-hidden="true"></span>
                                 <h3>Not in the Support Program</h3>
@@ -186,10 +187,8 @@
                                 </a>
                             </div>
 
-                            <!-- Dynamic content (populated by JS) -->
                             <div id="support-dynamic-content" hidden></div>
 
-                            <!-- Collapsible Disclaimer -->
                             <details class="support-disclaimer-details">
                                 <summary class="support-disclaimer-summary">
                                     <span class="icon icon-info" aria-hidden="true"></span>
@@ -203,15 +202,10 @@
                                     <li>An active internet connection is required to access payment platforms.</li>
                                 </ul>
                             </details>
-
                         </div>
                     </div>
                 </div>
             </section>
-
-            <footer class="page-footer">
-                <p><a href="https://sites.google.com/view/modcore-em-help/manage-extensions/details-page-features" target="_blank" rel="noopener noreferrer">Details Page Help</a></p>
-            </footer>
         </main>
 
         <!-- Right Sidebar: Extension Info & Actions -->
@@ -222,30 +216,19 @@
                     <span class="icon icon-close" aria-hidden="true"></span>
                 </button>
             </div>
-            
+
             <div class="right-sidebar-content">
-                <!-- Status Section -->
-                <div class="info-section">
-                    <div class="info-section-header">
-                        <span class="icon icon-info" aria-hidden="true"></span>
-                        <h3>Status</h3>
-                    </div>
-                    <div class="info-status-row">
-                        <span id="detail-status" class="detail-status-badge status-disabled">Disabled</span>
-                        <button id="action-enable-toggle" class="btn secondary action-btn">
-                            <span class="icon icon-toggle-off" aria-hidden="true"></span>
-                            <span>Enable</span>
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- Actions Section -->
+                <!-- Actions Section (now includes Enable/Disable toggle) -->
                 <div class="info-section">
                     <div class="info-section-header">
                         <span class="icon icon-settings" aria-hidden="true"></span>
                         <h3>Actions</h3>
                     </div>
                     <div class="actions-list">
+                        <button id="action-enable-toggle" class="btn secondary action-btn">
+                            <span class="icon icon-toggle-off" aria-hidden="true"></span>
+                            <span>Enable</span>
+                        </button>
                         <button id="action-options" class="btn secondary action-btn" disabled>
                             <span class="icon icon-settings" aria-hidden="true"></span>
                             <span>Options</span>
@@ -260,7 +243,7 @@
                         </button>
                     </div>
                 </div>
-                
+
                 <!-- Metadata Section -->
                 <div class="info-section">
                     <div class="info-section-header">
@@ -339,18 +322,18 @@
                         </div>
                     </dl>
                 </div>
-                
+
                 <!-- Icons Section -->
                 <div class="info-section" id="detail-icons-wrapper" hidden>
                     <div class="info-section-header">
                         <span class="icon icon-code" aria-hidden="true"></span>
                         <h3>Available Icons</h3>
                     </div>
-                    <div id="detail-icons-container" class="detail-icons-grid"></div>
+                    <div id="detail-icons-container" class="detail-icons-grid" aria-label="Extension icon sizes"></div>
                 </div>
             </div>
         </aside>
-        
+
         <!-- Right Sidebar Collapsed State (Toggle Button) -->
         <button id="right-sidebar-reopen" class="right-sidebar-reopen" aria-label="Open extension info sidebar" title="Open extension info" hidden>
             <span class="icon icon-info" aria-hidden="true"></span>
@@ -369,29 +352,29 @@
         <div class="permission-popup-content">
             <div class="permission-popup-meta">
                 <span id="permission-popup-risk" class="permission-popup-risk">Risk Level</span>
-                <div id="permission-popup-category" class="permission-popup-categories"></div>
+                <div id="permission-popup-category" class="permission-popup-categories" aria-label="Categories"></div>
             </div>
-            
+
             <div class="permission-popup-section">
                 <h4>Short Description</h4>
                 <p id="permission-popup-short-desc" class="permission-popup-description"></p>
             </div>
-            
+
             <div class="permission-popup-section">
                 <h4>Detailed Information</h4>
                 <p id="permission-popup-detailed-desc" class="permission-popup-description detailed"></p>
             </div>
-            
+
             <div class="permission-popup-section">
                 <h4>Common Use Cases</h4>
-                <ul id="permission-popup-use-cases" class="permission-popup-list"></ul>
+                <ul id="permission-popup-use-cases" class="permission-popup-list" aria-label="Common use cases"></ul>
             </div>
-            
+
             <div class="permission-popup-section">
                 <h4>Security Tips</h4>
-                <ul id="permission-popup-mitigation" class="permission-popup-list mitigation"></ul>
+                <ul id="permission-popup-mitigation" class="permission-popup-list mitigation" aria-label="Security tips"></ul>
             </div>
-            
+
             <div class="permission-popup-footer">
                 <a id="permission-popup-link" href="#" target="_blank" rel="noopener noreferrer" class="btn secondary">
                     <span class="icon icon-link" aria-hidden="true"></span>
@@ -414,7 +397,7 @@
     </div>
 
     <!-- Toast Container -->
-    <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
+    <div id="toast-container" aria-live="polite" aria-atomic="false"></div>
 
     <script src="../js/core/details.js"></script>
     <script src="../js/features/report.js"></script>
