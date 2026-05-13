@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="modcore Snapshot - Manage extension data with encrypted backups and restore functionality">
+    <meta name="description" content="modcore Snapshot - Manage extension data with backups and restore functionality">
     <title>modcore Snapshot - modcore EM</title>
     <link rel="stylesheet" href="../css/snapshot.css">
     <link rel="stylesheet" href="../css/variables.css">
@@ -13,11 +13,11 @@
     <div class="page-wrapper">
         <aside class="sidebar" role="navigation" aria-label="Main navigation">
             <div class="sidebar-header">
-                <img src="../../public/icons/png/modcore-em.png" alt="modcore Extension Manager Logo" class="header-logo no-mask">
+                <img src="../../public/icons/png/modcore-em.png" alt="modcore Extension Manager" class="header-logo no-mask">
                 <h1 class="sidebar-title">modcore Snapshot</h1>
             </div>
             <nav class="sidebar-nav">
-                <ul role="tablist">
+                <ul role="tablist" aria-label="Main panels" aria-orientation="vertical">
                     <li role="presentation">
                         <button class="sidebar-button active"
                                 data-panel="backup-restore"
@@ -43,223 +43,371 @@
                 </ul>
             </nav>
             <div class="sidebar-footer">
-                <p>© 2026 modcore</p>
+                <p>&copy; 2026 modcore</p>
             </div>
         </aside>
 
         <main class="content-area" role="main">
 
             <!-- ============================================================
-                 BACKUP & RESTORE PANEL
+                 BACKUP & RESTORE PANEL — Wizard Flow
                  ============================================================ -->
             <div id="backup-restore-panel" class="content-panel" role="tabpanel" aria-labelledby="backup-restore-tab" tabindex="0">
-                <div class="panel-header">
-                    <h2>modcore Snapshot</h2>
-                    <p>Securely manage your extension's data with encrypted backups and one-click restores.</p>
+
+                <!-- STEP 0: Welcome -->
+                <div id="br-welcome" class="wizard-step" data-step="welcome">
+                    <div class="panel-header">
+                        <h2>Welcome to modcore Snapshot</h2>
+                        <p>Choose what you would like to do with your extension data.</p>
+                    </div>
+                    <div class="wizard-cards">
+                        <button class="wizard-card" id="card-backup" aria-describedby="card-backup-desc">
+                            <span class="icon icon-download wizard-card-icon" aria-hidden="true"></span>
+                            <h3 class="wizard-card-title">Create Backup</h3>
+                            <p class="wizard-card-desc" id="card-backup-desc">Save your extension data to a JSON file for safekeeping.</p>
+                            <span class="wizard-card-hint">Start backup →</span>
+                        </button>
+                        <button class="wizard-card" id="card-restore" aria-describedby="card-restore-desc">
+                            <span class="icon icon-upload wizard-card-icon" aria-hidden="true"></span>
+                            <h3 class="wizard-card-title">Restore Backup</h3>
+                            <p class="wizard-card-desc" id="card-restore-desc">Upload a previous backup to overwrite current data.</p>
+                            <span class="wizard-card-hint">Start restore →</span>
+                        </button>
+                    </div>
                 </div>
-                <div class="panel-content">
 
-                    <!-- Create Backup -->
-                    <section class="content-section" id="create-backup-section" aria-labelledby="create-backup-title">
-                        <h3 class="section-title" id="create-backup-title">Create Backup</h3>
-                        <div class="details-grid">
+                <!-- STEP 1a: Backup — Select Storage Areas -->
+                <div id="br-backup-step1" class="wizard-step" data-step="backup-step1" hidden>
+                    <div class="wizard-header">
+                        <button class="btn-icon wizard-back" id="backup-back-welcome" aria-label="Go back to welcome">
+                            <span class="icon icon-close" aria-hidden="true"></span>
+                        </button>
+                        <div class="wizard-progress" role="progressbar" aria-valuenow="1" aria-valuemin="1" aria-valuemax="3" aria-label="Step 1 of 3">
+                            <span class="wizard-progress-dot active"></span>
+                            <span class="wizard-progress-line"></span>
+                            <span class="wizard-progress-dot"></span>
+                            <span class="wizard-progress-line"></span>
+                            <span class="wizard-progress-dot"></span>
+                        </div>
+                        <span class="wizard-step-label">Step 1 of 3</span>
+                    </div>
+                    <div class="wizard-body">
+                        <h3 class="wizard-title">Select Storage Areas</h3>
+                        <p class="wizard-subtitle">Choose which storage areas to include in your backup.</p>
 
-                            <div class="detail-item detail-item-full-width">
-                                <label for="backupFileName" class="detail-label">
-                                    File Name
-                                    <span class="tooltip-trigger" aria-label="About file naming">
-                                        <span class="icon icon-help" aria-hidden="true"></span>
-                                        <span class="tooltip-content">A timestamp is added automatically. You can customize the prefix.</span>
-                                    </span>
-                                </label>
-                                <input type="text"
-                                       id="backupFileName"
-                                       class="text-input"
-                                       placeholder="e.g., extension_backup_2026-08-09"
-                                       aria-describedby="backup-filename-hint">
-                                <small id="backup-filename-hint" class="detail-description-text">Default timestamp filename provided. Customize as needed.</small>
+                        <div class="wizard-options" role="group" aria-label="Storage areas to back up">
+                            <label class="wizard-option">
+                                <input type="checkbox" class="wizard-option-input" id="wiz-backup-chromeLocal" value="chromeLocal" checked>
+                                <span class="wizard-option-box">
+                                    <span class="icon icon-host wizard-option-icon" aria-hidden="true"></span>
+                                    <span class="wizard-option-name">Chrome Local</span>
+                                    <code class="wizard-option-size" data-storage="chromeLocal">…</code>
+                                    <span class="wizard-option-desc">Device-only storage for this extension.</span>
+                                </span>
+                            </label>
+                            <label class="wizard-option">
+                                <input type="checkbox" class="wizard-option-input" id="wiz-backup-chromeSync" value="chromeSync" checked>
+                                <span class="wizard-option-box">
+                                    <span class="icon icon-link wizard-option-icon" aria-hidden="true"></span>
+                                    <span class="wizard-option-name">Chrome Sync</span>
+                                    <code class="wizard-option-size" data-storage="chromeSync">…</code>
+                                    <span class="wizard-option-desc">Synced across all your signed-in Chrome profiles.</span>
+                                </span>
+                            </label>
+                            <label class="wizard-option">
+                                <input type="checkbox" class="wizard-option-input" id="wiz-backup-webLocal" value="webLocal" checked>
+                                <span class="wizard-option-box">
+                                    <span class="icon icon-code wizard-option-icon" aria-hidden="true"></span>
+                                    <span class="wizard-option-name">Web Local</span>
+                                    <code class="wizard-option-size" data-storage="webLocal">…</code>
+                                    <span class="wizard-option-desc">Standard web localStorage data.</span>
+                                </span>
+                            </label>
+                            <label class="wizard-option">
+                                <input type="checkbox" class="wizard-option-input" id="wiz-backup-webSession" value="webSession">
+                                <span class="wizard-option-box">
+                                    <span class="icon icon-toggle-on wizard-option-icon" aria-hidden="true"></span>
+                                    <span class="wizard-option-name">Web Session</span>
+                                    <code class="wizard-option-size" data-storage="webSession">…</code>
+                                    <span class="wizard-option-desc">Temporary sessionStorage. Cleared when browser closes.</span>
+                                </span>
+                            </label>
+                        </div>
+
+                        <div class="wizard-validation" id="backup-step1-error" role="alert" aria-live="polite" hidden>
+                            <span class="icon icon-error" aria-hidden="true"></span>
+                            <span class="wizard-validation-text"></span>
+                        </div>
+
+                        <div class="wizard-actions">
+                            <button class="btn secondary" id="backup-cancel-step1">Cancel</button>
+                            <button class="btn primary" id="backup-next-step1">Continue</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 2a: Backup — File Name -->
+                <div id="br-backup-step2" class="wizard-step" data-step="backup-step2" hidden>
+                    <div class="wizard-header">
+                        <button class="btn-icon wizard-back" id="backup-back-step1" aria-label="Go back to storage selection">
+                            <span class="icon icon-close" aria-hidden="true"></span>
+                        </button>
+                        <div class="wizard-progress" role="progressbar" aria-valuenow="2" aria-valuemin="1" aria-valuemax="3" aria-label="Step 2 of 3">
+                            <span class="wizard-progress-dot completed"></span>
+                            <span class="wizard-progress-line completed"></span>
+                            <span class="wizard-progress-dot active"></span>
+                            <span class="wizard-progress-line"></span>
+                            <span class="wizard-progress-dot"></span>
+                        </div>
+                        <span class="wizard-step-label">Step 2 of 3</span>
+                    </div>
+                    <div class="wizard-body">
+                        <h3 class="wizard-title">Name Your Backup</h3>
+                        <p class="wizard-subtitle">Give your backup file a memorable name. A timestamp is added automatically.</p>
+
+                        <div class="wizard-field">
+                            <label for="wiz-backup-filename" class="wizard-field-label">File Name</label>
+                            <input type="text"
+                                   id="wiz-backup-filename"
+                                   class="text-input wizard-field-input"
+                                   placeholder="e.g., my_extension_backup"
+                                   aria-describedby="wiz-backup-filename-hint">
+                            <small id="wiz-backup-filename-hint" class="wizard-field-hint">The file will be saved as <code>name_YYYY-MM-DD_HHMMSS.json</code></small>
+                        </div>
+
+                        <div class="wizard-validation" id="backup-step2-error" role="alert" aria-live="polite" hidden>
+                            <span class="icon icon-error" aria-hidden="true"></span>
+                            <span class="wizard-validation-text"></span>
+                        </div>
+
+                        <div class="wizard-actions">
+                            <button class="btn secondary" id="backup-cancel-step2">Cancel</button>
+                            <button class="btn primary" id="backup-next-step2">Continue</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 3a: Backup — Review & Confirm -->
+                <div id="br-backup-step3" class="wizard-step" data-step="backup-step3" hidden>
+                    <div class="wizard-header">
+                        <button class="btn-icon wizard-back" id="backup-back-step2" aria-label="Go back to file naming">
+                            <span class="icon icon-close" aria-hidden="true"></span>
+                        </button>
+                        <div class="wizard-progress" role="progressbar" aria-valuenow="3" aria-valuemin="1" aria-valuemax="3" aria-label="Step 3 of 3">
+                            <span class="wizard-progress-dot completed"></span>
+                            <span class="wizard-progress-line completed"></span>
+                            <span class="wizard-progress-dot completed"></span>
+                            <span class="wizard-progress-line completed"></span>
+                            <span class="wizard-progress-dot active"></span>
+                        </div>
+                        <span class="wizard-step-label">Step 3 of 3</span>
+                    </div>
+                    <div class="wizard-body">
+                        <h3 class="wizard-title">Review &amp; Create</h3>
+                        <p class="wizard-subtitle">Double-check your selections before creating the backup.</p>
+
+                        <div class="wizard-review">
+                            <div class="wizard-review-item">
+                                <span class="wizard-review-label">File Name</span>
+                                <span class="wizard-review-value" id="review-backup-filename">—</span>
                             </div>
-
-                            <div class="detail-item detail-item-full-width">
-                                <p class="detail-label" id="backup-data-label">
-                                    Storage Areas
-                                    <span class="tooltip-trigger" aria-label="About storage areas">
-                                        <span class="icon icon-help" aria-hidden="true"></span>
-                                        <span class="tooltip-content">Select which storage areas to include. Chrome Sync data is shared across your signed-in Chrome profiles.</span>
-                                    </span>
-                                </p>
-                                <div class="checkbox-group" role="group" aria-labelledby="backup-data-label">
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="backupChromeLocal" value="chromeLocal" checked>
-                                        <span class="checkmark"></span>
-                                        Chrome Local
-                                        <span class="storage-size-inline" data-storage="chromeLocal" aria-label="Size"></span>
-                                    </label>
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="backupChromeSync" value="chromeSync" checked>
-                                        <span class="checkmark"></span>
-                                        Chrome Sync
-                                        <span class="storage-size-inline" data-storage="chromeSync" aria-label="Size"></span>
-                                    </label>
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="backupWebLocal" value="webLocal" checked>
-                                        <span class="checkmark"></span>
-                                        Web Local
-                                        <span class="storage-size-inline" data-storage="webLocal" aria-label="Size"></span>
-                                    </label>
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="backupWebSession" value="webSession">
-                                        <span class="checkmark"></span>
-                                        Web Session
-                                        <span class="storage-size-inline" data-storage="webSession" aria-label="Size"></span>
-                                    </label>
-                                </div>
+                            <div class="wizard-review-item">
+                                <span class="wizard-review-label">Storage Areas</span>
+                                <div class="wizard-review-badges" id="review-backup-areas"></div>
                             </div>
-
-                            <div class="detail-item detail-item-full-width">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="enableEncryptionCheckbox" checked aria-describedby="encryption-hint">
-                                    <span class="checkmark"></span>
-                                    Encrypt with Password
-                                    <span class="tooltip-trigger" style="margin-left: var(--spacing-small);" aria-label="About encryption">
-                                        <span class="icon icon-help" aria-hidden="true"></span>
-                                        <span class="tooltip-content">Uses AES-256-GCM with PBKDF2 key derivation (310,000 iterations). Strongly recommended for sensitive data.</span>
-                                    </span>
-                                </label>
-                                <small id="encryption-hint" class="detail-description-text">Backups are encrypted by default for your safety and privacy. Uncheck only if you need an unencrypted copy.</small>
+                            <div class="wizard-review-item">
+                                <span class="wizard-review-label">Estimated Size</span>
+                                <span class="wizard-review-value" id="review-backup-size">—</span>
                             </div>
                         </div>
 
-                        <!-- Encryption password fields -->
-                        <div id="encryptionPasswordFields" class="details-grid" aria-live="polite">
-                            <div class="detail-item">
-                                <label for="backupPassword" class="detail-label">Password</label>
-                                <div class="input-with-toggle">
-                                    <input type="password"
-                                           id="backupPassword"
-                                           class="text-input"
-                                           placeholder="Enter a strong password"
-                                           aria-describedby="password-requirements"
-                                           autocomplete="new-password">
-                                    <button type="button" class="btn-icon toggle-password-visibility" data-target="backupPassword" aria-label="Toggle password visibility" tabindex="0">
-                                        <span class="icon icon-eye" aria-hidden="true"></span>
-                                    </button>
-                                </div>
-                                <small id="password-requirements" class="detail-description-text">Min. 8 characters. Mix letters, numbers, and symbols.</small>
-                            </div>
-                            <div class="detail-item">
-                                <label for="confirmBackupPassword" class="detail-label">Confirm Password</label>
-                                <div class="input-with-toggle">
-                                    <input type="password"
-                                           id="confirmBackupPassword"
-                                           class="text-input"
-                                           placeholder="Re-enter password"
-                                           autocomplete="new-password">
-                                    <button type="button" class="btn-icon toggle-password-visibility" data-target="confirmBackupPassword" aria-label="Toggle confirm password visibility" tabindex="0">
-                                        <span class="icon icon-eye" aria-hidden="true"></span>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="detail-item detail-item-full-width" id="password-strength-container" hidden>
-                                <label class="detail-label" id="password-strength-label">Strength</label>
-                                <div class="password-strength-meter" role="group" aria-labelledby="password-strength-label">
-                                    <progress id="passwordStrengthBar" value="0" max="100" aria-describedby="passwordStrengthText"></progress>
-                                    <span id="passwordStrengthText" class="strength-text" aria-live="polite"></span>
-                                </div>
-                            </div>
+                        <div class="wizard-validation" id="backup-step3-error" role="alert" aria-live="polite" hidden>
+                            <span class="icon icon-error" aria-hidden="true"></span>
+                            <span class="wizard-validation-text"></span>
                         </div>
 
-                        <div class="details-actions-grid" style="margin-top: var(--spacing-large);">
-                            <button id="createBackupBtn" class="btn primary" aria-describedby="create-backup-description">
+                        <div class="wizard-actions">
+                            <button class="btn secondary" id="backup-cancel-step3">Cancel</button>
+                            <button class="btn primary" id="backup-create-final">
                                 <span class="icon icon-download" aria-hidden="true"></span> Create Backup
                             </button>
                         </div>
-                        <small id="create-backup-description" class="detail-description-text">Downloads a JSON file with your selected data.</small>
-                    </section>
+                    </div>
+                </div>
 
-                    <!-- Restore Backup -->
-                    <section class="content-section" id="restore-backup-section" aria-labelledby="restore-backup-title">
-                        <h3 class="section-title" id="restore-backup-title">Restore Backup</h3>
-                        <p class="detail-description-text">Upload a previously created backup file to restore your data.</p>
-                        <div class="details-grid">
-                            <div class="detail-item detail-item-full-width">
-                                <label for="restoreFile" class="detail-label">Backup File</label>
-                                <div class="file-upload-container">
-                                    <div class="file-upload-header">
-                                        <input type="file"
-                                               id="restoreFile"
-                                               class="file-input"
-                                               accept=".json,.snapshot"
-                                               aria-describedby="file-upload-hint">
-                                        <label for="restoreFile" class="file-input-label btn secondary">
-                                            <span class="icon icon-upload" aria-hidden="true"></span> Choose File
-                                        </label>
-                                        <span id="selectedFileName" class="file-name-display">No file chosen</span>
-                                    </div>
-                                </div>
-                                <small id="file-upload-hint" class="detail-description-text">Accepts .json backup files created by modcore Snapshot.</small>
+                <!-- STEP 1b: Restore — Upload File -->
+                <div id="br-restore-step1" class="wizard-step" data-step="restore-step1" hidden>
+                    <div class="wizard-header">
+                        <button class="btn-icon wizard-back" id="restore-back-welcome" aria-label="Go back to welcome">
+                            <span class="icon icon-close" aria-hidden="true"></span>
+                        </button>
+                        <div class="wizard-progress" role="progressbar" aria-valuenow="1" aria-valuemin="1" aria-valuemax="3" aria-label="Step 1 of 3">
+                            <span class="wizard-progress-dot active"></span>
+                            <span class="wizard-progress-line"></span>
+                            <span class="wizard-progress-dot"></span>
+                            <span class="wizard-progress-line"></span>
+                            <span class="wizard-progress-dot"></span>
+                        </div>
+                        <span class="wizard-step-label">Step 1 of 3</span>
+                    </div>
+                    <div class="wizard-body">
+                        <h3 class="wizard-title">Upload Backup File</h3>
+                        <p class="wizard-subtitle">Select a JSON backup file created by modcore Snapshot.</p>
+
+                        <div class="wizard-upload-zone" id="restore-upload-zone">
+                            <input type="file"
+                                   id="wiz-restore-file"
+                                   class="wizard-upload-input"
+                                   accept=".json,.snapshot"
+                                   aria-describedby="wiz-restore-file-hint">
+                            <label for="wiz-restore-file" class="wizard-upload-label">
+                                <span class="icon icon-upload wizard-upload-icon" aria-hidden="true"></span>
+                                <span class="wizard-upload-text">Click to choose file or drag &amp; drop</span>
+                                <span class="wizard-upload-hint" id="wiz-restore-file-hint">Accepts .json files</span>
+                            </label>
+                        </div>
+                        <div class="wizard-file-info" id="restore-file-info" hidden>
+                            <span class="icon icon-check wizard-file-icon" aria-hidden="true"></span>
+                            <span class="wizard-file-name" id="restore-file-name"></span>
+                            <button class="btn-icon wizard-file-remove" id="restore-file-remove" aria-label="Remove selected file">
+                                <span class="icon icon-trash" aria-hidden="true"></span>
+                            </button>
+                        </div>
+
+                        <div class="wizard-validation" id="restore-step1-error" role="alert" aria-live="polite" hidden>
+                            <span class="icon icon-error" aria-hidden="true"></span>
+                            <span class="wizard-validation-text"></span>
+                        </div>
+
+                        <div class="wizard-actions">
+                            <button class="btn secondary" id="restore-cancel-step1">Cancel</button>
+                            <button class="btn primary" id="restore-next-step1" disabled>Continue</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 2b: Restore — Select Areas -->
+                <div id="br-restore-step2" class="wizard-step" data-step="restore-step2" hidden>
+                    <div class="wizard-header">
+                        <button class="btn-icon wizard-back" id="restore-back-step1" aria-label="Go back to file upload">
+                            <span class="icon icon-close" aria-hidden="true"></span>
+                        </button>
+                        <div class="wizard-progress" role="progressbar" aria-valuenow="2" aria-valuemin="1" aria-valuemax="3" aria-label="Step 2 of 3">
+                            <span class="wizard-progress-dot completed"></span>
+                            <span class="wizard-progress-line completed"></span>
+                            <span class="wizard-progress-dot active"></span>
+                            <span class="wizard-progress-line"></span>
+                            <span class="wizard-progress-dot"></span>
+                        </div>
+                        <span class="wizard-step-label">Step 2 of 3</span>
+                    </div>
+                    <div class="wizard-body">
+                        <h3 class="wizard-title">Choose Restore Areas</h3>
+                        <p class="wizard-subtitle">Select which storage areas from the backup you want to restore.</p>
+
+                        <div class="wizard-meta" id="restore-meta" role="region" aria-label="Backup file metadata"></div>
+
+                        <div class="wizard-options" role="group" aria-label="Storage areas to restore" id="restore-options-group">
+                            <label class="wizard-option">
+                                <input type="checkbox" class="wizard-option-input" id="wiz-restore-chromeLocal" value="chromeLocal">
+                                <span class="wizard-option-box">
+                                    <span class="icon icon-host wizard-option-icon" aria-hidden="true"></span>
+                                    <span class="wizard-option-name">Chrome Local</span>
+                                    <span class="wizard-option-status" id="wiz-restore-status-chromeLocal">Not in backup</span>
+                                </span>
+                            </label>
+                            <label class="wizard-option">
+                                <input type="checkbox" class="wizard-option-input" id="wiz-restore-chromeSync" value="chromeSync">
+                                <span class="wizard-option-box">
+                                    <span class="icon icon-link wizard-option-icon" aria-hidden="true"></span>
+                                    <span class="wizard-option-name">Chrome Sync</span>
+                                    <span class="wizard-option-status" id="wiz-restore-status-chromeSync">Not in backup</span>
+                                </span>
+                            </label>
+                            <label class="wizard-option">
+                                <input type="checkbox" class="wizard-option-input" id="wiz-restore-webLocal" value="webLocal">
+                                <span class="wizard-option-box">
+                                    <span class="icon icon-code wizard-option-icon" aria-hidden="true"></span>
+                                    <span class="wizard-option-name">Web Local</span>
+                                    <span class="wizard-option-status" id="wiz-restore-status-webLocal">Not in backup</span>
+                                </span>
+                            </label>
+                            <label class="wizard-option">
+                                <input type="checkbox" class="wizard-option-input" id="wiz-restore-webSession" value="webSession">
+                                <span class="wizard-option-box">
+                                    <span class="icon icon-toggle-on wizard-option-icon" aria-hidden="true"></span>
+                                    <span class="wizard-option-name">Web Session</span>
+                                    <span class="wizard-option-status" id="wiz-restore-status-webSession">Not in backup</span>
+                                </span>
+                            </label>
+                        </div>
+
+                        <div class="wizard-validation" id="restore-step2-error" role="alert" aria-live="polite" hidden>
+                            <span class="icon icon-error" aria-hidden="true"></span>
+                            <span class="wizard-validation-text"></span>
+                        </div>
+
+                        <div class="wizard-actions">
+                            <button class="btn secondary" id="restore-cancel-step2">Cancel</button>
+                            <button class="btn primary" id="restore-next-step2">Continue</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 3b: Restore — Confirm -->
+                <div id="br-restore-step3" class="wizard-step" data-step="restore-step3" hidden>
+                    <div class="wizard-header">
+                        <button class="btn-icon wizard-back" id="restore-back-step2" aria-label="Go back to area selection">
+                            <span class="icon icon-close" aria-hidden="true"></span>
+                        </button>
+                        <div class="wizard-progress" role="progressbar" aria-valuenow="3" aria-valuemin="1" aria-valuemax="3" aria-label="Step 3 of 3">
+                            <span class="wizard-progress-dot completed"></span>
+                            <span class="wizard-progress-line completed"></span>
+                            <span class="wizard-progress-dot completed"></span>
+                            <span class="wizard-progress-line completed"></span>
+                            <span class="wizard-progress-dot active"></span>
+                        </div>
+                        <span class="wizard-step-label">Step 3 of 3</span>
+                    </div>
+                    <div class="wizard-body">
+                        <h3 class="wizard-title">Confirm Restore</h3>
+                        <p class="wizard-subtitle">This will overwrite your current data. This action cannot be undone.</p>
+
+                        <div class="wizard-review">
+                            <div class="wizard-review-item">
+                                <span class="wizard-review-label">Backup File</span>
+                                <span class="wizard-review-value" id="review-restore-filename">—</span>
                             </div>
-
-                            <div id="restorePasswordInputGroup" class="detail-item detail-item-full-width" hidden>
-                                <label for="restorePassword" class="detail-label">Decryption Password</label>
-                                <div class="input-with-toggle">
-                                    <input type="password"
-                                           id="restorePassword"
-                                           class="text-input"
-                                           placeholder="Enter the password used to encrypt this backup"
-                                           aria-describedby="restore-password-hint"
-                                           autocomplete="off">
-                                    <button type="button" class="btn-icon toggle-password-visibility" data-target="restorePassword" aria-label="Toggle password visibility">
-                                        <span class="icon icon-eye" aria-hidden="true"></span>
-                                    </button>
-                                </div>
-                                <small id="restore-password-hint" class="detail-description-text">This backup is encrypted. Enter the password used when creating it.</small>
-                                <div class="details-actions-grid" style="margin-top: var(--spacing-medium);">
-                                    <button id="verify-password-btn" class="btn secondary" style="display:none;">
-                                        <span class="icon icon-check" aria-hidden="true"></span> Verify Password
-                                    </button>
-                                </div>
+                            <div class="wizard-review-item">
+                                <span class="wizard-review-label">Areas to Restore</span>
+                                <div class="wizard-review-badges" id="review-restore-areas"></div>
                             </div>
-
-                            <div class="detail-item detail-item-full-width" id="restore-options-container" hidden>
-                                <p class="detail-label" id="restore-data-label">
-                                    Restore Areas
-                                    <span class="tooltip-trigger" style="margin-left:var(--spacing-small);" aria-label="About restore areas">
-                                        <span class="icon icon-help" aria-hidden="true"></span>
-                                        <span class="tooltip-content">Only storage areas present in the backup file can be selected.</span>
-                                    </span>
-                                </p>
-                                <div class="checkbox-group" role="group" aria-labelledby="restore-data-label">
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="restoreChromeLocal" value="chromeLocal">
-                                        <span class="checkmark"></span> Chrome Local
-                                    </label>
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="restoreChromeSync" value="chromeSync">
-                                        <span class="checkmark"></span> Chrome Sync
-                                    </label>
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="restoreWebLocal" value="webLocal">
-                                        <span class="checkmark"></span> Web Local
-                                    </label>
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="restoreWebSession" value="webSession">
-                                        <span class="checkmark"></span> Web Session
-                                    </label>
-                                </div>
-                                <div class="metadata-display" id="backup-metadata" role="region" aria-label="Backup metadata"></div>
+                            <div class="wizard-review-item">
+                                <span class="wizard-review-label">Created</span>
+                                <span class="wizard-review-value" id="review-restore-date">—</span>
                             </div>
                         </div>
 
-                        <div class="details-actions-grid" style="margin-top: var(--spacing-large);">
-                            <button id="restoreBackupBtn" class="btn primary" disabled aria-describedby="restore-backup-description">
+                        <div class="wizard-warning" role="alert">
+                            <span class="icon icon-warning wizard-warning-icon" aria-hidden="true"></span>
+                            <p class="wizard-warning-text">Restoring will permanently overwrite current data in the selected areas. Make sure you have a backup of any data you want to keep.</p>
+                        </div>
+
+                        <div class="wizard-validation" id="restore-step3-error" role="alert" aria-live="polite" hidden>
+                            <span class="icon icon-error" aria-hidden="true"></span>
+                            <span class="wizard-validation-text"></span>
+                        </div>
+
+                        <div class="wizard-actions">
+                            <button class="btn secondary" id="restore-cancel-step3">Cancel</button>
+                            <button class="btn danger" id="restore-final">
                                 <span class="icon icon-upload" aria-hidden="true"></span> Restore Backup
                             </button>
                         </div>
-                        <small id="restore-backup-description" class="detail-description-text">Overwrites current data for selected storage areas.</small>
-                    </section>
+                    </div>
                 </div>
 
+                <!-- Global error for backup/restore panel -->
                 <div class="api-error-display" id="backupRestoreError" role="alert" aria-live="assertive">
                     <span class="icon icon-error" aria-hidden="true"></span>
                     <p class="error-message"></p>
@@ -317,7 +465,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="details-actions-grid" style="margin-top: var(--spacing-large);">
+                        <div class="details-actions-grid" style="margin-top: var(--space-4);">
                             <button id="viewDataModalBtn" class="btn primary">
                                 <span class="icon icon-list" aria-hidden="true"></span> Open Data Viewer
                             </button>
@@ -330,47 +478,38 @@
                         <p class="detail-description-text">Permanently delete data from selected areas.
                             <strong>This cannot be undone.</strong> Create a backup first.
                         </p>
-                        <div class="checkbox-group" style="margin: var(--spacing-large) 0;" role="group" aria-labelledby="clear-data-label">
+                        <div class="checkbox-group" style="margin: var(--space-4) 0;" role="group" aria-labelledby="clear-data-label">
                             <p class="detail-label" id="clear-data-label">Select areas to clear:</p>
                             <label class="checkbox-container">
                                 <input type="checkbox" id="clearChromeLocal" value="chromeLocal">
                                 <span class="checkmark"></span>
                                 Chrome Local
-                                <code class="storage-size" data-storage="chromeLocal" style="margin-left:var(--spacing-small);">…</code>
+                                <code class="storage-size" data-storage="chromeLocal" style="margin-left:var(--space-2);">…</code>
                             </label>
                             <label class="checkbox-container">
                                 <input type="checkbox" id="clearChromeSync" value="chromeSync">
                                 <span class="checkmark"></span>
                                 Chrome Sync
-                                <code class="storage-size" data-storage="chromeSync" style="margin-left:var(--spacing-small);">…</code>
-                                <span class="tooltip-trigger" style="margin-left: var(--spacing-small);" aria-label="Cloud sync warning">
+                                <code class="storage-size" data-storage="chromeSync" style="margin-left:var(--space-2);">…</code>
+                                <span class="tooltip-trigger" style="margin-left: var(--space-2);" aria-label="Cloud sync warning">
                                     <span class="icon icon-warning" aria-hidden="true"></span>
-                                    <span class="tooltip-content">Deletes synced data across ALL your signed-in Chrome devices. Without a backup, recovery is impossible.</span>
+                                    <span class="tooltip-content" role="tooltip">Deletes synced data across ALL your signed-in Chrome devices. Without a backup, recovery is impossible.</span>
                                 </span>
                             </label>
                             <label class="checkbox-container">
                                 <input type="checkbox" id="clearWebLocal" value="webLocal">
                                 <span class="checkmark"></span>
                                 Web Local
-                                <code class="storage-size" data-storage="webLocal" style="margin-left:var(--spacing-small);">…</code>
+                                <code class="storage-size" data-storage="webLocal" style="margin-left:var(--space-2);">…</code>
                             </label>
                             <label class="checkbox-container">
                                 <input type="checkbox" id="clearWebSession" value="webSession">
                                 <span class="checkmark"></span>
                                 Web Session
-                                <code class="storage-size" data-storage="webSession" style="margin-left:var(--spacing-small);">…</code>
-                                <span class="tooltip-trigger" style="margin-left: var(--spacing-small);" aria-label="Session storage info">
+                                <code class="storage-size" data-storage="webSession" style="margin-left:var(--space-2);">…</code>
+                                <span class="tooltip-trigger" style="margin-left: var(--space-2);" aria-label="Session storage info">
                                     <span class="icon icon-help" aria-hidden="true"></span>
-                                    <span class="tooltip-content">Temporary - cleared automatically when the browser closes.</span>
-                                </span>
-                            </label>
-                            <label class="checkbox-container">
-                                <input type="checkbox" id="clearChromeManaged" value="chromeManaged" disabled>
-                                <span class="checkmark"></span>
-                                Chrome Managed
-                                <span class="tooltip-trigger" style="margin-left: var(--spacing-small);" aria-label="Managed storage info">
-                                    <span class="icon icon-help" aria-hidden="true"></span>
-                                    <span class="tooltip-content">Controlled by organization policy. Cannot be modified or cleared.</span>
+                                    <span class="tooltip-content" role="tooltip">Temporary — cleared automatically when the browser closes.</span>
                                 </span>
                             </label>
                         </div>
@@ -379,8 +518,8 @@
                                 <span class="icon icon-trash" aria-hidden="true"></span> Clear Selected
                             </button>
                         </div>
-                        <small id="clear-data-warning" class="detail-description-text" style="color: var(--text-danger); margin-top: var(--spacing-small); display: block;">
-                            ⚠️ Irreversible. Back up your data before clearing.
+                        <small id="clear-data-warning" class="detail-description-text" style="color: var(--color-danger); margin-top: var(--space-2); display: block;">
+                            <span class="icon icon-warning" aria-hidden="true" style="width:1em;height:1em;vertical-align:middle;"></span> Irreversible. Back up your data before clearing.
                         </small>
                     </section>
                 </div>
@@ -391,10 +530,72 @@
                 </div>
             </div>
 
+            <!-- ============================================================
+                 DATA VIEWER PANEL (Full page)
+                 ============================================================ -->
+            <div id="data-viewer-panel" class="content-panel data-viewer-page" role="tabpanel" aria-labelledby="data-viewer-title" tabindex="0" hidden>
+                <div class="panel-header data-viewer-header">
+                    <div class="data-viewer-header-left">
+                        <h2 id="data-viewer-title">Data Viewer</h2>
+                        <p>Inspect, search, copy, and edit stored extension data across all storage areas.</p>
+                    </div>
+                    <button id="closeDataViewerBtn" class="btn secondary" aria-label="Close data viewer and return to Data Management">
+                        <span class="icon icon-close" aria-hidden="true"></span> Close Viewer
+                    </button>
+                </div>
+
+                <div class="viewer-toolbar">
+                    <div class="viewer-search-wrap">
+                        <span class="icon icon-search viewer-search-icon" aria-hidden="true"></span>
+                        <input type="search"
+                               id="data-viewer-search"
+                               class="text-input viewer-search-input"
+                               placeholder="Search keys or values..."
+                               aria-label="Search data">
+                        <button class="btn-icon viewer-search-clear" id="data-viewer-search-clear" aria-label="Clear search" hidden>
+                            <span class="icon icon-close" aria-hidden="true"></span>
+                        </button>
+                    </div>
+
+                    <div class="viewer-filter-chips" id="viewer-filter-chips" role="group" aria-label="Filter by storage area">
+                        <button class="chip active" data-filter="all">All</button>
+                        <button class="chip" data-filter="chromeLocal">Local</button>
+                        <button class="chip" data-filter="chromeSync">Sync</button>
+                        <button class="chip" data-filter="webLocal">Web</button>
+                        <button class="chip" data-filter="webSession">Session</button>
+                    </div>
+
+                    <div class="viewer-actions">
+                        <span class="tooltip-trigger" aria-label="Copy visible data">
+                            <button class="btn-icon" id="data-viewer-copy" aria-label="Copy visible data">
+                                <span class="icon icon-copy" aria-hidden="true"></span>
+                            </button>
+                            <span class="tooltip-content" role="tooltip">Copy visible data</span>
+                        </span>
+                        <span class="tooltip-trigger" aria-label="Expand all keys">
+                            <button class="btn-icon" id="data-viewer-expand-all" aria-label="Expand all keys">
+                                <span class="icon icon-list" aria-hidden="true"></span>
+                            </button>
+                            <span class="tooltip-content" role="tooltip">Expand all</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="viewer-stats" id="viewer-stats" aria-live="polite"></div>
+
+                <div class="data-viewer-body">
+                    <div id="data-viewer-tree" class="data-tree" role="tree" aria-label="Storage data tree"></div>
+                    <div id="data-viewer-empty" class="viewer-empty-state" hidden>
+                        <span class="icon icon-search" aria-hidden="true" style="width:2em;height:2em;opacity:.3;"></span>
+                        <p>No matching data found.</p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Loading Overlay -->
             <div class="loading-overlay" id="loading-overlay" hidden role="status" aria-live="polite">
                 <div class="spinner" aria-hidden="true"></div>
-                <p>Processing…</p>
+                <p>Processing...</p>
             </div>
         </main>
     </div>
@@ -402,9 +603,7 @@
     <!-- Toast Container -->
     <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
 
-    <!-- ================================================================
-         CONFIRMATION MODAL
-         ================================================================ -->
+    <!-- Confirmation Modal -->
     <div class="modal-overlay" id="confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div class="modal-content">
             <h3 id="modal-title">Confirm Action</h3>
@@ -416,81 +615,7 @@
         </div>
     </div>
 
-    <!-- ================================================================
-         DATA VIEWER MODAL
-         ================================================================ -->
-    <div class="modal-overlay" id="data-viewer-modal" role="dialog" aria-modal="true" aria-labelledby="data-viewer-title">
-        <div class="modal-content modal-large">
-
-            <!-- Header -->
-            <div class="modal-header">
-                <h3 id="data-viewer-title">Data Viewer</h3>
-                <div class="modal-header-actions">
-                    <button class="btn-icon" id="data-viewer-close" aria-label="Close data viewer">
-                        <span class="icon icon-close" aria-hidden="true"></span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Toolbar -->
-            <div class="viewer-toolbar">
-                <div class="viewer-search-wrap">
-                    <span class="icon icon-search viewer-search-icon" aria-hidden="true"></span>
-                    <input type="search"
-                           id="data-viewer-search"
-                           class="text-input viewer-search-input"
-                           placeholder="Search keys or values…"
-                           aria-label="Search data">
-                    <button class="btn-icon viewer-search-clear" id="data-viewer-search-clear" aria-label="Clear search" hidden>
-                        <span class="icon icon-close" aria-hidden="true"></span>
-                    </button>
-                </div>
-
-                <!-- Storage filter chips -->
-                <div class="viewer-filter-chips" id="viewer-filter-chips" role="group" aria-label="Filter by storage area">
-                    <button class="chip active" data-filter="all">All</button>
-                    <button class="chip" data-filter="chromeLocal">Local</button>
-                    <button class="chip" data-filter="chromeSync">Sync</button>
-                    <button class="chip" data-filter="webLocal">Web</button>
-                    <button class="chip" data-filter="webSession">Session</button>
-                </div>
-
-                <!-- Action buttons -->
-                <div class="viewer-actions">
-                    <span class="tooltip-trigger">
-                        <button class="btn-icon" id="data-viewer-copy" aria-label="Copy visible data">
-                            <span class="icon icon-copy" aria-hidden="true"></span>
-                        </button>
-                        <span class="tooltip-content">Copy visible data</span>
-                    </span>
-                    <span class="tooltip-trigger">
-                        <button class="btn-icon" id="data-viewer-expand-all" aria-label="Expand all keys">
-                            <span class="icon icon-list" aria-hidden="true"></span>
-                        </button>
-                        <span class="tooltip-content">Expand all</span>
-                    </span>
-                </div>
-            </div>
-
-            <!-- Stats bar -->
-            <div class="viewer-stats" id="viewer-stats" aria-live="polite"></div>
-
-            <!-- Body -->
-            <div class="modal-body" id="data-viewer-body">
-                <!-- Tree view -->
-                <div id="data-viewer-tree" class="data-tree" role="tree" aria-label="Storage data tree"></div>
-                <!-- Empty state -->
-                <div id="data-viewer-empty" class="viewer-empty-state" hidden>
-                    <span class="icon icon-search" aria-hidden="true" style="width:2em;height:2em;opacity:.3;"></span>
-                    <p>No matching data found.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ================================================================
-         KEY EDIT MODAL
-         ================================================================ -->
+    <!-- Key Edit Modal -->
     <div class="modal-overlay" id="key-edit-modal" role="dialog" aria-modal="true" aria-labelledby="key-edit-title">
         <div class="modal-content modal-edit">
             <div class="modal-header">
@@ -513,15 +638,15 @@
                         <label for="key-edit-value" class="detail-label">Value
                             <span class="tooltip-trigger" aria-label="Value format info">
                                 <span class="icon icon-help" aria-hidden="true"></span>
-                                <span class="tooltip-content">Enter a valid JSON value (string, number, boolean, object, array) or a plain string.</span>
+                                <span class="tooltip-content" role="tooltip">Enter a valid JSON value (string, number, boolean, object, array) or a plain string.</span>
                             </span>
                         </label>
                         <textarea id="key-edit-value" class="text-input key-edit-textarea" rows="8" spellcheck="false" aria-describedby="key-edit-error-msg"></textarea>
-                        <small id="key-edit-error-msg" class="detail-description-text" style="color:var(--text-danger);display:none;"></small>
+                        <small id="key-edit-error-msg" class="detail-description-text" style="color:var(--color-danger);display:none;"></small>
                     </div>
                 </div>
             </div>
-            <div class="modal-actions" style="padding: 0 var(--spacing-large) var(--spacing-large);">
+            <div class="modal-actions" style="padding: 0 var(--space-4) var(--space-4);">
                 <button class="btn secondary" id="key-edit-cancel">Cancel</button>
                 <button class="btn primary" id="key-edit-save">
                     <span class="icon icon-check" aria-hidden="true"></span> Save

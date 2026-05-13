@@ -1,48 +1,114 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    // =========================================================================
-    // Element references
-    // =========================================================================
-    const sidebarButtons            = document.querySelectorAll('.sidebar-button');
-    const contentPanels             = document.querySelectorAll('.content-panel');
-    const createBackupBtn           = document.getElementById('createBackupBtn');
-    const restoreBackupBtn          = document.getElementById('restoreBackupBtn');
-    const clearSelectedDataBtn      = document.getElementById('clearSelectedDataBtn');
+    // =====================================================================
+    // CONSTANTS
+    // =====================================================================
+    const STORAGE_TYPES = ['chromeLocal', 'chromeSync', 'webLocal', 'webSession'];
+    const STORAGE_NAMES = {
+        chromeLocal: 'Chrome Local',
+        chromeSync:  'Chrome Sync',
+        webLocal:    'Web Local',
+        webSession:  'Web Session',
+    };
+    const TOAST_DURATION = 4000;
 
-    // Backup elements
-    const backupFileNameInput           = document.getElementById('backupFileName');
-    const backupStorageCheckboxes       = document.querySelectorAll('#create-backup-section .checkbox-group input[type="checkbox"]');
-    const enableEncryptionCheckbox      = document.getElementById('enableEncryptionCheckbox');
-    const encryptionPasswordFields      = document.getElementById('encryptionPasswordFields');
-    const backupPasswordInput           = document.getElementById('backupPassword');
-    const confirmBackupPasswordInput    = document.getElementById('confirmBackupPassword');
-    const passwordStrengthBar           = document.getElementById('passwordStrengthBar');
-    const passwordStrengthText          = document.getElementById('passwordStrengthText');
-    const passwordStrengthContainer     = document.getElementById('password-strength-container');
+    // =====================================================================
+    // DOM REFERENCES
+    // =====================================================================
 
-    // Restore elements
-    const restoreFileInput          = document.getElementById('restoreFile');
-    const selectedFileNameDisplay   = document.getElementById('selectedFileName');
-    const restorePasswordInputGroup = document.getElementById('restorePasswordInputGroup');
-    const restorePasswordInput      = document.getElementById('restorePassword');
-    const restoreOptionsContainer   = document.getElementById('restore-options-container');
-    const restoreStorageCheckboxes  = document.querySelectorAll('#restore-options-container .checkbox-group input[type="checkbox"]');
-    const backupMetadataDisplay     = document.getElementById('backup-metadata');
-    const verifyPasswordBtn         = document.getElementById('verify-password-btn');
+    // Navigation
+    const sidebarButtons = document.querySelectorAll('.sidebar-button');
+    const contentPanels  = document.querySelectorAll('.content-panel');
 
-    // General UI
-    const loadingOverlay                = document.getElementById('loading-overlay');
-    const backupRestoreErrorDisplay     = document.getElementById('backupRestoreError');
-    const dataManagementErrorDisplay    = document.getElementById('dataManagementError');
-    const modalOverlay                  = document.getElementById('confirmation-modal');
-    const modalTitle                    = document.getElementById('modal-title');
-    const modalMessage                  = document.getElementById('modal-message');
-    const modalCancelBtn                = document.getElementById('modal-cancel');
-    const modalConfirmBtn               = document.getElementById('modal-confirm');
+    // Wizard: Welcome
+    const wizardWelcome     = document.getElementById('br-welcome');
+    const cardBackup        = document.getElementById('card-backup');
+    const cardRestore       = document.getElementById('card-restore');
 
-    // Data viewer modal
-    const dataViewerModal       = document.getElementById('data-viewer-modal');
-    const dataViewerClose       = document.getElementById('data-viewer-close');
+    // Wizard: Backup Step 1 (Storage areas)
+    const backupStep1       = document.getElementById('br-backup-step1');
+    const backupBackWelcome = document.getElementById('backup-back-welcome');
+    const backupCancelS1    = document.getElementById('backup-cancel-step1');
+    const backupNextS1      = document.getElementById('backup-next-step1');
+    const backupS1Error     = document.getElementById('backup-step1-error');
+    const backupCheckboxes  = {
+        chromeLocal:  document.getElementById('wiz-backup-chromeLocal'),
+        chromeSync:   document.getElementById('wiz-backup-chromeSync'),
+        webLocal:     document.getElementById('wiz-backup-webLocal'),
+        webSession:   document.getElementById('wiz-backup-webSession'),
+    };
+
+    // Wizard: Backup Step 2 (File name)
+    const backupStep2       = document.getElementById('br-backup-step2');
+    const backupBackS1      = document.getElementById('backup-back-step1');
+    const backupCancelS2    = document.getElementById('backup-cancel-step2');
+    const backupNextS2      = document.getElementById('backup-next-step2');
+    const backupS2Error     = document.getElementById('backup-step2-error');
+    const backupFilename    = document.getElementById('wiz-backup-filename');
+
+    // Wizard: Backup Step 3 (Review)
+    const backupStep3       = document.getElementById('br-backup-step3');
+    const backupBackS2      = document.getElementById('backup-back-step2');
+    const backupCancelS3    = document.getElementById('backup-cancel-step3');
+    const backupCreateFinal = document.getElementById('backup-create-final');
+    const backupS3Error     = document.getElementById('backup-step3-error');
+    const reviewBackupName  = document.getElementById('review-backup-filename');
+    const reviewBackupAreas = document.getElementById('review-backup-areas');
+    const reviewBackupSize  = document.getElementById('review-backup-size');
+
+    // Wizard: Restore Step 1 (Upload)
+    const restoreStep1      = document.getElementById('br-restore-step1');
+    const restoreBackWelcome= document.getElementById('restore-back-welcome');
+    const restoreCancelS1   = document.getElementById('restore-cancel-step1');
+    const restoreNextS1     = document.getElementById('restore-next-step1');
+    const restoreS1Error    = document.getElementById('restore-step1-error');
+    const restoreFileInput  = document.getElementById('wiz-restore-file');
+    const restoreUploadZone = document.getElementById('restore-upload-zone');
+    const restoreFileInfo   = document.getElementById('restore-file-info');
+    const restoreFileName   = document.getElementById('restore-file-name');
+    const restoreFileRemove = document.getElementById('restore-file-remove');
+
+    // Wizard: Restore Step 2 (Select areas)
+    const restoreStep2      = document.getElementById('br-restore-step2');
+    const restoreBackS1     = document.getElementById('restore-back-step1');
+    const restoreCancelS2   = document.getElementById('restore-cancel-step2');
+    const restoreNextS2     = document.getElementById('restore-next-step2');
+    const restoreS2Error    = document.getElementById('restore-step2-error');
+    const restoreMeta       = document.getElementById('restore-meta');
+    const restoreCheckboxes = {
+        chromeLocal:  document.getElementById('wiz-restore-chromeLocal'),
+        chromeSync:   document.getElementById('wiz-restore-chromeSync'),
+        webLocal:     document.getElementById('wiz-restore-webLocal'),
+        webSession:   document.getElementById('wiz-restore-webSession'),
+    };
+    const restoreStatuses = {
+        chromeLocal:  document.getElementById('wiz-restore-status-chromeLocal'),
+        chromeSync:   document.getElementById('wiz-restore-status-chromeSync'),
+        webLocal:     document.getElementById('wiz-restore-status-webLocal'),
+        webSession:   document.getElementById('wiz-restore-status-webSession'),
+    };
+
+    // Wizard: Restore Step 3 (Confirm)
+    const restoreStep3      = document.getElementById('br-restore-step3');
+    const restoreBackS2     = document.getElementById('restore-back-step2');
+    const restoreCancelS3   = document.getElementById('restore-cancel-step3');
+    const restoreFinal      = document.getElementById('restore-final');
+    const restoreS3Error    = document.getElementById('restore-step3-error');
+    const reviewRestoreFile = document.getElementById('review-restore-filename');
+    const reviewRestoreAreas= document.getElementById('review-restore-areas');
+    const reviewRestoreDate = document.getElementById('review-restore-date');
+
+    // Global error
+    const backupRestoreError = document.getElementById('backupRestoreError');
+
+    // Data Management
+    const clearSelectedDataBtn = document.getElementById('clearSelectedDataBtn');
+    const dataManagementError  = document.getElementById('dataManagementError');
+
+    // Data Viewer
+    const dataManagementPanel   = document.getElementById('data-management-panel');
+    const dataViewerPanel       = document.getElementById('data-viewer-panel');
+    const closeDataViewerBtn    = document.getElementById('closeDataViewerBtn');
     const dataViewerSearch      = document.getElementById('data-viewer-search');
     const dataViewerSearchClear = document.getElementById('data-viewer-search-clear');
     const dataViewerCopy        = document.getElementById('data-viewer-copy');
@@ -53,67 +119,118 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterChips           = document.querySelectorAll('.chip[data-filter]');
     const viewDataModalBtn      = document.getElementById('viewDataModalBtn');
 
-    // Key edit modal
-    const keyEditModal      = document.getElementById('key-edit-modal');
-    const keyEditClose      = document.getElementById('key-edit-close');
-    const keyEditCancel     = document.getElementById('key-edit-cancel');
-    const keyEditSave       = document.getElementById('key-edit-save');
-    const keyEditStorage    = document.getElementById('key-edit-storage');
-    const keyEditKey        = document.getElementById('key-edit-key');
-    const keyEditValue      = document.getElementById('key-edit-value');
-    const keyEditErrorMsg   = document.getElementById('key-edit-error-msg');
+    // Modals
+    const loadingOverlay  = document.getElementById('loading-overlay');
+    const modalOverlay    = document.getElementById('confirmation-modal');
+    const modalTitle      = document.getElementById('modal-title');
+    const modalMessage    = document.getElementById('modal-message');
+    const modalCancelBtn  = document.getElementById('modal-cancel');
+    const modalConfirmBtn = document.getElementById('modal-confirm');
 
-    // State
-    let allStoredData       = {};
-    let currentBackupData   = null;
-    let currentFilter       = 'all';
-    let allExpanded         = false;
-    let editContext         = null;     // { storageType, key }
+    // Key Edit Modal
+    const keyEditModal    = document.getElementById('key-edit-modal');
+    const keyEditClose    = document.getElementById('key-edit-close');
+    const keyEditCancel   = document.getElementById('key-edit-cancel');
+    const keyEditSave     = document.getElementById('key-edit-save');
+    const keyEditStorage  = document.getElementById('key-edit-storage');
+    const keyEditKey      = document.getElementById('key-edit-key');
+    const keyEditValue    = document.getElementById('key-edit-value');
+    const keyEditErrorMsg = document.getElementById('key-edit-error-msg');
 
-    // =========================================================================
-    // Auto-update copyright year
-    // =========================================================================
-    const copyrightEl = document.querySelector('.sidebar-footer p');
-    if (copyrightEl) copyrightEl.textContent = `© ${new Date().getFullYear()} modcore`;
+    // =====================================================================
+    // STATE
+    // =====================================================================
+    let allStoredData = {};
+    let currentBackup = null;
+    let currentFilter = 'all';
+    let allExpanded   = false;
+    let editContext   = null;
+    let lastFocusedEl = null;
 
-    // =========================================================================
-    // Utility helpers
-    // =========================================================================
+    // Wizard state
+    let wizardState = {
+        backupAreas: [],
+        backupFilename: '',
+        backupData: null,
+        restoreFile: null,
+        restoreAreas: [],
+    };
 
-    function setTextContent(el, text) {
+    // =====================================================================
+    // UTILITIES
+    // =====================================================================
+
+    function setText(el, text) {
         if (el) el.textContent = text;
     }
 
+    function formatBytes(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+    }
+
+    function estimateSize(data) {
+        try { return new Blob([JSON.stringify(data)]).size; } catch { return 0; }
+    }
+
+    function generateBackupFilename() {
+        const now = new Date();
+        const p = (n) => String(n).padStart(2, '0');
+        return `extension_backup_${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}_${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
+    }
+
+    function storageDisplayName(type) {
+        return STORAGE_NAMES[type] || type;
+    }
+
+    // =====================================================================
+    // TOAST
+    // =====================================================================
+
     function showToast(message, type = 'info') {
         const container = document.getElementById('toast-container');
+        if (!container) return;
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
         toast.setAttribute('role', 'alert');
         toast.setAttribute('aria-live', 'polite');
         toast.textContent = message;
         container.appendChild(toast);
-        setTimeout(() => toast.classList.add('show'), 10);
+        requestAnimationFrame(() => toast.classList.add('show'));
         setTimeout(() => {
             toast.classList.remove('show');
             toast.addEventListener('transitionend', () => toast.remove(), { once: true });
-        }, 4000);
+        }, TOAST_DURATION);
     }
 
-    function showApiError(el, message) {
-        const msgEl = el.querySelector('.error-message');
+    // =====================================================================
+    // ERROR DISPLAY
+    // =====================================================================
+
+    function showError(el, message) {
+        if (!el) return;
+        const msgEl = el.querySelector('.error-message, .wizard-validation-text');
         if (msgEl) msgEl.textContent = message;
-        el.style.display = 'flex';
+        el.hidden = false;
         el.setAttribute('role', 'alert');
     }
 
-    function hideApiError(el) {
-        el.style.display = 'none';
-        const msgEl = el.querySelector('.error-message');
+    function hideError(el) {
+        if (!el) return;
+        el.hidden = true;
+        const msgEl = el.querySelector('.error-message, .wizard-validation-text');
         if (msgEl) msgEl.textContent = '';
         el.removeAttribute('role');
     }
 
-    function showLoading(message = 'Processing…') {
+    // =====================================================================
+    // LOADING
+    // =====================================================================
+
+    function showLoading(message = 'Processing...') {
         const p = loadingOverlay.querySelector('p');
         if (p) p.textContent = message;
         loadingOverlay.hidden = false;
@@ -125,166 +242,56 @@ document.addEventListener('DOMContentLoaded', () => {
         loadingOverlay.removeAttribute('aria-busy');
     }
 
-    function showConfirmationModal(title, message) {
-        setTextContent(modalTitle, title);
-        setTextContent(modalMessage, message);
-        modalOverlay.classList.add('visible');
-        modalCancelBtn.focus();
+    // =====================================================================
+    // CONFIRMATION MODAL
+    // =====================================================================
 
-        // Focus trap
-        const focusable = modalOverlay.querySelectorAll('button:not([disabled])');
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        const trap = (e) => {
-            if (e.key !== 'Tab') return;
-            if (e.shiftKey && document.activeElement === first) {
-                e.preventDefault();
-                last.focus();
-            } else if (!e.shiftKey && document.activeElement === last) {
-                e.preventDefault();
-                first.focus();
-            }
-        };
-        modalOverlay.addEventListener('keydown', trap);
-
+    function showConfirmation(title, message) {
         return new Promise((resolve) => {
+            setText(modalTitle, title);
+            setText(modalMessage, message);
+            modalOverlay.classList.add('visible');
+            modalCancelBtn.focus();
+
+            const focusable = Array.from(modalOverlay.querySelectorAll('button:not([disabled])'));
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+
+            const onKeydown = (e) => {
+                if (e.key !== 'Tab') return;
+                if (e.shiftKey && document.activeElement === first) {
+                    e.preventDefault();
+                    last.focus();
+                } else if (!e.shiftKey && document.activeElement === last) {
+                    e.preventDefault();
+                    first.focus();
+                }
+            };
+
             const cleanup = () => {
                 modalOverlay.classList.remove('visible');
                 modalConfirmBtn.removeEventListener('click', onConfirm);
                 modalCancelBtn.removeEventListener('click', onCancel);
                 document.removeEventListener('keydown', onEscape);
-                modalOverlay.removeEventListener('keydown', trap);
+                modalOverlay.removeEventListener('keydown', onKeydown);
             };
+
             const onConfirm = () => { cleanup(); resolve(true); };
             const onCancel  = () => { cleanup(); resolve(false); };
             const onEscape  = (e) => { if (e.key === 'Escape') onCancel(); };
+
             modalConfirmBtn.addEventListener('click', onConfirm);
             modalCancelBtn.addEventListener('click', onCancel);
             document.addEventListener('keydown', onEscape);
+            modalOverlay.addEventListener('keydown', onKeydown);
         });
     }
 
-    function generateBackupFilename() {
-        const now = new Date();
-        const p = (n) => String(n).padStart(2, '0');
-        return `extension_backup_${now.getFullYear()}-${p(now.getMonth()+1)}-${p(now.getDate())}_${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
-    }
+    // =====================================================================
+    // STORAGE ACCESS
+    // =====================================================================
 
-    function formatBytes(bytes) {
-        if (bytes === 0) return '0 B';
-        const k = 1024, sizes = ['B','KB','MB','GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
-    }
-
-    function estimateSize(data) {
-        try { return new Blob([JSON.stringify(data)]).size; } catch { return 0; }
-    }
-
-    function storageDisplayName(type) {
-        const map = {
-            chromeLocal:   'Chrome Local',
-            chromeSync:    'Chrome Sync',
-            webLocal:      'Web Local',
-            webSession:    'Web Session',
-            chromeManaged: 'Chrome Managed',
-        };
-        return map[type] || type;
-    }
-
-    // =========================================================================
-    // Password strength
-    // =========================================================================
-    function checkPasswordStrength(password) {
-        if (!password) {
-            passwordStrengthBar.value = 0;
-            setTextContent(passwordStrengthText, '');
-            passwordStrengthContainer.hidden = true;
-            return;
-        }
-        passwordStrengthContainer.hidden = false;
-
-        let score = Math.min(password.length * 5, 50);
-        const types = [/[A-Z]/, /[a-z]/, /\d/, /[!@#$%^&*(),.?":{}|<>~`\-_+=\[\]\\;'/]/]
-            .filter(rx => rx.test(password)).length;
-        score += types * 10;
-        if (password.length >= 8 && types >= 3) score += 20;
-        if (password.length >= 16) score += 10;
-
-        const levels = [
-            { min: 0,  label: 'Very Weak', cls: 'weak'   },
-            { min: 30, label: 'Weak',      cls: 'weak'   },
-            { min: 45, label: 'Fair',      cls: 'fair'   },
-            { min: 60, label: 'Good',      cls: 'good'   },
-            { min: 80, label: 'Strong',    cls: 'strong' },
-        ];
-        const level = levels.slice().reverse().find(l => score >= l.min) || levels[0];
-        passwordStrengthBar.value = Math.min(score, 100);
-        setTextContent(passwordStrengthText, level.label);
-        passwordStrengthBar.className = `password-strength-bar ${level.cls}`;
-    }
-
-    // =========================================================================
-    // Encryption - AES-256-GCM / PBKDF2 SHA-256 (310 000 iterations)
-    // =========================================================================
-    const PBKDF2_ITERATIONS = 310_000;
-
-    async function encryptData(plaintext, password) {
-        const enc = new TextEncoder();
-        const salt = crypto.getRandomValues(new Uint8Array(32));
-        const iv   = crypto.getRandomValues(new Uint8Array(12));
-
-        const keyMaterial = await crypto.subtle.importKey(
-            'raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']
-        );
-        const key = await crypto.subtle.deriveKey(
-            { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
-            keyMaterial,
-            { name: 'AES-GCM', length: 256 },
-            false, ['encrypt']
-        );
-
-        const cipherBuf = await crypto.subtle.encrypt(
-            { name: 'AES-GCM', iv },
-            key,
-            enc.encode(plaintext)
-        );
-
-        return {
-            encrypted:  Array.from(new Uint8Array(cipherBuf)),
-            iv:         Array.from(iv),
-            salt:       Array.from(salt),
-            iterations: PBKDF2_ITERATIONS,
-            algo:       'AES-GCM-256',
-        };
-    }
-
-    async function decryptData(encResult, password) {
-        const { encrypted, iv, salt, iterations = PBKDF2_ITERATIONS } = encResult;
-        const enc = new TextEncoder();
-
-        const keyMaterial = await crypto.subtle.importKey(
-            'raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']
-        );
-        const key = await crypto.subtle.deriveKey(
-            { name: 'PBKDF2', salt: new Uint8Array(salt), iterations, hash: 'SHA-256' },
-            keyMaterial,
-            { name: 'AES-GCM', length: 256 },
-            false, ['decrypt']
-        );
-
-        const plainBuf = await crypto.subtle.decrypt(
-            { name: 'AES-GCM', iv: new Uint8Array(iv) },
-            key,
-            new Uint8Array(encrypted)
-        );
-        return new TextDecoder().decode(plainBuf);
-    }
-
-    // =========================================================================
-    // Storage access
-    // =========================================================================
-    async function getAllStorageData(types) {
+    async function getAllStorageData(types = STORAGE_TYPES) {
         const result = {};
         for (const type of types) {
             try {
@@ -292,12 +299,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'chromeLocal':
                         result.chromeLocal = (typeof chrome !== 'undefined' && chrome.storage?.local)
                             ? await chrome.storage.local.get(null)
-                            : 'Chrome Local Storage not available';
+                            : { __error: 'Chrome Local Storage not available' };
                         break;
                     case 'chromeSync':
                         result.chromeSync = (typeof chrome !== 'undefined' && chrome.storage?.sync)
                             ? await chrome.storage.sync.get(null)
-                            : 'Chrome Sync Storage not available';
+                            : { __error: 'Chrome Sync Storage not available' };
                         break;
                     case 'webLocal': {
                         const d = {};
@@ -317,14 +324,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         result.webSession = d;
                         break;
                     }
-                    case 'chromeManaged':
-                        result.chromeManaged = (typeof chrome !== 'undefined' && chrome.storage?.managed)
-                            ? await chrome.storage.managed.get(null)
-                            : 'Chrome Managed Storage not available';
-                        break;
                 }
             } catch (err) {
-                result[type] = `Error: ${err.message}`;
+                result[type] = { __error: `Error: ${err.message}` };
             }
         }
         return result;
@@ -332,18 +334,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function updateStorageSizes() {
         try {
-            const data = await getAllStorageData(['chromeLocal', 'chromeSync', 'webLocal', 'webSession']);
-            document.querySelectorAll('.storage-size').forEach(el => {
+            const data = await getAllStorageData();
+            document.querySelectorAll('.storage-size, .wizard-option-size').forEach(el => {
                 const t = el.getAttribute('data-storage');
-                el.textContent = (data[t] && typeof data[t] === 'object')
-                    ? formatBytes(estimateSize(data[t])) : '0 B';
+                const d = data[t];
+                const size = (d && typeof d === 'object' && !d.__error)
+                    ? formatBytes(estimateSize(d))
+                    : '0 B';
+                el.textContent = size;
             });
             document.querySelectorAll('.storage-size-inline').forEach(el => {
                 const t = el.getAttribute('data-storage');
-                if (data[t] && typeof data[t] === 'object') {
-                    el.textContent = ' · ' + formatBytes(estimateSize(data[t]));
-                    el.style.color = 'var(--text-muted)';
-                    el.style.fontSize = 'var(--body-small)';
+                const d = data[t];
+                if (d && typeof d === 'object' && !d.__error) {
+                    el.textContent = ` · ${formatBytes(estimateSize(d))}`;
+                    el.style.color = 'var(--color-text-muted)';
+                    el.style.fontSize = 'var(--text-body-sm)';
                 } else {
                     el.textContent = '';
                 }
@@ -353,326 +359,390 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // =========================================================================
-    // Sidebar navigation
-    // =========================================================================
-    sidebarButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const target = btn.getAttribute('data-panel');
-            sidebarButtons.forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
-            btn.classList.add('active');
-            btn.setAttribute('aria-selected', 'true');
-            contentPanels.forEach(p => { p.hidden = true; });
-            const panel = document.getElementById(`${target}-panel`);
-            if (panel) {
-                panel.hidden = false;
-                hideApiError(backupRestoreErrorDisplay);
-                hideApiError(dataManagementErrorDisplay);
-                if (target === 'data-management') {
-                    updateStorageSizes();
-                }
-            }
-        });
-    });
+    // =====================================================================
+    // SIDEBAR NAVIGATION — ARIA Tabs
+    // =====================================================================
 
-    // =========================================================================
-    // Password visibility toggle
-    // =========================================================================
-    document.querySelectorAll('.toggle-password-visibility').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const targetId = btn.getAttribute('data-target');
-            const input = document.getElementById(targetId);
-            if (!input) return;
-            const show = input.type === 'password';
-            input.type = show ? 'text' : 'password';
-            btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    function activateTab(btn) {
+        const target = btn.getAttribute('data-panel');
+        sidebarButtons.forEach(b => {
+            b.classList.remove('active');
+            b.setAttribute('aria-selected', 'false');
+            b.setAttribute('tabindex', '-1');
         });
-    });
+        btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
+        btn.setAttribute('tabindex', '0');
 
-    // =========================================================================
-    // Encryption toggle
-    // =========================================================================
-    function syncEncryptionFields() {
-        encryptionPasswordFields.hidden = !enableEncryptionCheckbox.checked;
-        if (!enableEncryptionCheckbox.checked) {
-            backupPasswordInput.value = '';
-            confirmBackupPasswordInput.value = '';
-            passwordStrengthBar.value = 0;
-            setTextContent(passwordStrengthText, '');
-            passwordStrengthContainer.hidden = true;
+        contentPanels.forEach(p => { p.hidden = true; });
+        const panel = document.getElementById(`${target}-panel`);
+        if (panel) {
+            panel.hidden = false;
+            hideError(backupRestoreError);
+            hideError(dataManagementError);
+            if (target === 'data-management') updateStorageSizes();
         }
     }
 
-    enableEncryptionCheckbox.addEventListener('change', syncEncryptionFields);
-    // Ensure sync on load (handles default checked state)
-    syncEncryptionFields();
+    sidebarButtons.forEach((btn, index) => {
+        btn.setAttribute('tabindex', btn.classList.contains('active') ? '0' : '-1');
+        btn.addEventListener('click', () => activateTab(btn));
+        btn.addEventListener('keydown', (e) => {
+            const buttons = Array.from(sidebarButtons);
+            let nextIndex = index;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                nextIndex = (index + 1) % buttons.length;
+            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                nextIndex = (index - 1 + buttons.length) % buttons.length;
+            } else if (e.key === 'Home') {
+                e.preventDefault();
+                nextIndex = 0;
+            } else if (e.key === 'End') {
+                e.preventDefault();
+                nextIndex = buttons.length - 1;
+            } else {
+                return;
+            }
+            buttons[nextIndex].focus();
+            activateTab(buttons[nextIndex]);
+        });
+    });
 
-    backupPasswordInput.addEventListener('input', (e) => checkPasswordStrength(e.target.value));
+    // =====================================================================
+    // WIZARD — Navigation Helpers
+    // =====================================================================
 
-    backupFileNameInput.value = generateBackupFilename();
+    function showWizardStep(stepEl) {
+        document.querySelectorAll('.wizard-step').forEach(el => { el.hidden = true; });
+        stepEl.hidden = false;
+        // Focus first interactive element for accessibility
+        const focusable = stepEl.querySelector('button, input, [tabindex]:not([tabindex="-1"])');
+        if (focusable) focusable.focus();
+    }
 
-    // =========================================================================
-    // Backup
-    // =========================================================================
-    createBackupBtn.addEventListener('click', async () => {
-        hideApiError(backupRestoreErrorDisplay);
+    function resetWizard() {
+        wizardState = {
+            backupAreas: [],
+            backupFilename: '',
+            backupData: null,
+            restoreFile: null,
+            restoreAreas: [],
+        };
+        currentBackup = null;
 
-        const fileName = backupFileNameInput.value.trim() || generateBackupFilename();
-        const selectedTypes = [...backupStorageCheckboxes].filter(c => c.checked).map(c => c.value);
+        // Reset backup checkboxes
+        Object.values(backupCheckboxes).forEach(cb => { cb.checked = cb.value !== 'webSession'; });
+        backupFilename.value = '';
 
-        if (selectedTypes.length === 0) {
-            showApiError(backupRestoreErrorDisplay, 'Select at least one storage area to back up.');
+        // Reset restore
+        restoreFileInput.value = '';
+        restoreFileInfo.hidden = true;
+        restoreNextS1.disabled = true;
+        Object.values(restoreCheckboxes).forEach(cb => {
+            cb.checked = false;
+            cb.disabled = true;
+        });
+        Object.values(restoreStatuses).forEach(s => { s.textContent = 'Not in backup'; });
+        restoreMeta.hidden = true;
+        restoreMeta.textContent = '';
+
+        // Hide all errors
+        document.querySelectorAll('.wizard-validation').forEach(el => { el.hidden = true; });
+        hideError(backupRestoreError);
+    }
+
+    function goToWelcome() {
+        resetWizard();
+        showWizardStep(wizardWelcome);
+    }
+
+    // =====================================================================
+    // WIZARD — Backup Flow
+    // =====================================================================
+
+    cardBackup.addEventListener('click', () => {
+        resetWizard();
+        updateStorageSizes();
+        showWizardStep(backupStep1);
+    });
+
+    backupBackWelcome.addEventListener('click', goToWelcome);
+    backupCancelS1.addEventListener('click', goToWelcome);
+
+    backupNextS1.addEventListener('click', () => {
+        hideError(backupS1Error);
+        const selected = Object.entries(backupCheckboxes)
+            .filter(([, cb]) => cb.checked)
+            .map(([type]) => type);
+
+        if (selected.length === 0) {
+            showError(backupS1Error, 'Select at least one storage area to back up.');
             return;
         }
 
-        const doEncrypt  = enableEncryptionCheckbox.checked;
-        const password   = backupPasswordInput.value;
-        const confirmPwd = confirmBackupPasswordInput.value;
+        wizardState.backupAreas = selected;
+        showWizardStep(backupStep2);
+    });
 
-        if (doEncrypt) {
-            if (!password) { showApiError(backupRestoreErrorDisplay, 'Enter an encryption password.'); backupPasswordInput.focus(); return; }
-            if (password !== confirmPwd) { showApiError(backupRestoreErrorDisplay, 'Passwords do not match.'); confirmBackupPasswordInput.focus(); return; }
-            if (password.length < 8) { showApiError(backupRestoreErrorDisplay, 'Password must be at least 8 characters.'); backupPasswordInput.focus(); return; }
-        }
+    backupBackS1.addEventListener('click', () => showWizardStep(backupStep1));
+    backupCancelS2.addEventListener('click', goToWelcome);
 
-        showLoading('Collecting data…');
+    backupNextS2.addEventListener('click', async () => {
+        hideError(backupS2Error);
+        const rawName = backupFilename.value.trim();
+        const fileName = rawName || 'extension_backup';
+        wizardState.backupFilename = fileName;
+
+        showLoading('Calculating backup size...');
         try {
-            const data      = await getAllStorageData(selectedTypes);
-            const timestamp = new Date().toISOString();
+            wizardState.backupData = await getAllStorageData(wizardState.backupAreas);
+            const totalSize = Object.values(wizardState.backupData).reduce((acc, d) => {
+                return acc + (d && typeof d === 'object' && !d.__error ? estimateSize(d) : 0);
+            }, 0);
 
-            let backupObj = {
+            setText(reviewBackupName, `${fileName}_${generateBackupFilename().split('_').slice(1).join('_')}.json`);
+            reviewBackupAreas.textContent = '';
+            wizardState.backupAreas.forEach(type => {
+                const badge = document.createElement('span');
+                badge.className = 'badge';
+                badge.textContent = storageDisplayName(type);
+                reviewBackupAreas.appendChild(badge);
+            });
+            setText(reviewBackupSize, formatBytes(totalSize));
+
+            showWizardStep(backupStep3);
+        } catch (err) {
+            showError(backupS2Error, `Failed to prepare backup: ${err.message}`);
+        } finally {
+            hideLoading();
+        }
+    });
+
+    backupBackS2.addEventListener('click', () => showWizardStep(backupStep2));
+    backupCancelS3.addEventListener('click', goToWelcome);
+
+    backupCreateFinal.addEventListener('click', async () => {
+        hideError(backupS3Error);
+        hideError(backupRestoreError);
+
+        showLoading('Creating backup...');
+        try {
+            const timestamp = new Date().toISOString();
+            const backupObj = {
                 snapshot_version: '3.0',
                 timestamp,
-                encrypted: doEncrypt,
-                storageTypes: selectedTypes,
+                storageTypes: wizardState.backupAreas,
+                data: wizardState.backupData,
             };
-
-            if (doEncrypt) {
-                showLoading('Encrypting backup…');
-                const payload = JSON.stringify({ data });
-                const enc = await encryptData(payload, password);
-                Object.assign(backupObj, {
-                    encryptedData: enc.encrypted,
-                    iv:            enc.iv,
-                    salt:          enc.salt,
-                    iterations:    enc.iterations,
-                    algo:          enc.algo,
-                });
-            } else {
-                backupObj.data = data;
-            }
 
             const blob = new Blob([JSON.stringify(backupObj, null, 2)], { type: 'application/json' });
             const url  = URL.createObjectURL(blob);
             const a    = document.createElement('a');
             a.href     = url;
-            a.download = `${fileName}.json`;
+            const now = new Date();
+            const p = (n) => String(n).padStart(2, '0');
+            a.download = `${wizardState.backupFilename}_${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}_${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}.json`;
             document.body.appendChild(a);
             a.click();
             a.remove();
             URL.revokeObjectURL(url);
 
             showToast('Backup created successfully!', 'success');
-
-            // Reset form
-            backupPasswordInput.value = '';
-            confirmBackupPasswordInput.value = '';
-            passwordStrengthBar.value = 0;
-            setTextContent(passwordStrengthText, '');
-            passwordStrengthContainer.hidden = true;
-            enableEncryptionCheckbox.checked = true;
-            syncEncryptionFields();
-            backupFileNameInput.value = generateBackupFilename();
+            goToWelcome();
 
         } catch (err) {
             console.error('Backup error:', err);
-            showApiError(backupRestoreErrorDisplay, `Backup failed: ${err.message || err}`);
+            showError(backupS3Error, `Backup failed: ${err.message || err}`);
             showToast('Backup failed!', 'error');
         } finally {
             hideLoading();
         }
     });
 
-    // =========================================================================
-    // Restore - file select
-    // =========================================================================
-    restoreFileInput.addEventListener('change', async (e) => {
-        hideApiError(backupRestoreErrorDisplay);
-        const file = e.target.files[0];
+    // =====================================================================
+    // WIZARD — Restore Flow
+    // =====================================================================
 
-        if (!file) {
-            setTextContent(selectedFileNameDisplay, 'No file chosen');
-            restorePasswordInputGroup.hidden = true;
-            restoreOptionsContainer.hidden = true;
-            restoreBackupBtn.disabled = true;
-            currentBackupData = null;
-            return;
-        }
+    cardRestore.addEventListener('click', () => {
+        resetWizard();
+        showWizardStep(restoreStep1);
+    });
 
-        setTextContent(selectedFileNameDisplay, file.name);
-        showLoading('Reading backup…');
+    restoreBackWelcome.addEventListener('click', goToWelcome);
+    restoreCancelS1.addEventListener('click', goToWelcome);
 
+    // File upload handling with drag & drop
+    restoreFileInput.addEventListener('change', (e) => handleRestoreFile(e.target.files[0]));
+
+    restoreUploadZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        restoreUploadZone.classList.add('dragover');
+    });
+    restoreUploadZone.addEventListener('dragleave', () => {
+        restoreUploadZone.classList.remove('dragover');
+    });
+    restoreUploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        restoreUploadZone.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        if (file) handleRestoreFile(file);
+    });
+
+    restoreFileRemove.addEventListener('click', () => {
+        restoreFileInput.value = '';
+        restoreFileInfo.hidden = true;
+        restoreNextS1.disabled = true;
+        wizardState.restoreFile = null;
+        currentBackup = null;
+    });
+
+    async function handleRestoreFile(file) {
+        hideError(restoreS1Error);
+        if (!file) return;
+
+        wizardState.restoreFile = file;
+        setText(restoreFileName, file.name);
+        restoreFileInfo.hidden = false;
+        restoreNextS1.disabled = true;
+
+        showLoading('Reading backup file...');
         try {
-            const text       = await file.text();
+            const text = await file.text();
             const backupData = JSON.parse(text);
 
-            if (!backupData.timestamp) throw new Error('Invalid backup file - missing metadata.');
-
-            backupData.snapshot_version = backupData.snapshot_version || backupData.version || '2.0';
-            currentBackupData = backupData;
-
-            // Strict boolean check to avoid truthy string bugs
-            if (backupData.encrypted === true) {
-                restorePasswordInputGroup.hidden = false;
-                verifyPasswordBtn.style.display  = '';
-                restorePasswordInput.disabled    = false;
-                restoreOptionsContainer.hidden   = true;
-                restoreBackupBtn.disabled        = true;
-                restorePasswordInput.focus();
-            } else {
-                restorePasswordInputGroup.hidden = true;
-                restorePasswordInput.value = '';
-                verifyPasswordBtn.style.display = 'none';
-                displayRestoreOptions(backupData);
+            if (!backupData.timestamp) {
+                throw new Error('Invalid backup file — missing metadata.');
             }
+            if (!backupData.data || typeof backupData.data !== 'object') {
+                throw new Error('Invalid backup file — missing data.');
+            }
+
+            currentBackup = backupData;
+            restoreNextS1.disabled = false;
+            showToast('File loaded successfully!', 'success');
 
         } catch (err) {
             console.error('File read error:', err);
-            showApiError(backupRestoreErrorDisplay, `Cannot read backup file: ${err.message}`);
+            showError(restoreS1Error, `Cannot read backup file: ${err.message}`);
             showToast('Failed to read file!', 'error');
-            setTextContent(selectedFileNameDisplay, 'No file chosen');
             restoreFileInput.value = '';
-            currentBackupData = null;
+            restoreFileInfo.hidden = true;
+            wizardState.restoreFile = null;
         } finally {
             hideLoading();
         }
-    });
+    }
 
-    // Verify password button
-    verifyPasswordBtn.style.display = 'none';
-    verifyPasswordBtn.addEventListener('click', async () => {
-        const password = restorePasswordInput.value;
-        if (!password) {
-            showApiError(backupRestoreErrorDisplay, 'Enter the decryption password.');
-            return;
-        }
+    restoreNextS1.addEventListener('click', () => {
+        if (!currentBackup) return;
+        hideError(restoreS1Error);
 
-        showLoading('Verifying password…');
-        try {
-            const enc = {
-                encrypted:  currentBackupData.encryptedData,
-                iv:         currentBackupData.iv,
-                salt:       currentBackupData.salt,
-                iterations: currentBackupData.iterations || PBKDF2_ITERATIONS,
-            };
-            const plaintext  = await decryptData(enc, password);
-            const parsed     = JSON.parse(plaintext);
-            currentBackupData.data = parsed.data;
-
-            showToast('Password verified!', 'success');
-            verifyPasswordBtn.style.display  = 'none';
-            restorePasswordInput.disabled    = true;
-            displayRestoreOptions(currentBackupData);
-
-        } catch (err) {
-            console.error('Decryption error:', err);
-            showApiError(backupRestoreErrorDisplay, 'Incorrect password or corrupted file.');
-            showToast('Decryption failed!', 'error');
-        } finally {
-            hideLoading();
-        }
-    });
-
-    restorePasswordInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && verifyPasswordBtn.style.display !== 'none') {
-            verifyPasswordBtn.click();
-        }
-    });
-
-    function displayRestoreOptions(backupData) {
-        restoreOptionsContainer.hidden = false;
-        restoreBackupBtn.disabled      = false;
-
-        backupMetadataDisplay.textContent = '';
-
-        const wrap   = document.createElement('div');
-        const title  = document.createElement('h4');
-        title.textContent = 'Backup Info';
-        wrap.appendChild(title);
-
+        // Populate metadata
+        restoreMeta.hidden = false;
+        restoreMeta.textContent = '';
+        const metaWrap = document.createElement('div');
         const rows = [
-            ['Created',   new Date(backupData.timestamp).toLocaleString()],
-            ['Version',   backupData.snapshot_version || backupData.version || '—'],
-            ['Encrypted', backupData.encrypted === true ? 'Yes ✓' : 'No'],
+            ['Created', new Date(currentBackup.timestamp).toLocaleString()],
+            ['Version', currentBackup.snapshot_version || currentBackup.version || '—'],
         ];
         rows.forEach(([label, value]) => {
-            const p  = document.createElement('p');
-            const s  = document.createElement('strong');
+            const p = document.createElement('p');
+            const s = document.createElement('strong');
             s.textContent = label + ': ';
             p.appendChild(s);
             p.appendChild(document.createTextNode(value));
-            wrap.appendChild(p);
+            metaWrap.appendChild(p);
         });
-
-        if (backupData.storageTypes?.length) {
+        if (currentBackup.storageTypes?.length) {
             const p = document.createElement('p');
             const s = document.createElement('strong');
             s.textContent = 'Areas: ';
             p.appendChild(s);
-            backupData.storageTypes.forEach(t => {
+            currentBackup.storageTypes.forEach(t => {
                 const badge = document.createElement('span');
-                badge.className   = 'badge';
+                badge.className = 'badge';
                 badge.textContent = storageDisplayName(t);
                 p.appendChild(badge);
             });
-            wrap.appendChild(p);
+            metaWrap.appendChild(p);
         }
-        backupMetadataDisplay.appendChild(wrap);
+        restoreMeta.appendChild(metaWrap);
 
-        restoreStorageCheckboxes.forEach(cb => {
-            const has = backupData.storageTypes?.includes(cb.value);
+        // Populate checkboxes
+        const availableTypes = currentBackup.storageTypes || [];
+        Object.entries(restoreCheckboxes).forEach(([type, cb]) => {
+            const has = availableTypes.includes(type);
             cb.disabled = !has;
-            cb.checked  = !!has;
-            const lbl = cb.closest('label');
-            if (lbl) {
-                lbl.style.opacity = has ? '1' : '0.5';
-                lbl.title = has ? '' : 'Not available in this backup';
-            }
+            cb.checked = has;
+            restoreStatuses[type].textContent = has
+                ? `${formatBytes(estimateSize(currentBackup.data[type] || {}))}`
+                : 'Not in backup';
         });
-    }
 
-    // =========================================================================
-    // Restore - execute
-    // =========================================================================
-    restoreBackupBtn.addEventListener('click', async () => {
-        hideApiError(backupRestoreErrorDisplay);
+        showWizardStep(restoreStep2);
+    });
 
-        if (!currentBackupData?.data) {
-            showApiError(backupRestoreErrorDisplay, 'No valid backup data loaded.');
+    restoreBackS1.addEventListener('click', () => showWizardStep(restoreStep1));
+    restoreCancelS2.addEventListener('click', goToWelcome);
+
+    restoreNextS2.addEventListener('click', () => {
+        hideError(restoreS2Error);
+        const selected = Object.entries(restoreCheckboxes)
+            .filter(([, cb]) => cb.checked && !cb.disabled)
+            .map(([type]) => type);
+
+        if (selected.length === 0) {
+            showError(restoreS2Error, 'Select at least one storage area to restore.');
             return;
         }
 
-        const selectedTypes = [...restoreStorageCheckboxes]
-            .filter(cb => cb.checked && !cb.disabled)
-            .map(cb => cb.value);
+        wizardState.restoreAreas = selected;
 
-        if (selectedTypes.length === 0) {
-            showApiError(backupRestoreErrorDisplay, 'Select at least one storage area to restore.');
+        // Populate review
+        setText(reviewRestoreFile, wizardState.restoreFile?.name || '—');
+        reviewRestoreAreas.textContent = '';
+        selected.forEach(type => {
+            const badge = document.createElement('span');
+            badge.className = 'badge';
+            badge.textContent = storageDisplayName(type);
+            reviewRestoreAreas.appendChild(badge);
+        });
+        setText(reviewRestoreDate, currentBackup?.timestamp
+            ? new Date(currentBackup.timestamp).toLocaleString()
+            : '—');
+
+        showWizardStep(restoreStep3);
+    });
+
+    restoreBackS2.addEventListener('click', () => showWizardStep(restoreStep2));
+    restoreCancelS3.addEventListener('click', goToWelcome);
+
+    restoreFinal.addEventListener('click', async () => {
+        hideError(restoreS3Error);
+        hideError(backupRestoreError);
+
+        if (!currentBackup?.data) {
+            showError(restoreS3Error, 'No valid backup data loaded.');
             return;
         }
 
-        const confirmed = await showConfirmationModal(
+        const confirmed = await showConfirmation(
             'Confirm Restore',
-            `This will overwrite data in: ${selectedTypes.map(storageDisplayName).join(', ')}. This cannot be undone.`
+            `This will overwrite data in: ${wizardState.restoreAreas.map(storageDisplayName).join(', ')}. This cannot be undone.`
         );
-        if (!confirmed) { showToast('Restore cancelled.', 'info'); return; }
+        if (!confirmed) {
+            showToast('Restore cancelled.', 'info');
+            return;
+        }
 
-        showLoading('Restoring data…');
+        showLoading('Restoring data...');
         try {
-            const src = currentBackupData.data;
+            const src = currentBackup.data;
             let count = 0;
 
-            for (const type of selectedTypes) {
+            for (const type of wizardState.restoreAreas) {
                 if (!src[type] || typeof src[type] !== 'object') continue;
                 try {
                     switch (type) {
@@ -700,58 +770,53 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             showToast(`Restored ${count} storage area(s)!`, 'success');
-
-            currentBackupData = null;
-            restorePasswordInput.value      = '';
-            restoreFileInput.value          = '';
-            setTextContent(selectedFileNameDisplay, 'No file chosen');
-            restorePasswordInputGroup.hidden = true;
-            restoreOptionsContainer.hidden  = true;
-            restoreBackupBtn.disabled       = true;
-            restorePasswordInput.disabled   = false;
-            verifyPasswordBtn.style.display = 'none';
-
+            goToWelcome();
             await updateStorageSizes();
 
         } catch (err) {
             console.error('Restore error:', err);
-            showApiError(backupRestoreErrorDisplay, `Restore failed: ${err.message}`);
+            showError(restoreS3Error, `Restore failed: ${err.message}`);
             showToast('Restore failed!', 'error');
         } finally {
             hideLoading();
         }
     });
 
-    // =========================================================================
-    // Clear Data
-    // =========================================================================
-    clearSelectedDataBtn.addEventListener('click', async () => {
-        hideApiError(dataManagementErrorDisplay);
+    // =====================================================================
+    // CLEAR DATA
+    // =====================================================================
 
-        const selectedTypes = [...document.querySelectorAll('#clear-data-section .checkbox-group input:checked')]
-            .map(cb => cb.value);
+    clearSelectedDataBtn.addEventListener('click', async () => {
+        hideError(dataManagementError);
+
+        const selectedTypes = Array.from(
+            document.querySelectorAll('#clear-data-section .checkbox-group input:checked')
+        ).map(cb => cb.value);
 
         if (selectedTypes.length === 0) {
-            showApiError(dataManagementErrorDisplay, 'Select at least one storage area to clear.');
+            showError(dataManagementError, 'Select at least one storage area to clear.');
             return;
         }
 
-        const confirmed = await showConfirmationModal(
+        const confirmed = await showConfirmation(
             'Confirm Clear',
             `Permanently delete data from: ${selectedTypes.map(storageDisplayName).join(', ')}. This cannot be undone.`
         );
-        if (!confirmed) { showToast('Clear cancelled.', 'info'); return; }
+        if (!confirmed) {
+            showToast('Clear cancelled.', 'info');
+            return;
+        }
 
-        showLoading('Clearing data…');
+        showLoading('Clearing data...');
         try {
             let count = 0;
             for (const type of selectedTypes) {
                 try {
                     switch (type) {
-                        case 'chromeLocal':  await chrome.storage.local.clear();  break;
-                        case 'chromeSync':   await chrome.storage.sync.clear();   break;
-                        case 'webLocal':     localStorage.clear();                break;
-                        case 'webSession':   sessionStorage.clear();              break;
+                        case 'chromeLocal': await chrome.storage.local.clear(); break;
+                        case 'chromeSync':  await chrome.storage.sync.clear(); break;
+                        case 'webLocal':    localStorage.clear(); break;
+                        case 'webSession':  sessionStorage.clear(); break;
                     }
                     count++;
                 } catch (err) {
@@ -763,25 +828,25 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast(`Cleared ${count} storage area(s)!`, 'success');
             await updateStorageSizes();
 
-            if (dataViewerModal.classList.contains('visible')) await loadDataIntoViewer();
+            if (!dataViewerPanel.hidden) await loadDataIntoViewer();
 
         } catch (err) {
             console.error('Clear error:', err);
-            showApiError(dataManagementErrorDisplay, `Clear failed: ${err.message}`);
+            showError(dataManagementError, `Clear failed: ${err.message}`);
             showToast('Clear failed!', 'error');
         } finally {
             hideLoading();
         }
     });
 
-    // =========================================================================
-    // DATA VIEWER MODAL
-    // =========================================================================
+    // =====================================================================
+    // DATA VIEWER
+    // =====================================================================
 
     async function loadDataIntoViewer() {
-        showLoading('Loading storage data…');
+        showLoading('Loading storage data...');
         try {
-            allStoredData = await getAllStorageData(['chromeLocal', 'chromeSync', 'webLocal', 'webSession', 'chromeManaged']);
+            allStoredData = await getAllStorageData();
             renderViewer();
         } catch (err) {
             console.error('Load error:', err);
@@ -792,28 +857,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     viewDataModalBtn.addEventListener('click', async () => {
-        dataViewerModal.classList.add('visible');
+        lastFocusedEl = document.activeElement;
+        dataManagementPanel.hidden = true;
+        dataViewerPanel.hidden = false;
         dataViewerSearch.value = '';
         dataViewerSearchClear.hidden = true;
         await loadDataIntoViewer();
         dataViewerSearch.focus();
     });
 
-    dataViewerClose.addEventListener('click', () => dataViewerModal.classList.remove('visible'));
-    dataViewerModal.addEventListener('click', (e) => { if (e.target === dataViewerModal) dataViewerModal.classList.remove('visible'); });
-
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            if (keyEditModal.classList.contains('visible')) closeKeyEditModal();
-            else if (dataViewerModal.classList.contains('visible')) dataViewerModal.classList.remove('visible');
+    closeDataViewerBtn.addEventListener('click', () => {
+        dataViewerPanel.hidden = true;
+        dataManagementPanel.hidden = false;
+        if (lastFocusedEl) {
+            lastFocusedEl.focus();
+            lastFocusedEl = null;
         }
     });
 
-    // Search
     dataViewerSearch.addEventListener('input', (e) => {
         dataViewerSearchClear.hidden = !e.target.value;
         renderViewer();
     });
+
     dataViewerSearchClear.addEventListener('click', () => {
         dataViewerSearch.value = '';
         dataViewerSearchClear.hidden = true;
@@ -821,7 +887,6 @@ document.addEventListener('DOMContentLoaded', () => {
         dataViewerSearch.focus();
     });
 
-    // Filter chips
     filterChips.forEach(chip => {
         chip.addEventListener('click', () => {
             filterChips.forEach(c => c.classList.remove('active'));
@@ -831,7 +896,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Expand all
     dataViewerExpandAll.addEventListener('click', () => {
         allExpanded = !allExpanded;
         dataViewerTree.querySelectorAll('.tree-children').forEach(el => {
@@ -842,7 +906,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Copy visible data
     dataViewerCopy.addEventListener('click', () => {
         const text = JSON.stringify(getFilteredData(), null, 2);
         navigator.clipboard.writeText(text)
@@ -850,9 +913,9 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(() => showToast('Copy failed!', 'error'));
     });
 
-    // -------------------------------------------------------------------------
-    // Render helpers
-    // -------------------------------------------------------------------------
+    // =====================================================================
+    // DATA VIEWER — Rendering
+    // =====================================================================
 
     function getFilteredData() {
         const q = dataViewerSearch.value.toLowerCase().trim();
@@ -862,7 +925,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentFilter !== 'all' && storageType !== currentFilter) continue;
 
             const storageData = allStoredData[storageType];
-            if (typeof storageData !== 'object' || storageData === null) {
+            const isObj = typeof storageData === 'object' && storageData !== null && !storageData.__error;
+
+            if (!isObj) {
                 if (!q || storageType.toLowerCase().includes(q) || String(storageData).toLowerCase().includes(q)) {
                     result[storageType] = storageData;
                 }
@@ -884,7 +949,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderViewer() {
         const filtered = getFilteredData();
         const totalKeys = Object.values(filtered).reduce((acc, v) => {
-            return acc + (typeof v === 'object' && v !== null ? Object.keys(v).length : 1);
+            const isObj = typeof v === 'object' && v !== null && !v.__error;
+            return acc + (isObj ? Object.keys(v).length : 1);
         }, 0);
 
         dataViewerStats.textContent = `${Object.keys(filtered).length} area(s) · ${totalKeys} key(s)`;
@@ -893,9 +959,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dataViewerEmpty.hidden = hasData;
         dataViewerTree.hidden = !hasData;
 
-        if (hasData) {
-            renderTree(filtered);
-        }
+        if (hasData) renderTree(filtered);
     }
 
     function renderTree(data) {
@@ -904,7 +968,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         for (const storageType in data) {
             const storageData = data[storageType];
-            const isObj = typeof storageData === 'object' && storageData !== null;
+            const isObj = typeof storageData === 'object' && storageData !== null && !storageData.__error;
             const keyCount = isObj ? Object.keys(storageData).length : 0;
 
             const group = document.createElement('div');
@@ -932,7 +996,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const countBadge = document.createElement('span');
             countBadge.className = 'badge';
             countBadge.textContent = keyCount + ' keys';
-            countBadge.style.marginLeft = 'var(--spacing-small)';
+            countBadge.style.marginLeft = 'var(--space-2)';
             header.appendChild(countBadge);
 
             group.appendChild(header);
@@ -940,7 +1004,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const children = document.createElement('div');
             children.className = 'tree-children';
             children.setAttribute('role', 'group');
-            children.hidden = true; // Collapsed by default
+            children.hidden = true;
 
             toggle.addEventListener('click', () => {
                 children.hidden = !children.hidden;
@@ -948,12 +1012,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!isObj) {
-                const row = buildErrorRow(storageType, String(storageData));
-                children.appendChild(row);
+                children.appendChild(buildErrorRow(String(storageData)));
             } else {
                 for (const key in storageData) {
-                    const row = buildKeyRow(storageType, key, storageData[key], q);
-                    children.appendChild(row);
+                    children.appendChild(buildKeyRow(storageType, key, storageData[key], q));
                 }
             }
 
@@ -962,7 +1024,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function buildErrorRow(storageType, message) {
+    function buildErrorRow(message) {
         const row = document.createElement('div');
         row.className = 'tree-row tree-row-error';
         const msg = document.createElement('span');
@@ -976,6 +1038,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const row = document.createElement('div');
         row.className = 'tree-row';
         row.setAttribute('role', 'treeitem');
+        row.setAttribute('tabindex', '0');
 
         const keyEl = document.createElement('span');
         keyEl.className = 'tree-key';
@@ -1002,60 +1065,45 @@ document.addEventListener('DOMContentLoaded', () => {
         const actions = document.createElement('div');
         actions.className = 'tree-row-actions';
 
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'btn-icon tree-action-btn';
-        copyBtn.setAttribute('aria-label', `Copy value of ${key}`);
-        copyBtn.title = 'Copy value';
-        const copyIcon = document.createElement('span');
-        copyIcon.className = 'icon icon-copy';
-        copyIcon.setAttribute('aria-hidden', 'true');
-        copyBtn.appendChild(copyIcon);
-        copyBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
+        actions.appendChild(buildActionBtn('Copy value', 'icon-copy', () => {
             const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
             navigator.clipboard.writeText(text)
                 .then(() => showToast(`"${key}" copied!`, 'success'))
                 .catch(() => showToast('Copy failed!', 'error'));
+        }));
+
+        actions.appendChild(buildActionBtn('Edit value', 'icon-settings', () => {
+            openKeyEditModal(storageType, key, value);
+        }));
+
+        const delBtn = buildActionBtn('Delete key', 'icon-trash', async () => {
+            const confirmed = await showConfirmation(
+                'Delete Key',
+                `Delete "${key}" from ${storageDisplayName(storageType)}? This cannot be undone.`
+            );
+            if (confirmed) await deleteKey(storageType, key);
         });
-        actions.appendChild(copyBtn);
-
-        if (storageType !== 'chromeManaged') {
-            const editBtn = document.createElement('button');
-            editBtn.className = 'btn-icon tree-action-btn';
-            editBtn.setAttribute('aria-label', `Edit ${key}`);
-            editBtn.title = 'Edit value';
-            const editIcon = document.createElement('span');
-            editIcon.className = 'icon icon-settings';
-            editIcon.setAttribute('aria-hidden', 'true');
-            editBtn.appendChild(editIcon);
-            editBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                openKeyEditModal(storageType, key, value);
-            });
-            actions.appendChild(editBtn);
-
-            const delBtn = document.createElement('button');
-            delBtn.className = 'btn-icon tree-action-btn tree-action-danger';
-            delBtn.setAttribute('aria-label', `Delete ${key}`);
-            delBtn.title = 'Delete key';
-            const delIcon = document.createElement('span');
-            delIcon.className = 'icon icon-trash';
-            delIcon.setAttribute('aria-hidden', 'true');
-            delBtn.appendChild(delIcon);
-            delBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const confirmed = await showConfirmationModal(
-                    'Delete Key',
-                    `Delete "${key}" from ${storageDisplayName(storageType)}? This cannot be undone.`
-                );
-                if (!confirmed) return;
-                await deleteKey(storageType, key);
-            });
-            actions.appendChild(delBtn);
-        }
+        delBtn.classList.add('tree-action-danger');
+        actions.appendChild(delBtn);
 
         row.appendChild(actions);
         return row;
+    }
+
+    function buildActionBtn(label, iconClass, onClick) {
+        const btn = document.createElement('button');
+        btn.className = 'btn-icon tree-action-btn';
+        btn.setAttribute('aria-label', label);
+        btn.title = label;
+        const icon = document.createElement('span');
+        icon.className = `icon ${iconClass}`;
+        icon.setAttribute('aria-hidden', 'true');
+        btn.appendChild(icon);
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            onClick();
+        });
+        return btn;
     }
 
     function formatValuePreview(value) {
@@ -1064,7 +1112,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeof value === 'boolean') return String(value);
         if (typeof value === 'number') return String(value);
         if (typeof value === 'string') {
-            return value.length > 80 ? value.slice(0, 80) + '…' : value;
+            return value.length > 80 ? value.slice(0, 80) + '...' : value;
         }
         if (Array.isArray(value)) return `[${value.length} items]`;
         if (typeof value === 'object') return `{${Object.keys(value).length} keys}`;
@@ -1077,18 +1125,18 @@ document.addEventListener('DOMContentLoaded', () => {
         return typeof value;
     }
 
-    // =========================================================================
-    // Key operations: delete, edit, save
-    // =========================================================================
+    // =====================================================================
+    // KEY OPERATIONS
+    // =====================================================================
 
     async function deleteKey(storageType, key) {
-        showLoading(`Deleting "${key}"…`);
+        showLoading(`Deleting "${key}"...`);
         try {
             switch (storageType) {
-                case 'chromeLocal':  await chrome.storage.local.remove(key);  break;
-                case 'chromeSync':   await chrome.storage.sync.remove(key);   break;
-                case 'webLocal':     localStorage.removeItem(key);            break;
-                case 'webSession':   sessionStorage.removeItem(key);          break;
+                case 'chromeLocal': await chrome.storage.local.remove(key); break;
+                case 'chromeSync':  await chrome.storage.sync.remove(key); break;
+                case 'webLocal':    localStorage.removeItem(key); break;
+                case 'webSession':  sessionStorage.removeItem(key); break;
                 default: throw new Error('Cannot delete from this storage area.');
             }
             if (allStoredData[storageType]) delete allStoredData[storageType][key];
@@ -1120,7 +1168,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     keyEditClose.addEventListener('click', closeKeyEditModal);
     keyEditCancel.addEventListener('click', closeKeyEditModal);
-    keyEditModal.addEventListener('click', (e) => { if (e.target === keyEditModal) closeKeyEditModal(); });
+    keyEditModal.addEventListener('click', (e) => {
+        if (e.target === keyEditModal) closeKeyEditModal();
+    });
 
     keyEditSave.addEventListener('click', async () => {
         if (!editContext) return;
@@ -1134,7 +1184,7 @@ document.addEventListener('DOMContentLoaded', () => {
             parsedValue = rawValue;
         }
 
-        showLoading(`Saving "${key}"…`);
+        showLoading(`Saving "${key}"...`);
         try {
             switch (storageType) {
                 case 'chromeLocal':
@@ -1170,9 +1220,76 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) keyEditSave.click();
     });
 
-    // =========================================================================
-    // Init
-    // =========================================================================
-    document.querySelector('.sidebar-button.active').click();
-    updateStorageSizes();
+    // =====================================================================
+    // GLOBAL KEYBOARD
+    // =====================================================================
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            if (keyEditModal.classList.contains('visible')) {
+                closeKeyEditModal();
+            } else if (!dataViewerPanel.hidden) {
+                closeDataViewerBtn.click();
+            }
+        }
+    });
+
+    // =====================================================================
+    // TOOLTIP POSITIONING
+    // =====================================================================
+
+    function positionTooltips() {
+        document.querySelectorAll('.tooltip-trigger').forEach(trigger => {
+            const tooltip = trigger.querySelector('.tooltip-content');
+            if (!tooltip) return;
+
+            trigger.addEventListener('mouseover', () => {
+                const rect = trigger.getBoundingClientRect();
+                const ttRect = tooltip.getBoundingClientRect();
+                const ttWidth = Math.max(ttRect.width, 200);
+                const ttHeight = Math.max(ttRect.height, 40);
+                const gap = 8;
+
+                let left = rect.left + rect.width / 2 - ttWidth / 2;
+                let top = rect.top - ttHeight - gap;
+
+                if (left < gap) left = gap;
+                if (left + ttWidth > window.innerWidth - gap) {
+                    left = window.innerWidth - ttWidth - gap;
+                }
+                if (top < gap) top = rect.bottom + gap;
+                if (top + ttHeight > window.innerHeight - gap) {
+                    top = rect.top - ttHeight - gap;
+                }
+
+                tooltip.style.left = left + 'px';
+                tooltip.style.top = top + 'px';
+            });
+        });
+    }
+
+    // =====================================================================
+    // COPYRIGHT
+    // =====================================================================
+
+    const copyrightEl = document.querySelector('.sidebar-footer p');
+    if (copyrightEl) {
+        copyrightEl.textContent = `© ${new Date().getFullYear()} modcore`;
+    }
+
+    // =====================================================================
+    // INITIALIZATION
+    // =====================================================================
+
+    function init() {
+        sidebarButtons.forEach(b => {
+            b.setAttribute('tabindex', b.classList.contains('active') ? '0' : '-1');
+        });
+        const activeBtn = document.querySelector('.sidebar-button.active');
+        if (activeBtn) activateTab(activeBtn);
+        updateStorageSizes();
+        positionTooltips();
+    }
+
+    init();
 });
