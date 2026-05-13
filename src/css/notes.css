@@ -408,7 +408,7 @@ body {
 
 .recovery-code-item {
     display: block;
-    font-family: var(--font-mono, monospace);
+    font-family: var(--font-mono, 'Courier New', monospace);
     font-size: 0.9rem;
     letter-spacing: 0.08em;
     padding: 10px 14px;
@@ -582,11 +582,14 @@ body {
 }
 
 .ext-item.has-pinned::before {
-    content: '📌';
+    content: '';
     position: absolute;
     bottom: 8px;
     right: 8px;
-    font-size: 10px;
+    width: 8px;
+    height: 8px;
+    background-color: var(--color-pin);
+    border-radius: 50%;
 }
 
 .ext-icon-small {
@@ -916,10 +919,6 @@ body {
     background-color: rgba(255, 193, 7, 0.1);
 }
 
-.note-card.secure {
-    border-left: 4px solid var(--color-secure);
-}
-
 .note-header {
     display: flex;
     align-items: flex-start;
@@ -962,10 +961,6 @@ body {
 
 .badge.pinned {
     background-color: var(--color-pin);
-}
-
-.badge.secure {
-    background-color: var(--color-secure);
 }
 
 .note-meta {
@@ -1344,69 +1339,6 @@ body {
     color: white;
     font-size: 12px;
     font-weight: bold;
-}
-
-.security-checkbox {
-    color: var(--color-secure);
-}
-
-.security-checkbox .checkmark {
-    border-color: var(--color-secure);
-}
-
-.security-checkbox input:checked + .checkmark {
-    background-color: var(--color-secure);
-    border-color: var(--color-secure);
-}
-
-.security-icon {
-    width: 14px;
-    height: 14px;
-    filter: invert(0.3);
-}
-
-/* Security Panel */
-.security-panel {
-    display: none;
-    margin-top: 16px;
-    padding: 16px;
-    background-color: rgba(220, 53, 69, 0.05);
-    border: 1px solid rgba(220, 53, 69, 0.2);
-    border-radius: var(--radius-md);
-    animation: slideDown 0.3s ease;
-}
-
-.security-panel.open {
-    display: block;
-}
-
-@keyframes slideDown {
-    from { opacity: 0; max-height: 0; }
-    to { opacity: 1; max-height: 500px; }
-}
-
-.security-banner {
-    display: flex;
-    gap: 12px;
-    align-items: flex-start;
-}
-
-.security-banner img {
-    width: 24px;
-    height: 24px;
-    filter: invert(0.3);
-    flex-shrink: 0;
-}
-
-.security-banner strong {
-    display: block;
-    margin-bottom: 4px;
-    color: var(--color-secure);
-}
-
-.security-banner p {
-    font-size: 0.875rem;
-    color: var(--color-text-secondary);
 }
 
 /* Note Viewer */
@@ -1904,6 +1836,46 @@ kbd {
     outline: none;
     border-color: var(--color-primary);
     box-shadow: 0 0 0 3px var(--color-primary-container);
+}
+
+/* ============================================
+   PRF WARNING SCREEN
+   ============================================ */
+#prfWarningScreen {
+    z-index: 6000;
+}
+
+#prfWarningScreen .lock-actions {
+    margin-top: 8px;
+}
+
+/* ============================================
+   SETTINGS EXPORT/IMPORT ICONS
+   ============================================ */
+.settings-actions .modcore-btn img {
+    width: 16px;
+    height: 16px;
+    filter: invert(0.3);
+}
+
+.dark-mode .settings-actions .modcore-btn img {
+    filter: invert(0.7);
+}
+
+/* ============================================
+   NOTE BADGE TEXT (replacing emoji)
+   ============================================ */
+.badge.pinned {
+    width: auto;
+    min-width: 28px;
+    height: 18px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 0 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #1c1c1c;
 }
 
 @media (max-width: 768px) {

@@ -17,20 +17,12 @@
                 <h1>Extension Notes</h1>
             </div>
             <div class="header-actions">
-                <!-- Shield = Settings (now working) -->
-                <button class="icon-btn" id="shieldBtn" aria-label="Settings & Security">
+                <button class="icon-btn" id="shieldBtn" aria-label="Settings and Security">
                     <img src="../../public/icons/svg/shield.svg" alt="Settings">
                 </button>
                 <button class="icon-btn" id="keyboardShortcutsBtn" aria-label="Keyboard shortcuts">
                     <img src="../../public/icons/svg/keyboard.svg" alt="Shortcuts">
                 </button>
-                <button class="icon-btn" id="exportBtn" aria-label="Export notes">
-                    <img src="../../public/icons/svg/install.svg" alt="Export">
-                </button>
-                <button class="icon-btn" id="importBtn" aria-label="Import notes">
-                    <img src="../../public/icons/svg/upload.svg" alt="Import">
-                </button>
-                <input type="file" id="importFileInput" accept=".json" style="display: none;">
             </div>
         </header>
 
@@ -89,7 +81,7 @@
                         </div>
                         <div class="feature">
                             <img src="../../public/icons/svg/shield.svg" alt="Security">
-                            <span>Passkey encryption</span>
+                            <span>Passkey protection</span>
                         </div>
                     </div>
                 </div>
@@ -147,6 +139,24 @@
         </div>
 
         <!-- ============================================
+             PRF UNSUPPORTED WARNING
+             ============================================ -->
+        <div class="lock-screen" id="prfWarningScreen" role="dialog" aria-modal="true" aria-labelledby="prfWarningTitle">
+            <div class="lock-screen-content">
+                <div class="lock-icon">
+                    <img src="../../public/icons/svg/warning.svg" alt="">
+                </div>
+                <h2 id="prfWarningTitle">Passkey PRF Not Available</h2>
+                <p>Extension Notes requires passkey authentication with PRF (Pseudo-Random Function) support to encrypt your notes. Your browser or device does not support this feature.</p>
+                <div class="lock-actions">
+                    <button class="modcore-btn modcore-btn-primary" id="prfWarningCloseBtn">
+                        Close Extension Notes
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================
              LOCK SCREEN (Passkey-based)
              ============================================ -->
         <div class="lock-screen" id="lockScreen" role="dialog" aria-modal="true" aria-labelledby="lockScreenTitle">
@@ -159,7 +169,7 @@
 
                 <div class="lock-actions">
                     <button class="modcore-btn modcore-btn-primary passkey-btn" id="lockScreenPasskeyBtn">
-                        🔑 Use Passkey
+                        Use Passkey
                     </button>
                     <button class="modcore-btn modcore-btn-text recovery-toggle-btn" id="lockScreenRecoveryBtn">
                         Use recovery code instead
@@ -170,7 +180,7 @@
                 <div class="lock-recovery-section" id="lockScreenRecoverySection" style="display:none;">
                     <div class="recovery-input-group">
                         <label for="lockScreenRecoveryInput" class="recovery-label">
-                            🔐 Enter Recovery Code
+                            Enter Recovery Code
                         </label>
                         <input
                             type="text"
@@ -246,22 +256,6 @@
                             <span class="checkmark"></span>
                             Pin this note
                         </label>
-                        <label class="checkbox-label security-checkbox">
-                            <input type="checkbox" id="noteSecure">
-                            <span class="checkmark"></span>
-                            <img src="../../public/icons/svg/lock.svg" alt="Secure" class="security-icon">
-                            Secure this note
-                        </label>
-                    </div>
-
-                    <div class="security-panel" id="securityPanel">
-                        <div class="security-banner">
-                            <img src="../../public/icons/svg/shield.svg" alt="Security">
-                            <div>
-                                <strong>Secure Note</strong>
-                                <p>This note will be individually encrypted with your vault key (passkey-protected).</p>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -346,7 +340,7 @@
                 <div class="modal-header">
                     <h2 id="settingsTitle">
                         <img src="../../public/icons/svg/shield.svg" alt="" class="settings-header-icon">
-                        Security &amp; Settings
+                        Security and Settings
                     </h2>
                     <button class="close-btn" id="closeSettings" aria-label="Close settings">
                         <img src="../../public/icons/svg/close.svg" alt="Close">
@@ -357,7 +351,7 @@
 
                     <!-- Section: Passkey -->
                     <section class="settings-section">
-                        <h3 class="settings-section-title">🔑 Passkey Authentication</h3>
+                        <h3 class="settings-section-title">Passkey Authentication</h3>
                         <p class="settings-section-desc">
                             Your notes vault is protected by a passkey stored on this device.
                             Biometric authentication (fingerprint, face, PIN) unlocks the vault key.
@@ -365,7 +359,7 @@
                         <div class="settings-row">
                             <div class="settings-row-info">
                                 <span class="settings-row-label">Vault encryption</span>
-                                <span class="settings-row-sub">AES-256-GCM · Passkey-wrapped vault key</span>
+                                <span class="settings-row-sub">AES-256-GCM with passkey-wrapped vault key</span>
                             </div>
                             <span class="settings-badge active">Active</span>
                         </div>
@@ -373,7 +367,7 @@
 
                     <!-- Section: Recovery Codes -->
                     <section class="settings-section">
-                        <h3 class="settings-section-title">🔐 Recovery Codes</h3>
+                        <h3 class="settings-section-title">Recovery Codes</h3>
                         <p class="settings-section-desc">
                             Recovery codes let you unlock the vault if your passkey is unavailable.
                             Each code can only be used once.
@@ -386,16 +380,36 @@
                                 View Status
                             </button>
                             <button class="modcore-btn modcore-btn-secondary" id="settingsRegenCodes">
-                                ↺ Regenerate Codes
+                                Regenerate Codes
                             </button>
+                        </div>
+                    </section>
+
+                    <!-- Section: Backup & Export -->
+                    <section class="settings-section">
+                        <h3 class="settings-section-title">Backup and Export</h3>
+                        <p class="settings-section-desc">
+                            Export your encrypted notes to a file for backup, or import a previous backup.
+                            Imports are merged with existing notes.
+                        </p>
+                        <div class="settings-actions">
+                            <button class="modcore-btn modcore-btn-secondary" id="settingsExportBtn">
+                                <img src="../../public/icons/svg/install.svg" alt="">
+                                Export Notes
+                            </button>
+                            <button class="modcore-btn modcore-btn-secondary" id="settingsImportBtn">
+                                <img src="../../public/icons/svg/upload.svg" alt="">
+                                Import Notes
+                            </button>
+                            <input type="file" id="settingsImportFileInput" accept=".json" style="display: none;">
                         </div>
                     </section>
 
                     <!-- Section: Session -->
                     <section class="settings-section">
-                        <h3 class="settings-section-title">🔒 Session</h3>
+                        <h3 class="settings-section-title">Session</h3>
                         <p class="settings-section-desc">
-                            Lock the app to clear the vault key from memory. You'll need to re-authenticate with your passkey.
+                            Lock the app to clear the vault key from memory. You will need to re-authenticate with your passkey.
                         </p>
                         <div class="settings-actions">
                             <button class="modcore-btn modcore-btn-secondary" id="settingsLockBtn">
@@ -406,7 +420,7 @@
 
                     <!-- Section: Danger Zone -->
                     <section class="settings-section danger-section">
-                        <h3 class="settings-section-title">⚠️ Danger Zone</h3>
+                        <h3 class="settings-section-title">Danger Zone</h3>
                         <p class="settings-section-desc">
                             Permanently delete all notes, the passkey registration, and all recovery codes.
                             This cannot be undone.

@@ -1,6 +1,6 @@
 /**
  * Extension Notes - Note Management for modcore Extension Manager
- * Enhanced: Passkey auth, PSF encryption, Settings/Recovery modal, bug fixes
+ * Enhanced: Passkey auth, PSF encryption, Settings/Recovery modal, PRF requirement
  */
 
 // ============================================
@@ -14,7 +14,6 @@ const THEME_KEY          = 'modcore_notes_theme';
 const SECURITY_ITERATIONS = 600000;
 const PSF_VERSION        = 5;
 
-// How many recovery codes to generate
 const RECOVERY_CODE_COUNT = 8;
 
 const ICONS = {
@@ -89,14 +88,35 @@ function base64ToBuffer(base64) {
     return bytes.buffer;
 }
 
+/**
+ * Generate an unbiased random recovery code using rejection sampling.
+ * Format: XXXX-XXXX-XXXX (uppercase alphanumeric, no ambiguous chars)
+ */
 function generateRecoveryCode() {
-    // Format: XXXX-XXXX-XXXX (uppercase alphanumeric, no ambiguous chars)
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const maxByte = 256;
+    const maxValid = maxByte - (maxByte % chars.length);
     let code = '';
-    const rand = crypto.getRandomValues(new Uint8Array(12));
+    let randBytes = new Uint8Array(0);
+    let randIndex = 0;
+
+    const refill = () => {
+        randBytes = crypto.getRandomValues(new Uint8Array(32));
+        randIndex = 0;
+    };
+
+    const nextByte = () => {
+        if (randIndex >= randBytes.length) refill();
+        return randBytes[randIndex++];
+    };
+
     for (let i = 0; i < 12; i++) {
         if (i > 0 && i % 4 === 0) code += '-';
-        code += chars[rand[i] % chars.length];
+        let byte;
+        do {
+            byte = nextByte();
+        } while (byte >= maxValid);
+        code += chars[byte % chars.length];
     }
     return code;
 }
@@ -174,23 +194,15 @@ async function verifyHash(stored, data) {
 
 // ============================================
 // PSF (Passkey Storage Format) KEY MANAGEMENT
-//
-// Design:
-//   - A random 32-byte "vault key" is generated once and stored AES-GCM
-//     encrypted by a key derived from the passkey's PRF output (or
-//     a recovery code for fallback).
-//   - All notes are encrypted with the vault key.
-//   - This means a passkey change only re-wraps the vault key, not all notes.
 // ============================================
 
 class PSFKeyManager {
     constructor() {
-        this.vaultKey      = null;   // CryptoKey (AES-GCM, 256-bit)
-        this.vaultKeyRaw   = null;   // Uint8Array (raw bytes for re-export)
-        this.meta          = null;   // stored PSF metadata
+        this.vaultKey      = null;
+        this.vaultKeyRaw   = null;
+        this.meta          = null;
     }
 
-    /** Load PSF metadata from chrome.storage */
     async loadMeta() {
         return new Promise(resolve => {
             chrome.storage.local.get([PSF_META_KEY], r => {
@@ -200,7 +212,6 @@ class PSFKeyManager {
         });
     }
 
-    /** Save PSF metadata */
     async saveMeta(meta) {
         this.meta = meta;
         return new Promise(resolve => {
@@ -210,7 +221,6 @@ class PSFKeyManager {
 
     get isSetup() { return !!this.meta; }
 
-    /** Check if WebAuthn PRF extension is available */
     async checkPasskeySupport() {
         if (!window.PublicKeyCredential) return false;
         if (!PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return false;
@@ -219,9 +229,88 @@ class PSFKeyManager {
     }
 
     /**
-     * Create a new passkey and initialize the vault.
-     * Returns { success, credentialId, recoveryCodes }
+     * Check if PRF extension is supported by the client.
+     * 
+     * Strategy:
+     * 1. Try getClientCapabilities() (Chrome 132+)
+     * 2. If unavailable, do a silent probe create() with PRF extension and abort immediately.
+     *    - If the browser accepts the PRF extension in the options, it's supported.
+     *    - If it throws NotSupportedError specifically on the extension, it's not supported.
+     * 3. If we already have stored metadata with hasPRF=true, trust that.
      */
+    async checkPRFSupport() {
+        if (!window.PublicKeyCredential) return false;
+
+        // If we have existing metadata saying PRF worked, trust it
+        if (this.meta && this.meta.hasPRF) {
+            return true;
+        }
+
+        // Modern capability detection (Chrome 132+, Edge 132+)
+        if (PublicKeyCredential.getClientCapabilities) {
+            try {
+                const caps = await PublicKeyCredential.getClientCapabilities();
+                if (caps.prf === true) return true;
+                if (caps.prf === false) return false;
+                // undefined means unknown, fall through to probe
+            } catch (e) {
+                // Fall through to probe
+            }
+        }
+
+        // Runtime probe: attempt create() with PRF, abort before user sees UI
+        // We use a short timeout and abort controller to prevent actual UI
+        const probeTimeout = 3000;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), probeTimeout);
+
+        try {
+            const challenge = crypto.getRandomValues(new Uint8Array(32));
+            const userIdBytes = crypto.getRandomValues(new Uint8Array(16));
+
+            await navigator.credentials.create({
+                publicKey: {
+                    rp: { name: 'modcore-probe', id: location.hostname || 'localhost' },
+                    user: { id: userIdBytes, name: 'probe', displayName: 'Probe' },
+                    challenge,
+                    pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
+                    authenticatorSelection: {
+                        authenticatorAttachment: 'platform',
+                        userVerification: 'required'
+                    },
+                    extensions: { prf: { eval: { first: new Uint8Array(32).fill(1) } } },
+                    timeout: probeTimeout
+                },
+                signal: controller.signal
+            });
+            // If we get here without exception, PRF is definitely supported
+            clearTimeout(timeoutId);
+            return true;
+        } catch (e) {
+            clearTimeout(timeoutId);
+            // Analyze the error to determine PRF support
+            if (e.name === 'NotSupportedError') {
+                // The browser explicitly rejected the PRF extension
+                return false;
+            }
+            if (e.name === 'AbortError' || e.name === 'NotAllowedError') {
+                // AbortError: our timeout fired or signal aborted — browser accepted the options enough to start
+                // NotAllowedError: user would have been prompted (or was), meaning browser accepted PRF in options
+                // Both imply PRF extension syntax is supported by the browser
+                return true;
+            }
+            if (e.name === 'SecurityError') {
+                // Origin not allowed or other security issue — can't determine PRF support
+                // Assume false to be safe, but log for debugging
+                console.warn('PRF probe SecurityError:', e.message);
+                return false;
+            }
+            // Any other error (InvalidStateError, TypeError, etc.) — browser processed the options,
+            // which means it at least didn't reject PRF as unknown. Likely supported.
+            return true;
+        }
+    }
+
     async setupPasskey(userId = 'modcore-notes-user') {
         const challenge   = crypto.getRandomValues(new Uint8Array(32));
         const userIdBytes = new TextEncoder().encode(userId);
@@ -234,8 +323,8 @@ class PSFKeyManager {
                     user: { id: userIdBytes, name: userId, displayName: 'Extension Notes User' },
                     challenge,
                     pubKeyCredParams: [
-                        { type: 'public-key', alg: -7  },   // ES256
-                        { type: 'public-key', alg: -257 }   // RS256
+                        { type: 'public-key', alg: -7  },
+                        { type: 'public-key', alg: -257 }
                     ],
                     authenticatorSelection: {
                         authenticatorAttachment: 'platform',
@@ -248,28 +337,27 @@ class PSFKeyManager {
             });
         } catch (e) {
             console.error('Passkey creation failed:', e);
-            return { success: false, error: e.message };
+            return { success: false, error: e.name || e.message };
         }
 
-        // Generate the vault key (random 256-bit key)
+        const extResults = credential.getClientExtensionResults();
+        const prfResult = extResults?.prf?.results?.first;
+        const hasPRF = !!prfResult;
+
+        if (!hasPRF) {
+            return { success: false, error: 'PRF_NOT_SUPPORTED', details: 'Your authenticator does not support the PRF extension required for vault encryption.' };
+        }
+
         const vaultKeyRaw = crypto.getRandomValues(new Uint8Array(32));
         const vaultKey    = await crypto.subtle.importKey(
             'raw', vaultKeyRaw, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']
         );
 
-        // Wrap vault key using PRF output if available, otherwise derive from credential id
-        const prfResult = credential.getClientExtensionResults()?.prf?.results?.first;
-        const wrapSecret = prfResult
-            ? bufferToBase64(prfResult)
-            : bufferToBase64(new Uint8Array(credential.rawId));
-
+        const wrapSecret = bufferToBase64(prfResult);
         const wrappedKey = await encryptData(bufferToBase64(vaultKeyRaw), wrapSecret);
 
-        // Generate recovery codes and hash them for verification
         const codes     = Array.from({ length: RECOVERY_CODE_COUNT }, generateRecoveryCode);
         const codeHashes = await Promise.all(codes.map(c => hashData(c)));
-
-        // Encrypt vault key with each recovery code for independent recovery
         const recoveryWraps = await Promise.all(
             codes.map(code => encryptData(bufferToBase64(vaultKeyRaw), code))
         );
@@ -278,14 +366,13 @@ class PSFKeyManager {
             version:      PSF_VERSION,
             credentialId: bufferToBase64(new Uint8Array(credential.rawId)),
             wrappedKey,
-            hasPRF:       !!prfResult,
+            hasPRF:       true,
             createdAt:    Date.now(),
             userId
         };
 
         await this.saveMeta(meta);
 
-        // Save hashed recovery codes + wrapped vault key per code
         const recoveryData = {
             codes: codeHashes.map((h, i) => ({
                 hash: h.hash,
@@ -303,10 +390,6 @@ class PSFKeyManager {
         return { success: true, credentialId: meta.credentialId, recoveryCodes: codes };
     }
 
-    /**
-     * Authenticate using passkey and unlock vault key.
-     * Returns { success }
-     */
     async authenticatePasskey() {
         if (!this.meta) return { success: false, error: 'Not set up' };
 
@@ -329,14 +412,23 @@ class PSFKeyManager {
             });
         } catch (e) {
             console.error('Passkey assertion failed:', e);
-            return { success: false, error: e.message };
+            let errorMsg = e.message || String(e);
+            if (e.name === 'NotAllowedError') {
+                errorMsg = 'The passkey prompt was dismissed or not allowed. Please try again.';
+            } else if (e.name === 'SecurityError') {
+                errorMsg = 'Security error: the origin may not be allowed to use WebAuthn.';
+            }
+            return { success: false, error: errorMsg, name: e.name };
         }
 
-        const prfResult = assertion.getClientExtensionResults()?.prf?.results?.first;
-        const wrapSecret = prfResult
-            ? bufferToBase64(prfResult)
-            : bufferToBase64(new Uint8Array(assertion.rawId));
+        const extResults = assertion.getClientExtensionResults();
+        const prfResult = extResults?.prf?.results?.first;
 
+        if (!prfResult) {
+            return { success: false, error: 'PRF result missing. Your authenticator may not support PRF.' };
+        }
+
+        const wrapSecret = bufferToBase64(prfResult);
         const vaultKeyB64 = await decryptData(this.meta.wrappedKey, wrapSecret);
         if (!vaultKeyB64) return { success: false, error: 'Failed to unwrap vault key' };
 
@@ -350,13 +442,9 @@ class PSFKeyManager {
         return { success: true };
     }
 
-    /**
-     * Recover using a recovery code.
-     * Returns { success, remainingCodes }
-     */
     async recoverWithCode(code) {
         const recoveryData = await this._loadRecoveryData();
-        if (!recoveryData) return { success: false, error: 'No recovery data' };
+        if (!recoveryData) return { success: false, error: 'No recovery data found' };
 
         const cleanCode = code.trim().toUpperCase().replace(/\s/g, '');
         let matchIdx = -1;
@@ -374,9 +462,8 @@ class PSFKeyManager {
         const vaultKeyB64 = await decryptData(entry.wrappedKey, cleanCode);
         if (!vaultKeyB64) return { success: false, error: 'Corrupted recovery entry' };
 
-        // Mark code as used
-        recoveryData.codes[matchIdx].used       = true;
-        recoveryData.codes[matchIdx].usedAt     = Date.now();
+        recoveryData.codes[matchIdx].used = true;
+        recoveryData.codes[matchIdx].usedAt = Date.now();
         await this._saveRecoveryData(recoveryData);
 
         const vaultKeyRaw = new Uint8Array(base64ToBuffer(vaultKeyB64));
@@ -391,7 +478,6 @@ class PSFKeyManager {
         return { success: true, remainingCodes: remaining };
     }
 
-    /** Regenerate recovery codes (requires vault to be unlocked) */
     async regenerateRecoveryCodes() {
         if (!this.vaultKeyRaw) return null;
         const vaultKeyB64 = bufferToBase64(this.vaultKeyRaw);
@@ -415,7 +501,6 @@ class PSFKeyManager {
         return codes;
     }
 
-    /** Get recovery code status (count used / remaining) */
     async getRecoveryStatus() {
         const data = await this._loadRecoveryData();
         if (!data) return { total: 0, used: 0, remaining: 0 };
@@ -423,7 +508,6 @@ class PSFKeyManager {
         return { total: data.codes.length, used, remaining: data.codes.length - used };
     }
 
-    /** Encrypt data with vault key (AES-GCM direct) */
     async encryptWithVault(plaintext) {
         if (!this.vaultKey) throw new Error('Vault not unlocked');
         const iv        = crypto.getRandomValues(new Uint8Array(12));
@@ -435,7 +519,6 @@ class PSFKeyManager {
         return bufferToBase64(result);
     }
 
-    /** Decrypt data with vault key */
     async decryptWithVault(ciphertext) {
         if (!this.vaultKey) throw new Error('Vault not unlocked');
         try {
@@ -496,10 +579,6 @@ class NotesState {
         this.psf                 = new PSFKeyManager();
     }
 
-    // ============================================
-    // DOM CACHING
-    // ============================================
-
     cacheDom() {
         const ids = [
             'app', 'extensionsList', 'emptySidebar', 'extensionSearch', 'clearExtSearch',
@@ -507,36 +586,36 @@ class NotesState {
             'selectedExtIcon', 'selectedExtName', 'extNoteCount', 'manageExtBtn',
             'newNoteBtn', 'notesSearch', 'clearNotesSearch', 'tagsFilter', 'notesContainer',
             'emptyNotes', 'createFirstNoteBtn', 'noteEditorModal', 'editorTitle',
-            'noteTitle', 'noteContent', 'notePinned', 'noteSecure', 'securityPanel',
-            'tagsInputContainer', 'editorTagsList', 'noteTags', 'existingTags',
-            'tagSuggestions', 'saveNote', 'cancelNote', 'closeEditor', 'toastContainer',
-            'confirmModal', 'confirmTitle', 'confirmMessage', 'confirmAction', 'confirmCancel',
-            'lockScreen', 'lockScreenTitle', 'lockScreenText', 'lockScreenPasskeyBtn',
+            'noteTitle', 'noteContent', 'notePinned', 'tagsInputContainer', 'editorTagsList',
+            'noteTags', 'existingTags', 'tagSuggestions', 'saveNote', 'cancelNote', 'closeEditor',
+            'toastContainer', 'confirmModal', 'confirmTitle', 'confirmMessage', 'confirmAction',
+            'confirmCancel', 'lockScreen', 'lockScreenTitle', 'lockScreenText', 'lockScreenPasskeyBtn',
             'lockScreenRecoveryBtn', 'lockScreenRecoverySection', 'lockScreenRecoveryInput',
-            'lockScreenRecoverySubmit',
-            'shieldBtn', 'exportBtn', 'importBtn',
-            'importFileInput', 'keyboardShortcutsBtn', 'shortcutsModal', 'closeShortcuts',
+            'lockScreenRecoverySubmit', 'prfWarningScreen', 'prfWarningCloseBtn',
+            'shieldBtn', 'keyboardShortcutsBtn', 'shortcutsModal', 'closeShortcuts',
             'globalSearchModal', 'closeGlobalSearch', 'globalSearchInput', 'searchResults',
             'searchTitles', 'searchContent', 'searchTags', 'noteViewerModal', 'viewerTitle',
             'viewerMeta', 'viewerContent', 'viewerClose', 'viewerCloseBtn', 'viewerEditBtn',
             'clearFiltersBtn',
-            // Settings modal
-            'settingsModal', 'closeSettings',
-            'settingsRecoveryStatus', 'settingsRegenCodes', 'settingsViewCodes',
-            'settingsLockBtn', 'settingsResetBtn'
+            'settingsModal', 'closeSettings', 'settingsRecoveryStatus', 'settingsRegenCodes',
+            'settingsViewCodes', 'settingsLockBtn', 'settingsResetBtn',
+            'settingsExportBtn', 'settingsImportBtn', 'settingsImportFileInput'
         ];
         ids.forEach(id => { this.dom[id] = document.getElementById(id); });
     }
-
-    // ============================================
-    // INITIALIZATION
-    // ============================================
 
     async init() {
         this.cacheDom();
         await this.loadTheme();
         await this.psf.loadMeta();
         this.setupEventListeners();
+
+        // Check PRF support first
+        const prfSupported = await this.psf.checkPRFSupport();
+        if (!prfSupported) {
+            this.showPRFWarning();
+            return;
+        }
 
         if (!this.psf.isSetup) {
             this.showLockScreen('setup');
@@ -545,16 +624,24 @@ class NotesState {
         }
     }
 
+    showPRFWarning() {
+        const screen = this.dom.prfWarningScreen;
+        if (!screen) return;
+        const closeBtn = this.dom.prfWarningCloseBtn;
+        if (closeBtn) {
+            closeBtn.onclick = () => {
+                window.close();
+            };
+        }
+        screen.classList.add('open');
+    }
+
     async _bootstrap() {
         await this.loadExtensions();
         await this.loadNotes();
         this.applyTheme();
         this.render();
     }
-
-    // ============================================
-    // LOCK SCREEN (Passkey-based)
-    // ============================================
 
     showLockScreen(mode) {
         const screen = this.dom.lockScreen;
@@ -575,7 +662,8 @@ class NotesState {
             if (title) title.textContent = 'Welcome to Extension Notes';
             if (text)  text.textContent  = 'Create a passkey to encrypt and protect your notes. Your device biometrics keep the vault key secure.';
             if (pkBtn) {
-                pkBtn.textContent = '🔑 Create Passkey';
+                pkBtn.textContent = 'Create Passkey';
+                pkBtn.disabled = false;
                 pkBtn.onclick = () => this._handleSetupPasskey();
             }
             if (recBtn) recBtn.style.display = 'none';
@@ -583,7 +671,8 @@ class NotesState {
             if (title) title.textContent = 'Unlock Extension Notes';
             if (text)  text.textContent  = 'Authenticate with your passkey to continue.';
             if (pkBtn) {
-                pkBtn.textContent = '🔑 Use Passkey';
+                pkBtn.textContent = 'Use Passkey';
+                pkBtn.disabled = false;
                 pkBtn.onclick = () => this._handleUnlockPasskey();
             }
             if (recBtn) {
@@ -603,11 +692,6 @@ class NotesState {
         }
 
         screen.classList.add('open');
-
-        // Auto-trigger passkey prompt on unlock (after short delay for UX)
-        if (mode === 'unlock') {
-            setTimeout(() => this._handleUnlockPasskey(), 400);
-        }
     }
 
     hideLockScreen() {
@@ -616,13 +700,23 @@ class NotesState {
 
     async _handleSetupPasskey() {
         const btn = this.dom.lockScreenPasskeyBtn;
-        if (btn) { btn.disabled = true; btn.textContent = 'Creating passkey…'; }
+        const icon = document.querySelector('.lock-icon.passkey-icon');
+        if (btn) { btn.disabled = true; btn.textContent = 'Creating passkey...'; }
+        if (icon) icon.classList.add('waiting');
 
         const result = await this.psf.setupPasskey();
 
+        if (icon) icon.classList.remove('waiting');
+
         if (!result.success) {
-            this.showToast('Passkey creation failed: ' + result.error, 'error');
-            if (btn) { btn.disabled = false; btn.textContent = '🔑 Create Passkey'; }
+            let msg = 'Passkey creation failed';
+            if (result.error === 'PRF_NOT_SUPPORTED') {
+                msg = 'Your device or browser does not support passkey PRF, which is required for vault encryption. Extension Notes cannot be used.';
+            } else {
+                msg = 'Passkey creation failed: ' + result.error;
+            }
+            this.showToast(msg, 'error', 6000);
+            if (btn) { btn.disabled = false; btn.textContent = 'Create Passkey'; }
             return;
         }
 
@@ -630,22 +724,27 @@ class NotesState {
         this.hideLockScreen();
         await this._bootstrap();
 
-        // Show recovery codes to user immediately
         this._showNewRecoveryCodes(result.recoveryCodes);
-        this.showToast('Passkey created! Save your recovery codes.', 'success');
+        this.showToast('Passkey created successfully. Save your recovery codes.', 'success', 5000);
     }
 
     async _handleUnlockPasskey() {
         const btn = this.dom.lockScreenPasskeyBtn;
-        if (btn) { btn.disabled = true; btn.textContent = 'Waiting for passkey…'; }
+        const icon = document.querySelector('.lock-icon.passkey-icon');
+        if (btn) { btn.disabled = true; btn.textContent = 'Waiting for passkey...'; }
+        if (icon) icon.classList.add('waiting');
 
         const result = await this.psf.authenticatePasskey();
 
+        if (icon) icon.classList.remove('waiting');
+
         if (!result.success) {
-            if (btn) { btn.disabled = false; btn.textContent = '🔑 Use Passkey'; }
-            // Don't show error for user cancellation
-            if (!result.error?.includes('cancelled') && !result.error?.includes('abort')) {
-                this.showToast('Passkey failed. Try a recovery code below.', 'error');
+            if (btn) { btn.disabled = false; btn.textContent = 'Use Passkey'; }
+            // Only show toast for non-cancellation errors
+            const isCancel = result.name === 'NotAllowedError' ||
+                             (result.error && /cancel|abort|dismiss/i.test(result.error));
+            if (!isCancel) {
+                this.showToast(result.error || 'Passkey authentication failed', 'error', 5000);
             }
             return;
         }
@@ -679,7 +778,7 @@ class NotesState {
 
         if (result.remainingCodes <= 2) {
             this.showToast(
-                `Unlocked! Only ${result.remainingCodes} recovery code(s) left — regenerate them in Settings.`,
+                `Unlocked. Only ${result.remainingCodes} recovery code(s) remaining. Regenerate them in Settings.`,
                 'warning',
                 6000
             );
@@ -693,11 +792,11 @@ class NotesState {
         const modal   = h('div', { className: 'modal-content recovery-codes-modal' });
 
         modal.appendChild(h('div', { className: 'modal-header' },
-            h('h2', { text: '🔐 Recovery Codes' })
+            h('h2', { text: 'Recovery Codes' })
         ));
 
         const body = h('div', { className: 'modal-body' });
-        body.appendChild(h('p', { className: 'recovery-warning', text: '⚠️ Save these codes somewhere safe. Each code can only be used once. You\'ll need them if your passkey is lost.' }));
+        body.appendChild(h('p', { className: 'recovery-warning', text: 'Save these codes somewhere safe. Each code can only be used once. You will need them if your passkey is lost.' }));
 
         const grid = h('div', { className: 'recovery-codes-grid' });
         codes.forEach(code => {
@@ -707,11 +806,11 @@ class NotesState {
 
         const copyBtn = h('button', {
             className: 'modcore-btn modcore-btn-secondary',
-            text: '📋 Copy All Codes',
+            text: 'Copy All Codes',
             on: { click: () => {
                 navigator.clipboard.writeText(codes.join('\n'));
-                copyBtn.textContent = '✓ Copied!';
-                setTimeout(() => { copyBtn.textContent = '📋 Copy All Codes'; }, 2000);
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => { copyBtn.textContent = 'Copy All Codes'; }, 2000);
             }}
         });
         body.appendChild(copyBtn);
@@ -720,7 +819,7 @@ class NotesState {
         const footer = h('div', { className: 'modal-footer' });
         footer.appendChild(h('button', {
             className: 'modcore-btn modcore-btn-primary',
-            text: 'I\'ve saved these codes',
+            text: 'I have saved these codes',
             on: { click: () => overlay.remove() }
         }));
         modal.appendChild(footer);
@@ -729,17 +828,10 @@ class NotesState {
         overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
     }
 
-    // ============================================
-    // SETTINGS MODAL (Shield button)
-    // ============================================
-
     async openSettings() {
         const modal = this.dom.settingsModal;
         if (!modal) return;
-
-        // Refresh recovery status display
         await this._refreshSettingsRecoveryStatus();
-
         modal.classList.add('open');
     }
 
@@ -757,15 +849,11 @@ class NotesState {
         }));
 
         if (status.remaining === 0) {
-            el.appendChild(h('p', { className: 'status-alert', text: '⚠️ All recovery codes used! Regenerate now.' }));
+            el.appendChild(h('p', { className: 'status-alert', text: 'All recovery codes used. Regenerate now to maintain access.' }));
         } else if (status.remaining <= 2) {
-            el.appendChild(h('p', { className: 'status-alert', text: '⚠️ Low on recovery codes. Consider regenerating.' }));
+            el.appendChild(h('p', { className: 'status-alert', text: 'Low on recovery codes. Consider regenerating.' }));
         }
     }
-
-    // ============================================
-    // STORAGE OPERATIONS
-    // ============================================
 
     async loadNotes() {
         return new Promise(resolve => {
@@ -809,10 +897,6 @@ class NotesState {
         await chrome.storage.local.set({ [THEME_KEY]: this.theme });
     }
 
-    // ============================================
-    // EXTENSION OPERATIONS
-    // ============================================
-
     async loadExtensions() {
         return new Promise(resolve => {
             chrome.management.getAll(exts => {
@@ -846,10 +930,6 @@ class NotesState {
         return this.extensions.find(ext => ext.id === this.selectedExtensionId);
     }
 
-    // ============================================
-    // NOTE OPERATIONS
-    // ============================================
-
     getExtensionNotes(extId) { return this.notes[extId] || []; }
 
     getFilteredNotes(extId) {
@@ -858,7 +938,7 @@ class NotesState {
             const q = this.notesSearchQuery.toLowerCase();
             notes = notes.filter(note => {
                 const titleMatch   = note.title && note.title.toLowerCase().includes(q);
-                const contentMatch = !note.isSecure && note.content && note.content.toLowerCase().includes(q);
+                const contentMatch = note.content && note.content.toLowerCase().includes(q);
                 const tagMatch     = note.tags && note.tags.some(tag => tag.toLowerCase().includes(q));
                 return titleMatch || contentMatch || tagMatch;
             });
@@ -876,23 +956,13 @@ class NotesState {
     }
 
     async createNote(extId, noteData) {
-        const notes         = this.getExtensionNotes(extId);
-        let displayContent  = noteData.content;
-        let secureContent   = null;
-
-        if (noteData.isSecure && this.psf.isUnlocked) {
-            secureContent  = await this.psf.encryptWithVault(noteData.content);
-            displayContent = '[SECURED]';
-        }
-
+        const notes = this.getExtensionNotes(extId);
         const newNote = {
             id:           Date.now().toString(36) + Math.random().toString(36).substr(2, 9),
             title:        noteData.title,
-            content:      displayContent,
+            content:      noteData.content,
             tags:         noteData.tags || [],
             isPinned:     noteData.isPinned || false,
-            isSecure:     noteData.isSecure || false,
-            secureContent,
             createdAt:    Date.now(),
             updatedAt:    Date.now()
         };
@@ -908,32 +978,7 @@ class NotesState {
         const noteIndex = notes.findIndex(n => n.id === noteId);
         if (noteIndex === -1) return null;
 
-        const note              = notes[noteIndex];
-        const isSecureChanging  = updates.isSecure !== undefined && updates.isSecure !== note.isSecure;
-
-        if (isSecureChanging) {
-            if (updates.isSecure && !note.isSecure) {
-                if (this.psf.isUnlocked && updates.content) {
-                    updates.secureContent = await this.psf.encryptWithVault(updates.content);
-                    updates.content       = '[SECURED]';
-                }
-            } else if (!updates.isSecure && note.isSecure) {
-                if (note.secureContent && this.psf.isUnlocked) {
-                    const decrypted = await this.psf.decryptWithVault(note.secureContent);
-                    if (decrypted) {
-                        updates.content       = decrypted;
-                        updates.secureContent = null;
-                    } else {
-                        this.showToast('Failed to decrypt note', 'error');
-                        return null;
-                    }
-                }
-            }
-        } else if (note.isSecure && updates.content !== undefined && this.psf.isUnlocked) {
-            updates.secureContent = await this.psf.encryptWithVault(updates.content);
-            updates.content       = '[SECURED]';
-        }
-
+        const note = notes[noteIndex];
         notes[noteIndex] = { ...note, ...updates, updatedAt: Date.now() };
         this.notes[extId] = notes;
         await this.saveNotes();
@@ -961,15 +1006,6 @@ class NotesState {
         }
         return null;
     }
-
-    async decryptNoteContent(note) {
-        if (!note.isSecure || !note.secureContent || !this.psf.isUnlocked) return note.content;
-        return this.psf.decryptWithVault(note.secureContent);
-    }
-
-    // ============================================
-    // EXPORT / IMPORT
-    // ============================================
 
     async exportNotes() {
         if (!this.psf.isUnlocked) {
@@ -1020,7 +1056,7 @@ class NotesState {
                         }
                         const decrypted = await this.psf.decryptWithVault(data.notes);
                         if (!decrypted) {
-                            this.showToast('Could not decrypt backup — was it exported from this vault?', 'error');
+                            this.showToast('Could not decrypt backup. Was it exported from this vault?', 'error');
                             resolve(false);
                             return;
                         }
@@ -1060,10 +1096,6 @@ class NotesState {
         });
     }
 
-    // ============================================
-    // GLOBAL SEARCH
-    // ============================================
-
     searchAllNotes(query, options = { titles: true, content: true, tags: false }) {
         const results   = [];
         const lowerQ    = query.toLowerCase();
@@ -1082,7 +1114,7 @@ class NotesState {
                     matchType.push('title');
                     preview = note.title;
                 }
-                if (options.content && note.content && !note.isSecure && note.content.toLowerCase().includes(lowerQ)) {
+                if (options.content && note.content && note.content.toLowerCase().includes(lowerQ)) {
                     match = true;
                     matchType.push('content');
                     if (!preview) {
@@ -1113,10 +1145,6 @@ class NotesState {
         });
     }
 
-    // ============================================
-    // TAG OPERATIONS
-    // ============================================
-
     getAllTags() {
         const tags = new Set();
         Object.values(this.notes).forEach(notes => {
@@ -1131,10 +1159,6 @@ class NotesState {
         const cs = new Set(currentTags);
         return this.getAllTags().filter(t => !cs.has(t)).slice(0, 5);
     }
-
-    // ============================================
-    // UI HELPERS
-    // ============================================
 
     applyTheme() {
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -1177,17 +1201,12 @@ class NotesState {
         });
     }
 
-    // ============================================
-    // EVENT HANDLERS
-    // ============================================
-
     setupEventListeners() {
         const debounce = (key, fn, ms = 150) => {
             clearTimeout(this._debouncers[key]);
             this._debouncers[key] = setTimeout(fn, ms);
         };
 
-        // Extension search
         if (this.dom.extensionSearch) {
             this.dom.extensionSearch.addEventListener('input', e => {
                 this.searchQuery = e.target.value;
@@ -1205,7 +1224,6 @@ class NotesState {
             });
         }
 
-        // Filter chips
         if (this.dom.filterChips) {
             this.dom.filterChips.addEventListener('click', e => {
                 const chip = e.target.closest('.chip[data-filter]');
@@ -1228,7 +1246,6 @@ class NotesState {
             });
         }
 
-        // Clear filters
         if (this.dom.clearFiltersBtn) {
             this.dom.clearFiltersBtn.addEventListener('click', () => {
                 this.activeFilters.clear();
@@ -1240,7 +1257,6 @@ class NotesState {
             });
         }
 
-        // Notes search
         if (this.dom.notesSearch) {
             this.dom.notesSearch.addEventListener('input', e => {
                 this.notesSearchQuery = e.target.value;
@@ -1258,11 +1274,9 @@ class NotesState {
             });
         }
 
-        // New note
         if (this.dom.newNoteBtn)       this.dom.newNoteBtn.addEventListener('click', () => this.openNoteEditor());
         if (this.dom.createFirstNoteBtn) this.dom.createFirstNoteBtn.addEventListener('click', () => this.openNoteEditor());
 
-        // Manage extension
         if (this.dom.manageExtBtn) {
             this.dom.manageExtBtn.addEventListener('click', () => {
                 const ext = this.getSelectedExtension();
@@ -1270,26 +1284,10 @@ class NotesState {
             });
         }
 
-        // Export / Import
-        if (this.dom.exportBtn) this.dom.exportBtn.addEventListener('click', () => this.exportNotes());
-        if (this.dom.importBtn && this.dom.importFileInput) {
-            this.dom.importBtn.addEventListener('click', () => this.dom.importFileInput.click());
-            this.dom.importFileInput.addEventListener('change', async e => {
-                const file = e.target.files[0];
-                if (file) {
-                    await this.importNotes(file);
-                    this.render();
-                    e.target.value = '';
-                }
-            });
-        }
-
-        // Shield / Settings button — now opens Settings modal
         if (this.dom.shieldBtn) {
             this.dom.shieldBtn.addEventListener('click', () => this.openSettings());
         }
 
-        // Settings modal controls
         if (this.dom.closeSettings) {
             this.dom.closeSettings.addEventListener('click', () => {
                 if (this.dom.settingsModal) this.dom.settingsModal.classList.remove('open');
@@ -1313,7 +1311,7 @@ class NotesState {
                     await this._refreshSettingsRecoveryStatus();
                     this._showNewRecoveryCodes(codes);
                 } else {
-                    this.showToast('Failed to regenerate codes — vault must be unlocked', 'error');
+                    this.showToast('Failed to regenerate codes. Vault must be unlocked.', 'error');
                 }
             });
         }
@@ -1330,12 +1328,12 @@ class NotesState {
             this.dom.settingsResetBtn.addEventListener('click', async () => {
                 const confirmed = await this.showConfirm(
                     'Reset Everything',
-                    '⚠️ This will permanently delete all notes, passkey data, and recovery codes. This CANNOT be undone. Are you absolutely sure?'
+                    'This will permanently delete all notes, passkey data, and recovery codes. This CANNOT be undone. Are you absolutely sure?'
                 );
                 if (!confirmed) return;
                 const confirmed2 = await this.showConfirm(
                     'Final Confirmation',
-                    'All data will be destroyed. Type-click Confirm to proceed.'
+                    'All data will be destroyed. Click Confirm to proceed.'
                 );
                 if (!confirmed2) return;
                 await chrome.storage.local.remove([STORAGE_KEY, PSF_META_KEY, RECOVERY_KEY]);
@@ -1343,7 +1341,22 @@ class NotesState {
             });
         }
 
-        // Keyboard shortcuts
+        // Export / Import in Settings
+        if (this.dom.settingsExportBtn) {
+            this.dom.settingsExportBtn.addEventListener('click', () => this.exportNotes());
+        }
+        if (this.dom.settingsImportBtn && this.dom.settingsImportFileInput) {
+            this.dom.settingsImportBtn.addEventListener('click', () => this.dom.settingsImportFileInput.click());
+            this.dom.settingsImportFileInput.addEventListener('change', async e => {
+                const file = e.target.files[0];
+                if (file) {
+                    await this.importNotes(file);
+                    this.render();
+                    e.target.value = '';
+                }
+            });
+        }
+
         if (this.dom.keyboardShortcutsBtn && this.dom.shortcutsModal) {
             this.dom.keyboardShortcutsBtn.addEventListener('click', () => {
                 this.dom.shortcutsModal.classList.add('open');
@@ -1355,7 +1368,6 @@ class NotesState {
             });
         }
 
-        // Global search
         document.addEventListener('keydown', e => {
             if (e.ctrlKey && e.shiftKey && e.key === 'F') {
                 e.preventDefault();
@@ -1368,14 +1380,12 @@ class NotesState {
             });
         }
 
-        // Modal backdrop close
         document.querySelectorAll('.modal-overlay').forEach(modal => {
             modal.addEventListener('click', e => {
                 if (e.target === modal) modal.classList.remove('open');
             });
         });
 
-        // Note container event delegation
         if (this.dom.notesContainer) {
             this.dom.notesContainer.addEventListener('click', e => {
                 const card = e.target.closest('.note-card');
@@ -1390,7 +1400,6 @@ class NotesState {
 
         this.setupKeyboardShortcuts();
 
-        // Theme toggle via media query
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
             if (this.theme === 'auto') this.applyTheme();
         });
@@ -1441,10 +1450,6 @@ class NotesState {
             chip.setAttribute('aria-pressed', this.activeFilters.has(chip.dataset.filter));
         });
     }
-
-    // ============================================
-    // RENDERING
-    // ============================================
 
     render() {
         this.renderSidebar();
@@ -1577,7 +1582,7 @@ class NotesState {
                 }}
             });
             btn.appendChild(document.createTextNode(tag));
-            if (isActive) btn.appendChild(h('span', { className: 'remove-tag', text: '×' }));
+            if (isActive) btn.appendChild(h('span', { className: 'remove-tag', text: 'x' }));
             fragment.appendChild(btn);
         });
         container.appendChild(fragment);
@@ -1611,7 +1616,7 @@ class NotesState {
         const fragment = document.createDocumentFragment();
         notes.forEach(note => {
             const card = h('div', {
-                className: `note-card ${note.isPinned ? 'pinned' : ''} ${note.isSecure ? 'secure' : ''}`,
+                className: `note-card ${note.isPinned ? 'pinned' : ''}`,
                 attrs: { 'data-note-id': note.id }
             });
 
@@ -1620,8 +1625,7 @@ class NotesState {
             titleRow.appendChild(h('h3', { className: 'note-title', text: note.title }));
 
             const badges = h('div', { className: 'note-badges' });
-            if (note.isPinned) badges.appendChild(h('span', { className: 'badge pinned', attrs: { title: 'Pinned' }, text: '📌' }));
-            if (note.isSecure) badges.appendChild(h('span', { className: 'badge secure', attrs: { title: 'Secure' }, text: '🔒' }));
+            if (note.isPinned) badges.appendChild(h('span', { className: 'badge pinned', attrs: { title: 'Pinned' }, text: 'PIN' }));
             if (badges.children.length > 0) titleRow.appendChild(badges);
             header.appendChild(titleRow);
 
@@ -1636,8 +1640,7 @@ class NotesState {
             const tags = note.tags && note.tags.length ? note.tags.map(t => `#${t}`).join(' ') : 'No tags';
             card.appendChild(h('div', { className: 'note-meta', text: `${date} · ${tags}` }));
 
-            const previewText = note.isSecure ? '🔒 This note is secured. Click to view.' : note.content;
-            card.appendChild(h('div', { className: 'note-preview', text: previewText }));
+            card.appendChild(h('div', { className: 'note-preview', text: note.content }));
 
             if (note.tags && note.tags.length) {
                 const tagsContainer = h('div', { className: 'note-tags' });
@@ -1650,10 +1653,6 @@ class NotesState {
 
         container.appendChild(fragment);
     }
-
-    // ============================================
-    // NOTE INTERACTIONS
-    // ============================================
 
     selectExtension(id) {
         this.selectedExtensionId = id;
@@ -1672,14 +1671,7 @@ class NotesState {
         const notes = this.getExtensionNotes(this.selectedExtensionId);
         const note  = notes.find(n => n.id === noteId);
         if (!note) return;
-
-        if (note.isSecure) {
-            const decrypted = await this.decryptNoteContent(note);
-            if (decrypted) this.openNoteEditor({ ...note, content: decrypted });
-            else           this.showToast('Failed to decrypt note', 'error');
-        } else {
-            this.openNoteEditor(note);
-        }
+        this.openNoteEditor(note);
     }
 
     async handleDeleteClick(noteId) {
@@ -1700,10 +1692,6 @@ class NotesState {
         if (note) this.showNoteViewer(note);
     }
 
-    // ============================================
-    // NOTE EDITOR
-    // ============================================
-
     openNoteEditor(note = null) {
         this.editingNote = note;
         const modal = this.dom.noteEditorModal;
@@ -1713,11 +1701,6 @@ class NotesState {
         this.dom.noteTitle.value         = note?.title   || '';
         this.dom.noteContent.value       = note?.content || '';
         this.dom.notePinned.checked      = note?.isPinned || false;
-        this.dom.noteSecure.checked      = note?.isSecure || false;
-
-        if (this.dom.securityPanel) {
-            this.dom.securityPanel.classList.toggle('open', !!note?.isSecure);
-        }
 
         this.editorTags = note?.tags ? [...note.tags] : [];
         this.renderEditorTags();
@@ -1727,15 +1710,6 @@ class NotesState {
         this.dom.noteTitle.focus();
 
         this.setupTagInput();
-
-        if (this.dom.noteSecure) {
-            // Use a new function reference to avoid stale closures
-            this.dom.noteSecure.onchange = () => {
-                if (this.dom.securityPanel) {
-                    this.dom.securityPanel.classList.toggle('open', this.dom.noteSecure.checked);
-                }
-            };
-        }
 
         this.dom.saveNote.onclick = async () => {
             if (!this.dom.noteTitle.value.trim()) {
@@ -1747,8 +1721,7 @@ class NotesState {
                 title:    this.dom.noteTitle.value.trim(),
                 content:  this.dom.noteContent ? this.dom.noteContent.value : '',
                 tags:     this.editorTags,
-                isPinned: this.dom.notePinned  ? this.dom.notePinned.checked  : false,
-                isSecure: this.dom.noteSecure  ? this.dom.noteSecure.checked  : false
+                isPinned: this.dom.notePinned  ? this.dom.notePinned.checked  : false
             };
             if (note) await this.updateNote(this.selectedExtensionId, note.id, noteData);
             else      await this.createNote(this.selectedExtensionId, noteData);
@@ -1806,7 +1779,7 @@ class NotesState {
             const tagSpan = h('span', { className: 'tag-item', text: tag });
             tagSpan.appendChild(h('button', {
                 className: 'tag-remove',
-                text: '×',
+                text: 'x',
                 on: { click: () => {
                     this.editorTags.splice(i, 1);
                     this.renderEditorTags();
@@ -1834,32 +1807,19 @@ class NotesState {
         });
     }
 
-    // ============================================
-    // NOTE VIEWER
-    // ============================================
-
-    async showNoteViewer(note) {
+    showNoteViewer(note) {
         const modal = this.dom.noteViewerModal;
         if (!modal) return;
-
-        let displayContent = note.content;
-        if (note.isSecure) {
-            displayContent = await this.decryptNoteContent(note);
-            if (!displayContent) {
-                this.showToast('Failed to decrypt note', 'error');
-                return;
-            }
-        }
 
         this.dom.viewerTitle.textContent = note.title;
 
         const date   = note.updatedAt ? new Date(note.updatedAt).toLocaleString() : '';
         const tags   = note.tags && note.tags.length ? ' · ' + note.tags.map(t => '#' + t).join(' ') : '';
-        const pinned = note.isPinned ? '📌 Pinned · ' : '';
+        const pinned = note.isPinned ? 'Pinned · ' : '';
         this.dom.viewerMeta.textContent = `${pinned}${date}${tags}`;
 
         this.dom.viewerContent.textContent = '';
-        displayContent.split('\n').forEach((line, i) => {
+        note.content.split('\n').forEach((line, i) => {
             if (i > 0) this.dom.viewerContent.appendChild(document.createElement('br'));
             this.dom.viewerContent.appendChild(document.createTextNode(line));
         });
@@ -1873,10 +1833,6 @@ class NotesState {
 
         modal.classList.add('open');
     }
-
-    // ============================================
-    // GLOBAL SEARCH
-    // ============================================
 
     openGlobalSearch() {
         const modal = this.dom.globalSearchModal;
@@ -1927,7 +1883,7 @@ class NotesState {
                 this._appendHighlightedText(preview, result.preview, query);
                 const meta = h('div', { className: 'search-result-meta' });
                 const date = result.note.updatedAt ? new Date(result.note.updatedAt).toLocaleDateString() : '';
-                meta.textContent = `${result.note.isPinned ? '📌 ' : ''}${result.note.isSecure ? '🔒 ' : ''}${date}`;
+                meta.textContent = `${result.note.isPinned ? 'Pinned · ' : ''}${date}`;
                 content.appendChild(header);
                 content.appendChild(preview);
                 content.appendChild(meta);
@@ -1962,10 +1918,6 @@ class NotesState {
         if (lastIndex < text.length) container.appendChild(document.createTextNode(text.slice(lastIndex)));
     }
 }
-
-// ============================================
-// INITIALIZATION
-// ============================================
 
 document.addEventListener('DOMContentLoaded', () => {
     const app = new NotesState();
