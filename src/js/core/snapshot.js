@@ -360,7 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =====================================================================
-    // SIDEBAR NAVIGATION — ARIA Tabs
+    // SIDEBAR NAVIGATION - ARIA Tabs
     // =====================================================================
 
     function activateTab(btn) {
@@ -411,7 +411,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // =====================================================================
-    // WIZARD — Navigation Helpers
+    // WIZARD - Navigation Helpers
     // =====================================================================
 
     function showWizardStep(stepEl) {
@@ -459,7 +459,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =====================================================================
-    // WIZARD — Backup Flow
+    // WIZARD - Backup Flow
     // =====================================================================
 
     cardBackup.addEventListener('click', () => {
@@ -562,7 +562,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // =====================================================================
-    // WIZARD — Restore Flow
+    // WIZARD - Restore Flow
     // =====================================================================
 
     cardRestore.addEventListener('click', () => {
@@ -613,10 +613,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const backupData = JSON.parse(text);
 
             if (!backupData.timestamp) {
-                throw new Error('Invalid backup file — missing metadata.');
+                throw new Error('Invalid backup file - missing metadata.');
             }
             if (!backupData.data || typeof backupData.data !== 'object') {
-                throw new Error('Invalid backup file — missing data.');
+                throw new Error('Invalid backup file - missing data.');
             }
 
             currentBackup = backupData;
@@ -645,7 +645,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const metaWrap = document.createElement('div');
         const rows = [
             ['Created', new Date(currentBackup.timestamp).toLocaleString()],
-            ['Version', currentBackup.snapshot_version || currentBackup.version || '—'],
+            ['Version', currentBackup.snapshot_version || currentBackup.version || '-'],
         ];
         rows.forEach(([label, value]) => {
             const p = document.createElement('p');
@@ -701,7 +701,7 @@ document.addEventListener('DOMContentLoaded', () => {
         wizardState.restoreAreas = selected;
 
         // Populate review
-        setText(reviewRestoreFile, wizardState.restoreFile?.name || '—');
+        setText(reviewRestoreFile, wizardState.restoreFile?.name || '-');
         reviewRestoreAreas.textContent = '';
         selected.forEach(type => {
             const badge = document.createElement('span');
@@ -711,7 +711,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         setText(reviewRestoreDate, currentBackup?.timestamp
             ? new Date(currentBackup.timestamp).toLocaleString()
-            : '—');
+            : '-');
 
         showWizardStep(restoreStep3);
     });
@@ -914,7 +914,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // =====================================================================
-    // DATA VIEWER — Rendering
+    // DATA VIEWER - Rendering
     // =====================================================================
 
     function getFilteredData() {

@@ -1,6 +1,6 @@
 /**
  * @file cloud.js
- * modcore Cloud — UI logic for the cloud sync page.
+ * modcore Cloud - UI logic for the cloud sync page.
  */
 
 'use strict';
@@ -13,7 +13,7 @@ const SYNC_QUOTA_BYTES  = 102400; // 100 KB
 const SYNC_DATA_KEY     = 'fullSyncData';
 const SYNC_SETTINGS_KEY = 'cloud_settings';
 
-// Hard maximums — enforced regardless of user settings. Strict limits for efficiency.
+// Hard maximums - enforced regardless of user settings. Strict limits for efficiency.
 const HARD_MAX_VERSIONS    = 5;
 const HARD_MAX_LOG_ENTRIES = 100;
 
@@ -603,7 +603,7 @@ async function syncToCloud(isAutomatic = false) {
         syncData.versions.unshift(newVersion);
         syncData.versions = applyHistoryRetention(syncData.versions, settings.historyRetentionPolicy);
 
-        // Guard against quota — trim if needed
+        // Guard against quota - trim if needed
         let estimatedSize = new TextEncoder().encode(JSON.stringify({ [SYNC_DATA_KEY]: syncData })).length;
         if (estimatedSize > SYNC_QUOTA_BYTES) {
             while (syncData.versions.length > 1) {

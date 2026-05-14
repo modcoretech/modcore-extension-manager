@@ -294,18 +294,18 @@ class PSFKeyManager {
                 return false;
             }
             if (e.name === 'AbortError' || e.name === 'NotAllowedError') {
-                // AbortError: our timeout fired or signal aborted — browser accepted the options enough to start
+                // AbortError: our timeout fired or signal aborted - browser accepted the options enough to start
                 // NotAllowedError: user would have been prompted (or was), meaning browser accepted PRF in options
                 // Both imply PRF extension syntax is supported by the browser
                 return true;
             }
             if (e.name === 'SecurityError') {
-                // Origin not allowed or other security issue — can't determine PRF support
+                // Origin not allowed or other security issue - can't determine PRF support
                 // Assume false to be safe, but log for debugging
                 console.warn('PRF probe SecurityError:', e.message);
                 return false;
             }
-            // Any other error (InvalidStateError, TypeError, etc.) — browser processed the options,
+            // Any other error (InvalidStateError, TypeError, etc.) - browser processed the options,
             // which means it at least didn't reject PRF as unknown. Likely supported.
             return true;
         }

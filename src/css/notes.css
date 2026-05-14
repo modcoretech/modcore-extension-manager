@@ -1639,7 +1639,7 @@ kbd {
 }
 
 /* ============================================
-   SETTINGS MODAL — OVERFLOW & SCROLL FIX
+   SETTINGS MODAL - OVERFLOW & SCROLL FIX
    ============================================ */
 
 .settings-modal {
@@ -1681,7 +1681,7 @@ kbd {
 }
 
 /* ============================================
-   DANGER BUTTON — COMPLETE STATES
+   DANGER BUTTON - COMPLETE STATES
    ============================================ */
 
 .modcore-btn-danger {
@@ -1706,7 +1706,7 @@ kbd {
 }
 
 /* ============================================
-   RECOVERY CODES DISPLAY MODAL — FULL STYLES
+   RECOVERY CODES DISPLAY MODAL - FULL STYLES
    ============================================ */
 
 .recovery-codes-modal {
@@ -1771,7 +1771,7 @@ kbd {
 }
 
 /* ============================================
-   SETTINGS RECOVERY STATUS — EMPTY STATE
+   SETTINGS RECOVERY STATUS - EMPTY STATE
    ============================================ */
 
 .settings-recovery-status:empty::before {
@@ -1781,7 +1781,7 @@ kbd {
 }
 
 /* ============================================
-   DANGER SECTION — VISUAL SEPARATOR
+   DANGER SECTION - VISUAL SEPARATOR
    ============================================ */
 
 .danger-section {
@@ -1794,7 +1794,7 @@ kbd {
 }
 
 /* ============================================
-   SETTINGS BADGE — COMPLETE VARIANTS
+   SETTINGS BADGE - COMPLETE VARIANTS
    ============================================ */
 
 .settings-badge {
@@ -1823,7 +1823,7 @@ kbd {
 }
 
 /* ============================================
-   RECOVERY INPUT — AUTO-FORMAT VISUAL HELP
+   RECOVERY INPUT - AUTO-FORMAT VISUAL HELP
    ============================================ */
 
 .recovery-input::placeholder {

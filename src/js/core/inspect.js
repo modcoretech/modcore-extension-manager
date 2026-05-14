@@ -479,7 +479,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     const item = document.createElement('div');
                     item.className = 'fix-all-item fix-all-item--info';
-                    item.textContent = 'Only one extension active — nothing to disable';
+                    item.textContent = 'Only one extension active - nothing to disable';
                     group.appendChild(item);
                 }
                 

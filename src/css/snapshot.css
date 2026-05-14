@@ -1,5 +1,5 @@
 /* ==========================================================================
-   modcore Snapshot — Lean Stylesheet
+   modcore Snapshot - Lean Stylesheet
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
@@ -537,7 +537,7 @@ button.btn-icon:disabled { opacity: 0.5; cursor: not-allowed; }
 
 
 /* --------------------------------------------------------------------------
-   9. Tooltips — Smart positioning
+   9. Tooltips - Smart positioning
    -------------------------------------------------------------------------- */
 .tooltip-trigger {
     position: relative;
@@ -678,7 +678,7 @@ button.btn-icon:disabled { opacity: 0.5; cursor: not-allowed; }
 
 
 /* --------------------------------------------------------------------------
-   12. Wizard — Backup & Restore Flow
+   12. Wizard - Backup & Restore Flow
    -------------------------------------------------------------------------- */
 .wizard-step {
     display: flex;

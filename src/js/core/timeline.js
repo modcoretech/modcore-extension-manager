@@ -1,5 +1,5 @@
 /**
- * timeline.js — modcore Timeline
+ * timeline.js - modcore Timeline
  * Refactored for auto-save, compact-by-default, safer DOM, and robust controls.
  */
 (() => {
@@ -245,7 +245,7 @@
         dom.prevPageBtn.addEventListener('click', () => handlePageChange(-1));
         dom.nextPageBtn.addEventListener('click', () => handlePageChange(1));
 
-        /* Settings — auto-save wiring */
+        /* Settings - auto-save wiring */
         const autoSaveToggles = [
             dom.trackingEnabledToggle, dom.pruneOnLimitToggle, dom.displayTimestampsToggle,
             dom.autoPruneOnStartupToggle, dom.relativeTimestampsToggle,
@@ -489,7 +489,7 @@
         header.textContent = `${record.extensionName || 'Unknown'} (v${record.extensionVersion || 'N/A'})`;
         const details = document.createElement('div');
         details.className = 'history-item-details';
-        details.textContent = `${formatEventType(record.eventType)}${record.details ? ` — ${record.details}` : ''}`;
+        details.textContent = `${formatEventType(record.eventType)}${record.details ? ` - ${record.details}` : ''}`;
         content.append(header, details);
 
         item.append(iconWrap, content);

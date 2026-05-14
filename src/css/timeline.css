@@ -151,7 +151,7 @@ body {
 .date-range-group { display: flex; gap: var(--space-2); }
 .filter-actions { display: flex; justify-content: flex-end; gap: var(--space-2); align-items: center; }
 
-/* History List — Compact is now the default */
+/* History List - Compact is now the default */
 #history-list-container { margin-top: var(--space-5); }
 .history-list { display: flex; flex-direction: column; gap: var(--space-1); }
 .history-day-header {

@@ -570,7 +570,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const tdTrigger = createElement('td', 'col-trigger');
         if (rule.trigger.type === 'time') {
             const days = rule.trigger.days.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ');
-            tdTrigger.appendChild(createConditionElement('icon-clock', `${rule.trigger.time} — ${days}`));
+            tdTrigger.appendChild(createConditionElement('icon-clock', `${rule.trigger.time} - ${days}`));
         } else {
             tdTrigger.appendChild(createConditionElement('icon-url', rule.trigger.url));
         }

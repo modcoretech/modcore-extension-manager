@@ -1050,7 +1050,7 @@ function createStatusBanner() {
         className: 'mc-status-banner-close',
         attrs: { 'aria-label': 'Dismiss', type: 'button' }
     });
-    // Use textContent for the × character — safe, no innerHTML
+    // Use textContent for the × character - safe, no innerHTML
     closeEl.textContent = '×';
 
     const banner = el('div', {
@@ -1248,7 +1248,7 @@ function createDiscoveryPanel(data, { sideloaded } = {}) {
                     draggedItem = item;
                     item.classList.add('dragging');
                     e.dataTransfer.effectAllowed = 'move';
-                    // Use a neutral token — avoids leaking feature ids via dataTransfer in untrusted contexts
+                    // Use a neutral token - avoids leaking feature ids via dataTransfer in untrusted contexts
                     e.dataTransfer.setData('text/plain', 'mc-drag');
                 });
                 item.addEventListener('dragend', () => {
@@ -1444,24 +1444,24 @@ function createDiscoveryPanel(data, { sideloaded } = {}) {
         if (result.status === 'up-to-date') {
             updateBtn.classList.add('up-to-date');
             updateBtn.setAttribute('aria-label', `Up to date (${result.currentVersion})`);
-            updateBtn.setAttribute('title',      `Up to date — v${result.currentVersion}`);
+            updateBtn.setAttribute('title',      `Up to date - v${result.currentVersion}`);
             showBanner({
-                message: `Up to date — v${result.currentVersion}`,
+                message: `Up to date - v${result.currentVersion}`,
                 variant: 'success',
                 autoDismiss: 4000
             });
         } else if (result.status === 'outdated') {
             updateBtn.classList.add('outdated');
             updateBtn.setAttribute('aria-label', `Update available: ${result.latestTag}`);
-            updateBtn.setAttribute('title',      `Update available — ${result.latestTag}`);
+            updateBtn.setAttribute('title',      `Update available - ${result.latestTag}`);
             showBanner({
                 message: `Update available: ${result.latestTag} (installed: v${result.currentVersion})`,
                 variant: 'danger'
-                // no autoDismiss — keep visible until user dismisses
+                // no autoDismiss - keep visible until user dismisses
             });
         } else {
             updateBtn.setAttribute('aria-label', 'Check for updates (last check failed)');
-            updateBtn.setAttribute('title',      'Check failed — click to retry');
+            updateBtn.setAttribute('title',      'Check failed - click to retry');
             showBanner({
                 message: 'Could not reach GitHub. Check your connection and try again.',
                 variant: 'info',
