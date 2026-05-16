@@ -32,20 +32,20 @@
             </div>
         </div>
 
-        <input type="text" id="search-input" placeholder="Search name, description, ID..." aria-label="Search extensions by name, description, or ID">
-
-        <div id="filters" class="filters-row">
-            <select id="type-filter" aria-label="Filter by Type" title="Filter extensions by type (e.g., standard extension, theme, or app).">
-                <option value="all">All Types</option>
-                <option value="extension">Extensions</option>
-                <option value="theme">Themes</option>
-            </select>
-            <select id="status-filter" aria-label="Filter by Status" title="Filter extensions by their current enabled or disabled state.">
-                <option value="all">All Statuses</option>
-                <option value="enabled">Enabled</option>
-                <option value="disabled">Disabled</option>
-            </select>
-            
+        <div class="search-filters-row">
+            <input type="text" id="search-input" placeholder="Search name, description, ID..." aria-label="Search extensions by name, description, or ID">
+            <div id="filters" class="filters-row">
+                <select id="type-filter" aria-label="Filter by Type" title="Filter extensions by type (e.g., standard extension, theme, or app).">
+                    <option value="all">All Types</option>
+                    <option value="extension">Extensions</option>
+                    <option value="theme">Themes</option>
+                </select>
+                <select id="status-filter" aria-label="Filter by Status" title="Filter extensions by their current enabled or disabled state.">
+                    <option value="all">All Statuses</option>
+                    <option value="enabled">Enabled</option>
+                    <option value="disabled">Disabled</option>
+                </select>
+            </div>
         </div>
 
         <div id="bulk-actions-container" class="bulk-actions-container" style="display: none;">

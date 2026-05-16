@@ -132,18 +132,31 @@ select:disabled, input[type="text"]:disabled {
     display: flex; align-items: center; white-space: nowrap; color: var(--color-text-secondary);
     font-size: 0.9em; font-weight: 500; flex-shrink: 0; line-height: 1.4; padding-right: var(--space-1);
 }
-#search-input { margin-bottom: var(--space-4); }
+/* Search + Filters combined row */
+.search-filters-row {
+  display: flex; align-items: center; gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+#search-input {
+  flex: 1 1 0; min-width: 0;
+}
 .filters-row {
   display: flex; align-items: center; gap: var(--space-2);
-  margin-bottom: var(--space-4); flex-wrap: wrap;
+  flex-shrink: 0; flex-wrap: nowrap;
 }
 .filters-row select, .modal-input-group select {
-  padding-right: 28px; flex-basis: 100px; flex-grow: 1; min-width: 0;
+  padding-right: 28px; min-width: 0;
   cursor: pointer; appearance: none; -webkit-appearance: none; -moz-appearance: none;
   background-image: url('../../public/icons/svg/arrow-down.svg');
   background-repeat: no-repeat;
   background-position: right 0.6rem center;
   background-size: 0.9em auto;
+}
+.filters-row select {
+  width: auto; flex: 0 0 auto;
+}
+.modal-input-group select {
+  flex-grow: 1;
 }
 .search-highlight {
   background-color: var(--color-highlight-bg); color: var(--color-highlight-text);
@@ -864,7 +877,6 @@ select:disabled, input[type="text"]:disabled {
     will-change: background-color, transform, box-shadow;
 }
 
-/* The rest of the CSS for the links and icons is unchanged */
 
 .help-links-list li:hover {
     background-color: var(--color-surface-hover);

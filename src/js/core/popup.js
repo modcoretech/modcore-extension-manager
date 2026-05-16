@@ -16,20 +16,17 @@ const SETTINGS_STORAGE_KEY         = 'em_settings';
 const DEFAULT_SETTINGS             = { itemsPerPage: 12, compactMode: false, showExtensionIds: false };
 
 const ICON = {
-    toggle:     '../../public/icons/svg/power.svg',
-    details:    '../../public/icons/svg/info.svg',
-    delete:     '../../public/icons/svg/trash.svg',
-    add:        '../../public/icons/svg/plus.svg',
-    profiles:   '../../public/icons/svg/profiles.svg',
-    configure:  '../../public/icons/svg/settings.svg',
-    save:       '../../public/icons/svg/save.svg',
-    back:       '../../public/icons/svg/arrow-left.svg',
-    arrowRight: '../../public/icons/svg/arrow-right.svg',
-    duplicate:  '../../public/icons/svg/copy.svg',
-    current:    '../../public/icons/svg/current.svg',
-    shortcut:   '../../public/icons/svg/keyboard.svg',
-    close:      '../../public/icons/svg/close.svg',
-    settings:   '../../public/icons/svg/settings.svg',
+    toggle:    '../../public/icons/svg/power.svg',
+    details:   '../../public/icons/svg/info.svg',
+    delete:    '../../public/icons/svg/trash.svg',
+    add:       '../../public/icons/svg/plus.svg',
+    profiles:  '../../public/icons/svg/profiles.svg',
+    configure: '../../public/icons/svg/settings.svg',
+    save:      '../../public/icons/svg/save.svg',
+    duplicate: '../../public/icons/svg/copy.svg',
+    current:   '../../public/icons/svg/current.svg',
+    shortcut:  '../../public/icons/svg/keyboard.svg',
+    close:     '../../public/icons/svg/close.svg',
 };
 
 // ─── DOM cache ────────────────────────────────────────────────────────────────
@@ -46,7 +43,6 @@ const el = {
     totalPagesSpan:                 document.getElementById('total-pages'),
     prevPageButton:                 document.getElementById('prev-page'),
     nextPageButton:                 document.getElementById('next-page'),
-    paginationContainer:            document.getElementById('pagination-container'),
     // Bulk actions
     bulkActionsContainer:           document.getElementById('bulk-actions-container'),
     selectedCountSpan:              document.getElementById('selected-count'),
@@ -82,7 +78,6 @@ const el = {
     settingsModal:                  document.getElementById('settings-modal'),
     settingsModalTrigger:           document.getElementById('settings-modal-trigger'),
     settingsModalCloseButton:       document.querySelector('#settings-modal .modal-close-button'),
-    settingsForm:                   document.getElementById('settings-form'),
     settingsItemsPerPageInput:      document.getElementById('settings-items-per-page'),
     settingsCompactModeCheckbox:    document.getElementById('settings-compact-mode'),
     settingsShowIdsCheckbox:        document.getElementById('settings-show-ids'),
@@ -93,7 +88,6 @@ const el = {
 // ─── Session state ────────────────────────────────────────────────────────────
 let searchDebounceTimer       = null;
 let allFetchedExtensions      = [];
-let currentFilteredExtensions = [];
 let selectedExtensionIds      = new Set();
 let selectedProfileIds        = new Set();
 let currentConfiguringId      = null;   // profile id being configured, or null
@@ -381,11 +375,6 @@ async function saveProfileStore(store) {
         console.error('saveProfileStore error:', e);
         showToast('Could not save profiles.', 'error');
     }
-}
-
-/** Convenience: return the profiles map only. */
-async function getProfiles() {
-    return (await loadProfileStore()).profiles;
 }
 
 /** Ordered array of profile ids respecting the saved order. */
@@ -983,13 +972,13 @@ async function renderExtensionList(page = 1) {
         el.emptyState.style.display = 'none';
         el.emptyState.replaceChildren();
 
-        currentFilteredExtensions = await filterAndSortExtensions(allFetchedExtensions);
-        const total      = currentFilteredExtensions.length;
+        const filteredExtensions = await filterAndSortExtensions(allFetchedExtensions);
+        const total      = filteredExtensions.length;
         const perPage    = appSettings.itemsPerPage || EXTENSIONS_PER_PAGE;
         const totalPages = Math.ceil(total / perPage) || 1;
         const curPage    = Math.min(Math.max(page, 1), totalPages);
         const start      = (curPage - 1) * perPage;
-        const pageItems  = currentFilteredExtensions.slice(start, start + perPage);
+        const pageItems  = filteredExtensions.slice(start, start + perPage);
 
         if (el.currentPageSpan)  el.currentPageSpan.textContent  = String(curPage);
         if (el.totalPagesSpan)   el.totalPagesSpan.textContent   = String(totalPages);
@@ -1283,7 +1272,6 @@ async function performBulkAction(action) {
     if (ids.size === 0) return;
 
     const enable = action === 'enable';
-    if (action !== 'enable' && action !== 'disable') return;
 
     showLoading();
     const ops = Array.from(ids).map(id =>
@@ -1857,9 +1845,10 @@ function normalizeShortcut(shortcut) {
     const parts     = shortcut.toLowerCase().split('+').map(p => p.trim());
     const modifiers = [];
     let key         = '';
+    const lowerModifiers = SHORTCUT_MODIFIER_KEYS.map(m => m.toLowerCase());
 
     parts.forEach(part => {
-        if (SHORTCUT_MODIFIER_KEYS.map(m => m.toLowerCase()).includes(part)) {
+        if (lowerModifiers.includes(part)) {
             modifiers.push(part.charAt(0).toUpperCase() + part.slice(1));
         } else if (VALID_SHORTCUT_KEYS.toLowerCase().includes(part)) {
             key = part.toUpperCase();
@@ -1896,8 +1885,6 @@ function validateShortcut(shortcut, existingShortcuts) {
     const key       = parts[parts.length - 1];
     const modifiers = parts.slice(0, -1);
 
-    if (key.length !== 1 || !VALID_SHORTCUT_KEYS.includes(key))
-        return { isValid: false, message: `Invalid key "${key}". Must be a letter or number.`, normalizedShortcut: null };
     if (!modifiers.some(m => ['Ctrl', 'Alt'].includes(m)))
         return { isValid: false, message: "Must include 'Ctrl' or 'Alt' modifier.", normalizedShortcut: null };
     if (existingShortcuts.has(normalized))
