@@ -611,8 +611,19 @@ select:disabled, input[type="text"]:disabled {
   padding: 0 0 0 var(--space-1);
   flex-shrink: 0;
   transition: opacity var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.toast-close img {
+  width: 12px;
+  height: 12px;
+  filter: var(--filter-icon);
+  opacity: 0.7;
+  display: block;
 }
 .toast-close:hover { opacity: 1; }
+.toast-close:hover img { opacity: 1; }
 @media (prefers-reduced-motion: reduce) {
   .toast { transition: none !important; animation: none !important; }
   .toast.toast-visible { opacity: 1; transform: none; }
@@ -648,17 +659,14 @@ select:disabled, input[type="text"]:disabled {
 }
 .modal-close-button {
   position: absolute; top: var(--space-2); right: var(--space-2);
-  background: var(--secondary-hover-bg-light); border: none; font-size: 1.1em;
+  background: transparent; border: none; font-size: 1.1em;
   font-weight: 500; color: var(--color-text-primary); cursor: pointer; padding: 0 var(--space-1);
   line-height: 1; transition: color var(--transition-fast), transform var(--transition-fast) cubic-bezier(0.2, 0.8, 0.2, 1), background-color var(--transition-fast), box-shadow var(--transition-fast);
   border-radius: var(--radius-full); width: 26px; height: 26px;
   display: flex; align-items: center; justify-content: center; outline: none;
   box-shadow: var(--shadow-sm); will-change: transform, background-color, box-shadow;
 }
-@media (prefers-color-scheme: dark) {
-    .modal-close-button { background: var(--secondary-hover-bg-dark); color: var(--color-text-primary); }
-}
-.modal-close-button:hover { background-color: var(--color-secondary-hover); transform: translateY(-1px); }
+.modal-close-button:hover { background-color: var(--color-surface-hover); transform: translateY(-1px); }
 .modal-close-button:active { transform: scale(0.9); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08); transition-duration: 0.08s;}
 .modal-content h2 {
   margin-top: 0; margin-bottom: var(--space-4); font-size: 1.1em;
@@ -894,6 +902,129 @@ select:disabled, input[type="text"]:disabled {
 
 .text-center {
     text-align: center;
+}
+
+/* ==========================================================================
+   NEW: Modal header actions (settings + close)
+   ========================================================================== */
+.modal-header-actions {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+    display: flex;
+    gap: var(--space-1);
+    z-index: 10;
+}
+.modal-header-actions .modal-close-button,
+.modal-header-actions .modal-settings-button {
+    position: relative;
+    top: auto;
+    right: auto;
+}
+.modal-settings-button {
+    background: transparent;
+    border: none;
+    font-size: 1.1em;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    cursor: pointer;
+    padding: 0 var(--space-1);
+    line-height: 1;
+    transition: color var(--transition-fast), transform var(--transition-fast) cubic-bezier(0.2, 0.8, 0.2, 1), background-color var(--transition-fast), box-shadow var(--transition-fast);
+    border-radius: var(--radius-full);
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    outline: none;
+    box-shadow: var(--shadow-sm);
+    will-change: transform, background-color, box-shadow;
+}
+.modal-settings-button:hover { background-color: var(--color-surface-hover); transform: translateY(-1px); }
+.modal-settings-button:active { transform: scale(0.9); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08); transition-duration: 0.08s; }
+
+.modal-close-button img,
+.modal-settings-button img {
+    width: 14px;
+    height: 14px;
+    filter: var(--filter-icon);
+    pointer-events: none;
+}
+
+/* ==========================================================================
+   NEW: Settings form styles
+   ========================================================================== */
+.settings-row {
+    margin-bottom: var(--space-2);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.settings-row.checkbox-row {
+    padding: var(--space-1) 0;
+}
+.settings-row input[type="number"] {
+    width: 80px;
+    flex-shrink: 0;
+    font-family: var(--font-sans);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text-primary);
+    font-size: 0.9em;
+    outline: none;
+}
+.settings-row input[type="number"]:focus-visible {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-focus-ring), inset 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.settings-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.settings-row label {
+    cursor: pointer;
+    user-select: none;
+    color: var(--color-text-primary);
+    font-size: 0.9em;
+}
+
+/* ==========================================================================
+   NEW: Compact mode
+   ========================================================================== */
+.compact-mode .extension-item {
+    padding: var(--space-1) var(--space-2);
+    gap: var(--space-2);
+}
+.compact-mode .extension-icon {
+    width: 22px;
+    height: 22px;
+}
+.compact-mode .extension-name {
+    font-size: 0.9em;
+}
+.compact-mode .extension-actions .button-small {
+    padding: 4px 8px;
+    font-size: 0.8em;
+}
+.compact-mode .extension-list-header {
+    padding: var(--space-1) var(--space-2);
+}
+
+/* ==========================================================================
+   NEW: Extension ID display
+   ========================================================================== */
+.extension-id-display {
+    font-size: 0.75em;
+    color: var(--color-text-secondary);
+    font-family: var(--font-mono);
+    margin-top: 2px;
+    display: block;
+    line-height: 1.2;
 }
 
 /* --- Custom Context Menu --- */
