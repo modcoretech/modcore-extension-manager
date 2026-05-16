@@ -266,6 +266,18 @@
       "commonUseCases": ["Tab managers", "Session savers", "Productivity tools"],
       "mitigationTips": ["Respect user's tab organization", "Don't close tabs without confirmation", "Handle tab permission errors gracefully", "Use activeTab for temporary access"]
     },
+    "newTabPageOverride": {
+      "name": "newTabPageOverride",
+      "shortDescription": "Override the default new tab page with a custom page.",
+      "detailedDescription": "The NewTabPageOverride permission allows extensions to replace the browser's default new tab page with a custom HTML page defined by the extension. This provides a dedicated space for extension UI and functionality when users open a new tab.",
+      "category": ["functionality"],
+      "riskLevel": "low",
+      "requiresHostPermission": false,
+      "chromeLink": "https://developer.chrome.com/docs/extensions/develop/ui/override-chrome-pages",
+      "mv3Compatible": true,
+      "commonUseCases": ["Custom new tab pages", "Dashboards", "Quick access tools"],
+      "mitigationTips": ["Provide useful content on the new tab page", "Allow users to easily revert to default if desired", "Keep the new tab page lightweight for performance"]
+    },
     "webNavigation": {
       "name": "webNavigation",
       "shortDescription": "Receive notifications about navigation request status.",
