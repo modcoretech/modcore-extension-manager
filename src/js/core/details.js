@@ -12,8 +12,7 @@
     const TOAST_DEFAULT_DURATION = 3500;
     const SUPPORT_DATA_URL = 'https://raw.githubusercontent.com/modcoretech/api/main/modcoreEM/support-data.json';
     const PERMISSIONS_JSON_URL = '../js/features/permissions.json';
-    const STORAGE_KEY_SUPPORT_CACHE  = 'details_support';   // unified support cache key
-    const STORAGE_KEY_SIDEBAR_STATE  = 'details_sidebar_closed';
+    const STORAGE_KEY_SUPPORT_CACHE  = 'details_support';
     const SUPPORT_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
     // == State Variables ==
@@ -22,14 +21,12 @@
     let supportInfo = null;
     let permissionsData = null;
     let isLoading = true;
-    let currentPanel = 'panel-permissions';
-    let currentPermissionsLayout = 'list';
+    let currentPanel = 'panel-overview';
     let searchDebounceTimeout = null;
     let uninstallConfirmResolver = null;
     let activePermissionPopup = null;
     let isPermissionsLoaded = false;
     let isSupportLoaded = false;
-    let isRightSidebarClosed = false;
 
     // Filter state
     const filterState = {
@@ -79,13 +76,8 @@
         return el;
     };
 
-    // == Support Cache (localStorage only, privacy-strict, no version in key) ==
+    // == Support Cache (localStorage only, privacy-strict) ==
     const SupportCache = {
-        /**
-         * Build cache key for a given extension.
-         * Key format: details_support_{extensionId}
-         * Stored under the unified STORAGE_KEY_SUPPORT_CACHE namespace.
-         */
         buildKey(extId) {
             return `${STORAGE_KEY_SUPPORT_CACHE}_${extId || 'global'}`;
         },
@@ -95,7 +87,6 @@
                 const raw = localStorage.getItem(this.buildKey(extId));
                 if (!raw) return null;
                 const parsed = JSON.parse(raw);
-                // Validate shape: must have timestamp and data
                 if (typeof parsed.timestamp !== 'number' || parsed.data === undefined) {
                     this.remove(extId);
                     return null;
@@ -126,79 +117,6 @@
         }
     };
 
-    // == Sidebar State ==
-    async function loadSidebarState() {
-        try {
-            const result = await chrome.storage.local.get([STORAGE_KEY_SIDEBAR_STATE]);
-            isRightSidebarClosed = result[STORAGE_KEY_SIDEBAR_STATE] === true;
-            applySidebarState(false);
-        } catch (e) {
-            warn('Failed to load sidebar state:', e);
-            isRightSidebarClosed = false;
-            applySidebarState(false);
-        }
-    }
-
-    async function saveSidebarState(closed) {
-        try {
-            await chrome.storage.local.set({ [STORAGE_KEY_SIDEBAR_STATE]: closed });
-            isRightSidebarClosed = closed;
-            applySidebarState(true);
-        } catch (e) {
-            warn('Failed to save sidebar state:', e);
-        }
-    }
-
-    /**
-     * Apply sidebar open/closed state to the DOM.
-     * @param {boolean} animate - Whether to allow CSS transitions (true after user interaction,
-     *                            false on initial load to avoid flash).
-     */
-    function applySidebarState(animate) {
-        const sidebar  = dom.rightSidebar;
-        const reopen   = dom.rightSidebarReopen;
-        const content  = dom.contentArea;
-        if (!sidebar || !reopen) return;
-
-        if (!animate) {
-            // Suppress transition on initial paint
-            sidebar.style.transition = 'none';
-            content && (content.style.transition = 'none');
-            // Force reflow
-            sidebar.getBoundingClientRect();
-        }
-
-        if (isRightSidebarClosed) {
-            sidebar.classList.add('collapsed');
-            sidebar.hidden = true;
-            reopen.hidden = false;
-            content && content.classList.add('right-sidebar-collapsed');
-        } else {
-            sidebar.classList.remove('collapsed');
-            sidebar.hidden = false;
-            reopen.hidden = true;
-            content && content.classList.remove('right-sidebar-collapsed');
-        }
-
-        // Re-enable transition after next frame
-        if (!animate) {
-            requestAnimationFrame(() => {
-                sidebar.style.transition = '';
-                content && (content.style.transition = '');
-            });
-        }
-
-        // Update ARIA
-        if (dom.rightSidebarToggle) {
-            dom.rightSidebarToggle.setAttribute('aria-label', isRightSidebarClosed ? 'Open sidebar' : 'Close sidebar');
-            dom.rightSidebarToggle.title = isRightSidebarClosed ? 'Open sidebar' : 'Close sidebar';
-        }
-    }
-
-    function toggleRightSidebar() {
-        saveSidebarState(!isRightSidebarClosed);
-    }
-
     // == Initialization ==
     async function initializeApp() {
         const t0 = performance.now();
@@ -221,27 +139,36 @@
             }
             log('Target Extension ID:', extensionId);
 
-            await loadSidebarState();
-            await loadPermissionsData();
+            // Non-critical: permissions data can fail without blocking the UI
+            try {
+                await loadPermissionsData();
+            } catch (e) {
+                warn('Permissions data load failed, continuing:', e);
+            }
 
             const loaded = await loadExtensionData();
-            if (loaded) {
-                log('Extension data loaded.');
-                updateSidebars();
-                populateRightSidebar();
-                setupAllListeners();
-                setupSidebarNavigation();
-                setupTooltipPositioning();
-
-                requestAnimationFrame(() => switchPanel(currentPanel));
-            } else {
+            if (!loaded) {
                 throw new Error('Could not load extension data.');
             }
+
+            log('Extension data loaded.');
+
+            // Update UI components individually so one failure doesn't break the rest
+            try { updateSidebars(); } catch (e) { err('Sidebar update failed:', e); }
+            try { populateOverviewPanel(); } catch (e) { err('Overview panel failed:', e); }
+            try { populateActionsPanel(); } catch (e) { err('Actions panel failed:', e); }
+
+            // Listeners - wrap individually so one bad listener doesn't kill the others
+            try { setupAllListeners(); } catch (e) { err('Listener setup failed:', e); }
+            try { setupSidebarNavigation(); } catch (e) { err('Sidebar navigation failed:', e); }
+            try { setupTooltipPositioning(); } catch (e) { err('Tooltip setup failed:', e); }
+
+            requestAnimationFrame(() => switchPanel(currentPanel));
 
         } catch (e) {
             err('CRITICAL error during initialization:', e);
             displayGlobalError(`Initialization Failed: ${e.message || 'Unknown error'}`);
-            disableUIOnError();
+            // Intentionally NOT disabling the entire UI
         } finally {
             setTimeout(() => {
                 showLoadingOverlay(false);
@@ -255,7 +182,7 @@
         return dom.initialLoadingOverlay && dom.contentArea && dom.errorContainer &&
                dom.customConfirmModal && dom.modalTitle && dom.modalMessage &&
                dom.modalCancelButton && dom.modalConfirmButton &&
-               dom.leftSidebar && dom.rightSidebar;
+               dom.leftSidebar && dom.overviewPanel;
     }
 
     function setPageLoading(loading) {
@@ -270,38 +197,41 @@
         dom.sidebarTitle       = getElem('sidebar-extension-title');
         dom.currentYearSpan    = getElem('current-year');
 
-        // Right Sidebar
-        dom.rightSidebar       = getElem('right-sidebar');
-        dom.rightSidebarToggle = getElem('right-sidebar-toggle');
-        dom.rightSidebarReopen = getElem('right-sidebar-reopen');
+        // Overview Panel
+        dom.overviewPanel            = getElem('panel-overview');
+        dom.overviewIcon             = getElem('overview-icon');
+        dom.overviewName             = getElem('overview-name');
+        dom.overviewStatusBadge      = getElem('overview-status-badge');
+        dom.overviewVersion          = getElem('overview-version');
+        dom.overviewType             = getElem('overview-type');
+        dom.overviewInstallType      = getElem('overview-install-type');
+        dom.overviewShortName        = getElem('overview-shortName');
+        dom.copyShortNameButton      = getElem('copy-shortname-button');
+        dom.overviewId               = getElem('overview-id');
+        dom.copyIdButton             = getElem('copy-id-button');
+        dom.overviewTypeDetail       = getElem('overview-type-detail');
+        dom.overviewEnabled          = getElem('overview-enabled');
+        dom.overviewMayDisable       = getElem('overview-mayDisable');
+        dom.overviewOfflineEnabled     = getElem('overview-offline-enabled');
+        dom.overviewOfflineEnabledWrapper = getElem('overview-offline-enabled-wrapper');
+        dom.overviewHomepageUrl      = getElem('overview-homepage-url');
+        dom.copyHomepageButton       = getElem('copy-homepage-button');
+        dom.overviewUpdateUrl        = getElem('overview-update-url');
+        dom.overviewUpdateUrlWrapper = getElem('overview-update-url-wrapper');
+        dom.copyUpdateUrlButton      = getElem('copy-update-url-button');
+        dom.overviewStoreWrapper     = getElem('overview-store-wrapper');
+        dom.overviewStoreUrl         = getElem('overview-store-url');
+        dom.overviewOptionsWrapper   = getElem('overview-options-wrapper');
+        dom.overviewOptionsUrl       = getElem('overview-options-url');
+        dom.overviewDescription      = getElem('overview-description');
+        dom.overviewIconsContainer   = getElem('overview-icons-container');
+        dom.overviewIconsWrapper     = getElem('overview-icons-wrapper');
 
-        // Actions
-        dom.actionEnableToggle = getElem('action-enable-toggle');
-        dom.actionOptions      = getElem('action-options');
-        dom.actionStore        = getElem('action-store');
-        dom.actionUninstall    = getElem('action-uninstall');
-
-        // Metadata
-        dom.detailName                   = getElem('detail-name');
-        dom.detailShortName              = getElem('detail-shortName-text');
-        dom.copyShortNameButton          = getElem('copy-shortname-button');
-        dom.detailVersion                = getElem('detail-version-text');
-        dom.copyVersionButton            = getElem('copy-version-button');
-        dom.detailId                     = getElem('detail-id');
-        dom.copyIdButton                 = getElem('copy-id-button');
-        dom.detailType                   = getElem('detail-type');
-        dom.detailInstallType            = getElem('detail-install-type');
-        dom.detailMayDisable             = getElem('detail-mayDisable');
-        dom.detailDescription            = getElem('detail-description');
-        dom.detailHomepageUrl            = getElem('detail-homepage-url');
-        dom.copyHomepageButton           = getElem('copy-homepage-button');
-        dom.detailOfflineEnabled         = getElem('detail-offline-enabled');
-        dom.detailOfflineEnabledWrapper  = getElem('detail-offline-enabled-wrapper');
-        dom.detailUpdateUrl              = getElem('detail-update-url');
-        dom.detailUpdateUrlWrapper       = getElem('detail-update-url-wrapper');
-        dom.copyUpdateUrlButton          = getElem('copy-update-url-button');
-        dom.detailIconsContainer         = getElem('detail-icons-container');
-        dom.detailIconsWrapper           = getElem('detail-icons-wrapper');
+        // Actions (now in Overview panel)
+        dom.actionEnable    = getElem('action-enable');
+        dom.actionOptions   = getElem('action-options');
+        dom.actionStore     = getElem('action-store');
+        dom.actionUninstall = getElem('action-uninstall');
 
         // Content
         dom.contentArea              = getQuery('.content-area');
@@ -317,13 +247,10 @@
         dom.permissionSearchInput      = getElem('permission-search-input');
         dom.filterBtn                  = getElem('filter-btn');
         dom.filterDropdown             = getElem('filter-dropdown-panel');
-        dom.layoutListButton           = getElem('layout-list-btn');
-        dom.layoutGridButton           = getElem('layout-grid-btn');
         dom.apiPermCountSpan           = getElem('api-perm-count');
         dom.hostPermCountSpan          = getElem('host-perm-count');
         dom.apiPermissionsList         = getElem('api-permissions-list');
         dom.hostPermissionsList        = getElem('host-permissions-list');
-        dom.permissionsListContainers  = getAllQuery('.permissions-list');
 
         // Support Panel
         dom.supportContentWrapper  = getElem('support-content-wrapper');
@@ -446,108 +373,141 @@
         document.title = `${extensionInfo.name || 'Extension'} Details | modcore EM`;
     }
 
-    function populateRightSidebar() {
+    function populateOverviewPanel() {
         if (!extensionInfo) return;
-        setBusyState(dom.rightSidebar, true);
+        setBusyState(dom.overviewPanel, true);
 
         requestAnimationFrame(() => {
             try {
                 const isEnabled = extensionInfo.enabled;
 
-                // Enable/Disable toggle button (now in Actions)
-                const toggleIcon = dom.actionEnableToggle.querySelector('.icon');
-                const toggleText = dom.actionEnableToggle.querySelector('span:not(.icon)');
-                if (toggleIcon) {
-                    toggleIcon.className = `icon ${isEnabled ? 'icon-toggle-on' : 'icon-toggle-off'}`;
-                }
-                if (toggleText) {
-                    toggleText.textContent = isEnabled ? 'Disable' : 'Enable';
-                }
-                dom.actionEnableToggle.classList.toggle('enabled', isEnabled);
-                dom.actionEnableToggle.setAttribute(
-                    'aria-label',
-                    isEnabled ? `Disable ${extensionInfo.name}` : `Enable ${extensionInfo.name}`
-                );
-                dom.actionEnableToggle.setAttribute(
-                    'aria-pressed',
-                    isEnabled ? 'true' : 'false'
-                );
+                // Hero
+                const bestIcon = findBestIconUrl(extensionInfo.icons);
+                dom.overviewIcon.src = bestIcon || '../../public/icons/svg/code.svg';
+                dom.overviewIcon.alt = `${extensionInfo.name || 'Extension'} icon`;
+                setText(dom.overviewName, extensionInfo.name);
+                setText(dom.overviewVersion, `v${extensionInfo.version}`);
+                setText(dom.overviewType, formatExtensionType(extensionInfo.type));
+                setText(dom.overviewInstallType, getInstallTypeDescription(extensionInfo.installType));
 
-                // Actions
-                dom.actionOptions.disabled = !extensionInfo.optionsUrl;
+                // Status badge
+                dom.overviewStatusBadge.textContent = isEnabled ? 'Enabled' : 'Disabled';
+                dom.overviewStatusBadge.className = `status-badge ${isEnabled ? 'enabled' : 'disabled'}`;
+
+                // Identity
+                setText(dom.overviewShortName, extensionInfo.shortName || 'N/A');
+                setText(dom.overviewId, extensionInfo.id);
+                setText(dom.overviewTypeDetail, formatExtensionType(extensionInfo.type));
+
+                // Status
+                setText(dom.overviewEnabled, isEnabled ? 'Enabled' : 'Disabled');
+                setText(dom.overviewMayDisable, formatBoolean(extensionInfo.mayDisable));
+
+                if (extensionInfo.offlineEnabled !== undefined) {
+                    dom.overviewOfflineEnabledWrapper.hidden = false;
+                    setText(dom.overviewOfflineEnabled, extensionInfo.offlineEnabled ? 'Yes' : 'No');
+                } else {
+                    dom.overviewOfflineEnabledWrapper.hidden = true;
+                }
+
+                // Links
+                updateLink(dom.overviewHomepageUrl, extensionInfo.homepageUrl, extensionInfo.homepageUrl || 'N/A');
+                dom.copyHomepageButton.disabled = !extensionInfo.homepageUrl;
+
+                if (extensionInfo.updateUrl) {
+                    dom.overviewUpdateUrlWrapper.hidden = false;
+                    updateLink(dom.overviewUpdateUrl, extensionInfo.updateUrl, extensionInfo.updateUrl);
+                    dom.copyUpdateUrlButton.disabled = false;
+                } else {
+                    dom.overviewUpdateUrlWrapper.hidden = true;
+                    dom.copyUpdateUrlButton.disabled = true;
+                }
 
                 const isWebStore = extensionInfo.id &&
                     /^[a-z]{32}$/.test(extensionInfo.id) &&
                     extensionInfo.installType === 'normal';
-                dom.actionStore.disabled = !isWebStore;
                 if (isWebStore) {
-                    dom.actionStore.dataset.storeUrl =
-                        `https://chrome.google.com/webstore/detail/${extensionInfo.id}`;
+                    dom.overviewStoreWrapper.hidden = false;
+                    dom.overviewStoreUrl.href = `https://chrome.google.com/webstore/detail/${extensionInfo.id}`;
+                    dom.overviewStoreUrl.textContent = 'View in Chrome Web Store';
+                } else {
+                    dom.overviewStoreWrapper.hidden = true;
                 }
 
-                dom.actionUninstall.disabled = !extensionInfo.mayDisable;
+                if (extensionInfo.optionsUrl) {
+                    dom.overviewOptionsWrapper.hidden = false;
+                    dom.overviewOptionsUrl.href = extensionInfo.optionsUrl;
+                    dom.overviewOptionsUrl.textContent = 'Open options page';
+                } else {
+                    dom.overviewOptionsWrapper.hidden = true;
+                }
 
-                // Metadata
-                setText(dom.detailName, extensionInfo.name);
-                setText(dom.detailShortName, extensionInfo.shortName || 'N/A');
-                setText(dom.detailVersion, extensionInfo.version);
-                setText(dom.detailId, extensionInfo.id);
-                setText(dom.detailType, formatExtensionType(extensionInfo.type));
-                setText(dom.detailInstallType, getInstallTypeDescription(extensionInfo.installType));
-                setText(dom.detailMayDisable, formatBoolean(extensionInfo.mayDisable));
-                setText(dom.detailDescription, extensionInfo.description || 'No description provided.');
+                // About
+                setText(dom.overviewDescription, extensionInfo.description || 'No description provided.');
 
-                updateLink(dom.detailHomepageUrl, extensionInfo.homepageUrl, extensionInfo.homepageUrl || 'N/A');
-                dom.copyHomepageButton.disabled = !extensionInfo.homepageUrl;
-
-                populateAdditionalMetadata();
+                // Icons
+                if (extensionInfo.icons && extensionInfo.icons.length > 0) {
+                    dom.overviewIconsWrapper.hidden = false;
+                    clearElement(dom.overviewIconsContainer);
+                    const fragment = document.createDocumentFragment();
+                    extensionInfo.icons.forEach(icon => {
+                        const img = createElement('img', {
+                            className: 'detail-icon-item',
+                            attributes: {
+                                src: icon.url,
+                                alt: `${icon.size}x${icon.size} icon`,
+                                title: `${icon.size}x${icon.size}`,
+                                loading: 'lazy'
+                            }
+                        });
+                        fragment.appendChild(img);
+                    });
+                    dom.overviewIconsContainer.appendChild(fragment);
+                } else {
+                    dom.overviewIconsWrapper.hidden = true;
+                }
 
             } catch (e) {
-                err('Error populating right sidebar:', e);
+                err('Error populating overview panel:', e);
             } finally {
-                setBusyState(dom.rightSidebar, false);
+                setBusyState(dom.overviewPanel, false);
             }
         });
     }
 
-    function populateAdditionalMetadata() {
+    function populateActionsPanel() {
         if (!extensionInfo) return;
+        const isEnabled = extensionInfo.enabled;
 
-        if (extensionInfo.offlineEnabled !== undefined) {
-            dom.detailOfflineEnabledWrapper.hidden = false;
-            setText(dom.detailOfflineEnabled, extensionInfo.offlineEnabled ? 'Yes' : 'No');
-        } else {
-            dom.detailOfflineEnabledWrapper.hidden = true;
+        if (dom.actionEnable) {
+            const toggleIcon = dom.actionEnable.querySelector('.icon');
+            const toggleText = dom.actionEnable.querySelector('#action-enable-text');
+            if (toggleIcon) toggleIcon.className = `icon ${isEnabled ? 'icon-toggle-on' : 'icon-toggle-off'}`;
+            if (toggleText) toggleText.textContent = isEnabled ? 'Disable' : 'Enable';
+            dom.actionEnable.classList.toggle('enabled', isEnabled);
+            dom.actionEnable.setAttribute(
+                'aria-label',
+                isEnabled ? `Disable ${extensionInfo.name}` : `Enable ${extensionInfo.name}`
+            );
         }
 
-        if (extensionInfo.updateUrl) {
-            dom.detailUpdateUrlWrapper.hidden = false;
-            updateLink(dom.detailUpdateUrl, extensionInfo.updateUrl, extensionInfo.updateUrl);
-            dom.copyUpdateUrlButton.disabled = false;
-        } else {
-            dom.detailUpdateUrlWrapper.hidden = true;
-            dom.copyUpdateUrlButton.disabled = true;
+        if (dom.actionOptions) {
+            dom.actionOptions.disabled = !extensionInfo.optionsUrl;
         }
 
-        if (extensionInfo.icons && extensionInfo.icons.length > 0) {
-            dom.detailIconsWrapper.hidden = false;
-            clearElement(dom.detailIconsContainer);
-            const fragment = document.createDocumentFragment();
-            extensionInfo.icons.forEach(icon => {
-                const img = createElement('img', {
-                    className: 'detail-icon-item',
-                    attributes: {
-                        src: icon.url,
-                        alt: `${icon.size}x${icon.size} icon`,
-                        title: `${icon.size}x${icon.size}`,
-                        loading: 'lazy'
-                    }
-                });
-                fragment.appendChild(img);
-            });
-            dom.detailIconsContainer.appendChild(fragment);
-        } else {
-            dom.detailIconsWrapper.hidden = true;
+        if (dom.actionStore) {
+            const isWebStore = extensionInfo.id &&
+                /^[a-z]{32}$/.test(extensionInfo.id) &&
+                extensionInfo.installType === 'normal';
+            dom.actionStore.disabled = !isWebStore;
+            dom.actionStore.hidden = !isWebStore;
+            if (isWebStore) {
+                dom.actionStore.dataset.storeUrl = `https://chrome.google.com/webstore/detail/${extensionInfo.id}`;
+            }
+        }
+
+        if (dom.actionUninstall) {
+            dom.actionUninstall.disabled = !extensionInfo.mayDisable;
         }
     }
 
@@ -593,7 +553,6 @@
                 renderPermissionsList(dom.apiPermissionsList, apiPerms, 'api');
                 renderPermissionsList(dom.hostPermissionsList, hostPerms, 'host');
                 applyFilters();
-                applyPermissionsLayout(currentPermissionsLayout);
             } catch (e) {
                 err('Error populating permissions panel', e);
             } finally {
@@ -675,7 +634,7 @@
 
     function createPermissionElement(name, type, def) {
         const item = createElement('div', {
-            className: `permission-item risk-${def.riskLevel.toLowerCase()}`,
+            className: `perm-row risk-${def.riskLevel.toLowerCase()}`,
             attributes: {
                 'data-permission-name': name,
                 'data-permission-type': type,
@@ -684,62 +643,76 @@
             }
         });
 
-        const header = createElement('div', { className: 'permission-item-header' });
-
+        // Name cell
+        const nameCell = createElement('div', {
+            className: 'perm-cell perm-name-cell',
+            attributes: { 'data-label': 'Permission' }
+        });
         const iconSpan = createElement('span', {
             className: `icon ${type === 'host' ? 'icon-host' : 'icon-api'}`,
             attributes: { 'aria-hidden': 'true' }
         });
-        header.appendChild(iconSpan);
+        nameCell.appendChild(iconSpan);
+        const nameText = createElement(type === 'host' ? 'code' : 'span');
+        nameText.textContent = name;
+        nameCell.appendChild(nameText);
+        item.appendChild(nameCell);
 
-        const nameSpan = createElement('span', { className: 'perm-name' });
-        if (type === 'host') {
-            const labelText = document.createTextNode('Host: ');
-            nameSpan.appendChild(labelText);
-            const code = createElement('code');
-            code.textContent = name;
-            nameSpan.appendChild(code);
-        } else {
-            nameSpan.textContent = name;
-        }
-        header.appendChild(nameSpan);
-
-        const riskIndicator = createElement('span', {
-            className: `risk-indicator ${def.riskLevel.toLowerCase()}`,
-            textContent: `${def.riskLevel} Risk`,
-            attributes: { 'aria-label': `Risk level: ${def.riskLevel}` }
+        // Type cell
+        const typeCell = createElement('div', {
+            className: 'perm-cell perm-type-cell',
+            attributes: { 'data-label': 'Type' }
         });
-        header.appendChild(riskIndicator);
+        const typeBadge = createElement('span', {
+            className: 'type-badge',
+            textContent: type === 'host' ? 'Host' : 'API'
+        });
+        typeCell.appendChild(typeBadge);
+        item.appendChild(typeCell);
 
-        item.appendChild(header);
+        // Risk cell
+        const riskCell = createElement('div', {
+            className: 'perm-cell perm-risk-cell',
+            attributes: { 'data-label': 'Risk' }
+        });
+        const riskBadge = createElement('span', {
+            className: `risk-badge ${def.riskLevel.toLowerCase()}`,
+            textContent: def.riskLevel
+        });
+        riskCell.appendChild(riskBadge);
+        item.appendChild(riskCell);
 
-        const descriptionDiv = createElement('div', {
-            className: 'permission-item-description',
+        // Description cell
+        const descCell = createElement('div', {
+            className: 'perm-cell perm-desc-cell',
+            attributes: { 'data-label': 'Description' }
+        });
+        const descText = createElement('p', {
+            className: 'perm-desc-text',
             textContent: def.shortDescription
         });
+        descCell.appendChild(descText);
+        item.appendChild(descCell);
 
-        const menuButton = createElement('button', {
-            className: 'btn-icon permission-menu-btn',
+        // Actions cell
+        const actionsCell = createElement('div', {
+            className: 'perm-cell perm-actions-cell',
+            attributes: { 'data-label': 'Actions' }
+        });
+        const infoButton = createElement('button', {
+            className: 'btn secondary btn-sm',
             attributes: {
                 'aria-label': `More details about ${name}`,
-                'title': 'View detailed information',
                 'type': 'button'
             }
         });
-
-        const menuIcon = createElement('span', {
-            className: 'icon icon-more',
-            attributes: { 'aria-hidden': 'true' }
-        });
-        menuButton.appendChild(menuIcon);
-
-        menuButton.addEventListener('click', (e) => {
+        infoButton.textContent = 'More info';
+        infoButton.addEventListener('click', (e) => {
             e.stopPropagation();
             showPermissionPopup(name, type, def);
         });
-
-        descriptionDiv.appendChild(menuButton);
-        item.appendChild(descriptionDiv);
+        actionsCell.appendChild(infoButton);
+        item.appendChild(actionsCell);
 
         return item;
     }
@@ -957,46 +930,14 @@
 
     // == Event Listeners ==
     function setupAllListeners() {
-        setupActionListeners();
-        setupPermissionControlsListeners();
-        setupModalListeners();
-        setupCopyButtonListeners();
-        setupPermissionPopupListeners();
-        setupPanelSwitchListeners();
-        setupKeyboardNavigation();
-        setupSidebarToggleListeners();
-        setupGlobalClickListeners();
-    }
-
-    function setupSidebarToggleListeners() {
-        dom.rightSidebarToggle?.addEventListener('click', toggleRightSidebar);
-        dom.rightSidebarReopen?.addEventListener('click', toggleRightSidebar);
-    }
-
-    /**
-     * Global click listener: closes filter dropdown when clicking outside it.
-     * This is the fix for the "tapping outside doesn't close filter" bug.
-     */
-    function setupGlobalClickListeners() {
-        document.addEventListener('click', (e) => {
-            // Close filter dropdown if click is outside the wrapper
-            if (dom.filterDropdown && dom.filterDropdown.classList.contains('open')) {
-                const wrapper = dom.filterBtn?.closest('.filter-dropdown-wrapper');
-                if (wrapper && !wrapper.contains(e.target)) {
-                    closeAllDropdowns();
-                }
-            }
-        }, true); // Use capture phase to catch all clicks
-
-        // Also close on Escape
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                if (dom.filterDropdown?.classList.contains('open')) {
-                    closeAllDropdowns();
-                    dom.filterBtn?.focus();
-                }
-            }
-        });
+        try { setupActionListeners(); } catch (e) { err('Action listeners failed:', e); }
+        try { setupPermissionControlsListeners(); } catch (e) { err('Permission controls failed:', e); }
+        try { setupModalListeners(); } catch (e) { err('Modal listeners failed:', e); }
+        try { setupCopyButtonListeners(); } catch (e) { err('Copy buttons failed:', e); }
+        try { setupPermissionPopupListeners(); } catch (e) { err('Permission popup listeners failed:', e); }
+        try { setupPanelSwitchListeners(); } catch (e) { err('Panel switch listeners failed:', e); }
+        try { setupKeyboardNavigation(); } catch (e) { err('Keyboard navigation failed:', e); }
+        try { setupGlobalClickListeners(); } catch (e) { err('Global click listeners failed:', e); }
     }
 
     function setupSidebarNavigation() {
@@ -1107,15 +1048,28 @@
     }
 
     function setupActionListeners() {
-        dom.actionEnableToggle.addEventListener('click', handleEnableToggleClick);
-        dom.actionOptions.addEventListener('click', handleOptionsClick);
-        dom.actionStore.addEventListener('click', handleStoreClick);
-        dom.actionUninstall.addEventListener('click', handleUninstallClick);
+        dom.actionEnable?.addEventListener('click', handleEnableToggleClick);
+        dom.actionOptions?.addEventListener('click', handleOptionsClick);
+        dom.actionStore?.addEventListener('click', handleStoreClick);
+        dom.actionUninstall?.addEventListener('click', handleUninstallClick);
     }
 
     function handleStoreClick() {
-        if (dom.actionStore.dataset.storeUrl) {
-            chrome.tabs.create({ url: dom.actionStore.dataset.storeUrl });
+        const url = dom.actionStore?.dataset?.storeUrl;
+        if (!url) return;
+        try {
+            if (typeof chrome?.tabs?.create === 'function') {
+                chrome.tabs.create({ url }, () => {
+                    if (chrome.runtime?.lastError) {
+                        window.open(url, '_blank', 'noopener,noreferrer');
+                    }
+                });
+            } else {
+                window.open(url, '_blank', 'noopener,noreferrer');
+            }
+        } catch (e) {
+            warn('Error opening store:', e);
+            window.open(url, '_blank', 'noopener,noreferrer');
         }
     }
 
@@ -1136,7 +1090,6 @@
             if (!isOpen) {
                 dom.filterDropdown.classList.add('open');
                 dom.filterBtn.setAttribute('aria-expanded', 'true');
-                // Focus first interactive element in dropdown for accessibility
                 requestAnimationFrame(() => {
                     const firstInput = dom.filterDropdown.querySelector('input');
                     firstInput?.focus();
@@ -1157,9 +1110,6 @@
                 applyFilters();
             });
         });
-
-        dom.layoutListButton.addEventListener('click', handleLayoutToggle);
-        dom.layoutGridButton.addEventListener('click', handleLayoutToggle);
     }
 
     function updateFilterState() {
@@ -1176,7 +1126,7 @@
             const list = dom[`${listType}PermissionsList`];
             if (!list) return;
 
-            const items = list.querySelectorAll('.permission-item');
+            const items = list.querySelectorAll('.perm-row');
             let visibleCount = 0;
 
             items.forEach(item => {
@@ -1222,35 +1172,15 @@
         }
     }
 
-    function handleLayoutToggle(event) {
-        const layout = event.currentTarget.dataset.layout;
-        if (layout && layout !== currentPermissionsLayout) {
-            applyPermissionsLayout(layout);
-        }
-    }
-
-    function applyPermissionsLayout(layout) {
-        currentPermissionsLayout = layout;
-        dom.layoutListButton.classList.toggle('active', layout === 'list');
-        dom.layoutListButton.setAttribute('aria-pressed', layout === 'list' ? 'true' : 'false');
-        dom.layoutGridButton.classList.toggle('active', layout === 'grid');
-        dom.layoutGridButton.setAttribute('aria-pressed', layout === 'grid' ? 'true' : 'false');
-        dom.permissionsListContainers.forEach(c => {
-            c.className = `permissions-list ${layout}-view`;
-        });
-    }
-
     function switchPanel(targetId) {
         if (!targetId) return;
 
         getAllQuery('.content-panel.active').forEach(p => {
-            p.hidden = true;
             p.classList.remove('active');
         });
 
         const target = getElem(targetId);
         if (target) {
-            target.hidden = false;
             target.classList.add('active');
             target.focus({ preventScroll: true });
             currentPanel = targetId;
@@ -1359,16 +1289,10 @@
 
     // == Copy Buttons ==
     function setupCopyButtonListeners() {
-        dom.copyIdButton.addEventListener('click',
-            () => handleCopyClick(dom.detailId?.textContent, 'Extension ID', dom.copyIdButton));
-        dom.copyShortNameButton.addEventListener('click',
-            () => handleCopyClick(dom.detailShortName?.textContent, 'Short Name', dom.copyShortNameButton));
-        dom.copyVersionButton.addEventListener('click',
-            () => handleCopyClick(dom.detailVersion?.textContent, 'Version', dom.copyVersionButton));
-        dom.copyHomepageButton.addEventListener('click',
-            () => handleCopyClick(dom.detailHomepageUrl?.href, 'Homepage URL', dom.copyHomepageButton));
-        dom.copyUpdateUrlButton.addEventListener('click',
-            () => handleCopyClick(dom.detailUpdateUrl?.href, 'Update URL', dom.copyUpdateUrlButton));
+        dom.copyIdButton?.addEventListener('click', () => handleCopyClick(dom.overviewId?.textContent, 'Extension ID', dom.copyIdButton));
+        dom.copyShortNameButton?.addEventListener('click', () => handleCopyClick(dom.overviewShortName?.textContent, 'Short Name', dom.copyShortNameButton));
+        dom.copyHomepageButton?.addEventListener('click', () => handleCopyClick(dom.overviewHomepageUrl?.href, 'Homepage URL', dom.copyHomepageButton));
+        dom.copyUpdateUrlButton?.addEventListener('click', () => handleCopyClick(dom.overviewUpdateUrl?.href, 'Update URL', dom.copyUpdateUrlButton));
     }
 
     // == Action Handlers ==
@@ -1380,18 +1304,36 @@
             await chrome.management.setEnabled(extensionId, newState);
             const refreshed = await loadExtensionData();
             if (refreshed) {
-                populateRightSidebar();
+                populateOverviewPanel();
+                populateActionsPanel();
                 showToast(`Extension ${newState ? 'enabled' : 'disabled'}.`, 'success');
             }
         } catch (e) {
             err('Error toggling state:', e);
             showToast(`Failed to toggle state: ${e.message}`, 'error');
-            loadExtensionData().then(() => populateRightSidebar());
+            loadExtensionData().then(() => {
+                populateOverviewPanel();
+                populateActionsPanel();
+            });
         }
     }
 
     function handleOptionsClick() {
-        if (extensionInfo?.optionsUrl) chrome.tabs.create({ url: extensionInfo.optionsUrl });
+        if (!extensionInfo?.optionsUrl) return;
+        try {
+            if (typeof chrome?.tabs?.create === 'function') {
+                chrome.tabs.create({ url: extensionInfo.optionsUrl }, () => {
+                    if (chrome.runtime?.lastError) {
+                        window.open(extensionInfo.optionsUrl, '_blank', 'noopener,noreferrer');
+                    }
+                });
+            } else {
+                window.open(extensionInfo.optionsUrl, '_blank', 'noopener,noreferrer');
+            }
+        } catch (e) {
+            warn('Error opening options page:', e);
+            window.open(extensionInfo.optionsUrl, '_blank', 'noopener,noreferrer');
+        }
     }
 
     async function handleUninstallClick() {
@@ -1409,7 +1351,7 @@
             SupportCache.remove(extensionId);
             showToast(`"${extensionInfo.name}" uninstalled.`, 'success');
             displayGlobalError(`"${extensionInfo.name}" has been uninstalled. You may close this page.`);
-            disableUIOnError();
+            // Intentionally not disabling the entire UI
         } catch (e) {
             showToast(`Uninstall failed: ${e.message}`, 'error');
         }
@@ -1470,13 +1412,6 @@
         dom.errorContainer.style.display = 'flex';
     }
 
-    function disableUIOnError() {
-        getAllQuery('button, a, input').forEach(el => {
-            el.disabled = true;
-            if (el.tagName === 'A') el.setAttribute('aria-disabled', 'true');
-        });
-    }
-
     function setBusyState(container, isBusy) {
         if (container) container.setAttribute('aria-busy', String(isBusy));
     }
@@ -1507,7 +1442,6 @@
         dom.toastContainer.appendChild(toast);
 
         requestAnimationFrame(() => {
-            // Force reflow for animation
             toast.getBoundingClientRect();
             toast.classList.add('show');
             setTimeout(() => {
@@ -1535,6 +1469,29 @@
         p.appendChild(textSpan);
 
         return p;
+    }
+
+    /**
+     * Global click listener: closes filter dropdown when clicking outside.
+     */
+    function setupGlobalClickListeners() {
+        document.addEventListener('click', (e) => {
+            if (dom.filterDropdown && dom.filterDropdown.classList.contains('open')) {
+                const wrapper = dom.filterBtn?.closest('.filter-dropdown-wrapper');
+                if (wrapper && !wrapper.contains(e.target)) {
+                    closeAllDropdowns();
+                }
+            }
+        }, true);
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                if (dom.filterDropdown?.classList.contains('open')) {
+                    closeAllDropdowns();
+                    dom.filterBtn?.focus();
+                }
+            }
+        });
     }
 
     document.addEventListener('DOMContentLoaded', initializeApp);
