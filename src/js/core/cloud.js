@@ -150,6 +150,7 @@ function mapUI() {
 
 function populateSelectiveSyncOptions() {
     const container = ui.selectiveSyncOptions;
+    if (!container) return;
     clearChildren(container);
 
     for (const [key, name] of Object.entries(DATA_KEYS_TO_SYNC)) {
@@ -181,25 +182,26 @@ function bindEventListeners() {
     ui.sidebarButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             const panelId = btn.dataset.panel;
+            if (!panelId) return;
             switchPanel(panelId);
             if (panelId === 'records-panel') refreshActiveRecordsTab(true);
         });
     });
 
     // Options
-    ui.enableAutoSync.addEventListener('change', saveSyncSettings);
-    ui.syncInterval.addEventListener('change', saveSyncSettings);
-    ui.historyRetentionPolicy.addEventListener('change', saveSyncSettings);
-    ui.logRetentionPolicy.addEventListener('change', saveSyncSettings);
-    ui.selectiveSyncOptions.addEventListener('change', saveSyncSettings);
+    ui.enableAutoSync?.addEventListener('change', saveSyncSettings);
+    ui.syncInterval?.addEventListener('change', saveSyncSettings);
+    ui.historyRetentionPolicy?.addEventListener('change', saveSyncSettings);
+    ui.logRetentionPolicy?.addEventListener('change', saveSyncSettings);
+    ui.selectiveSyncOptions?.addEventListener('change', saveSyncSettings);
 
     // Actions (with rate-limit guards)
-    ui.syncNowBtn.addEventListener('click',   () => guardedSyncToCloud());
-    ui.restoreBtn.addEventListener('click',   () => guardedRestoreFromCloud(null));
-    ui.clearSyncBtn.addEventListener('click', () => guardedClearCloudData());
+    ui.syncNowBtn?.addEventListener('click',   () => guardedSyncToCloud());
+    ui.restoreBtn?.addEventListener('click',   () => guardedRestoreFromCloud(null));
+    ui.clearSyncBtn?.addEventListener('click', () => guardedClearCloudData());
 
     // Records tab switching with keyboard navigation
-    ui.recordsTabs.forEach((tab, index, tabs) => {
+    ui.recordsTabs?.forEach((tab, index, tabs) => {
         tab.addEventListener('click', () => switchRecordsTab(tab.dataset.tab));
         tab.addEventListener('keydown', e => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -224,57 +226,57 @@ function bindEventListeners() {
     });
 
     // Filter toggle
-    ui.filterToggleBtn.addEventListener('click', toggleFilterPanel);
+    ui.filterToggleBtn?.addEventListener('click', toggleFilterPanel);
 
     // Filter controls
-    ui.recordsSearchInput.addEventListener('input', () => {
+    ui.recordsSearchInput?.addEventListener('input', () => {
         clearTimeout(_searchDebounceTimer);
         _searchDebounceTimer = setTimeout(() => refreshActiveRecordsTab(false), DEBOUNCE_DELAY);
     });
-    ui.recordsDateRange.addEventListener('change', () => {
-        ui.recordsCustomRange.hidden = ui.recordsDateRange.value !== 'custom';
+    ui.recordsDateRange?.addEventListener('change', () => {
+        if (ui.recordsCustomRange) ui.recordsCustomRange.hidden = ui.recordsDateRange.value !== 'custom';
         refreshActiveRecordsTab(false);
     });
-    ui.recordsStartDate.addEventListener('change', () => refreshActiveRecordsTab(false));
-    ui.recordsEndDate.addEventListener('change',   () => refreshActiveRecordsTab(false));
-    ui.clearFiltersBtn.addEventListener('click', () => {
+    ui.recordsStartDate?.addEventListener('change', () => refreshActiveRecordsTab(false));
+    ui.recordsEndDate?.addEventListener('change',   () => refreshActiveRecordsTab(false));
+    ui.clearFiltersBtn?.addEventListener('click', () => {
         clearFilters();
-        ui.recordsSearchInput.focus();
+        ui.recordsSearchInput?.focus();
     });
 
     // Version action menu
-    ui.versionMenuViewData.addEventListener('click', () => {
+    ui.versionMenuViewData?.addEventListener('click', () => {
         const version = activeVersionMenuVersion;
         closeVersionMenu();
         if (version) showVersionData(version);
     });
-    ui.versionMenuRestore.addEventListener('click', () => {
+    ui.versionMenuRestore?.addEventListener('click', () => {
         const ts = activeVersionMenuVersion?.timestamp ?? null;
         closeVersionMenu();
         if (ts != null) guardedRestoreFromCloud(ts);
     });
-    ui.versionMenuDelete.addEventListener('click', () => {
+    ui.versionMenuDelete?.addEventListener('click', () => {
         const ts = activeVersionMenuVersion?.timestamp ?? null;
         closeVersionMenu();
         if (ts != null) deleteVersion(ts);
     });
 
     // Version data modal close
-    ui.versionDataClose.addEventListener('click', () => closeVersionDataModal());
-    ui.versionDataOverlay.addEventListener('click', e => {
+    ui.versionDataClose?.addEventListener('click', () => closeVersionDataModal());
+    ui.versionDataOverlay?.addEventListener('click', e => {
         if (e.target === ui.versionDataOverlay) closeVersionDataModal();
     });
 
     // Close menu when clicking outside
     document.addEventListener('click', e => {
-        if (!ui.versionActionMenu.hidden && !ui.versionActionMenu.contains(e.target) && e.target !== activeVersionMenuBtn) {
+        if (!ui.versionActionMenu?.hidden && ui.versionActionMenu && !ui.versionActionMenu.contains(e.target) && e.target !== activeVersionMenuBtn) {
             closeVersionMenu();
         }
     });
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
-            if (!ui.versionActionMenu.hidden) closeVersionMenu();
-            if (ui.versionDataOverlay.classList.contains('active')) closeVersionDataModal();
+            if (ui.versionActionMenu && !ui.versionActionMenu.hidden) closeVersionMenu();
+            if (ui.versionDataOverlay?.classList.contains('active')) closeVersionDataModal();
         }
     });
 
@@ -287,6 +289,7 @@ function bindEventListeners() {
 // ==========================================================================
 
 function switchPanel(panelId) {
+    if (!panelId) return;
     ui.sidebarButtons.forEach(btn => {
         const isActive = btn.dataset.panel === panelId;
         btn.classList.toggle('active', isActive);
@@ -299,7 +302,7 @@ function switchPanel(panelId) {
 }
 
 function switchRecordsTab(tabName) {
-    if (activeRecordsTab === tabName) return;
+    if (activeRecordsTab === tabName || !tabName) return;
     activeRecordsTab = tabName;
 
     ui.recordsTabs.forEach(tab => {
@@ -309,8 +312,8 @@ function switchRecordsTab(tabName) {
         tab.tabIndex = isActive ? 0 : -1;
     });
 
-    ui.historyPane.hidden = tabName !== 'history';
-    ui.logPane.hidden     = tabName !== 'log';
+    if (ui.historyPane) ui.historyPane.hidden = tabName !== 'history';
+    if (ui.logPane) ui.logPane.hidden     = tabName !== 'log';
 
     refreshActiveRecordsTab(true);
 }
@@ -325,19 +328,20 @@ function refreshActiveRecordsTab(fetchFresh) {
 // ==========================================================================
 
 function toggleFilterPanel() {
+    if (!ui.filterPanel || !ui.filterToggleBtn) return;
     const isOpen = !ui.filterPanel.hidden;
     ui.filterPanel.hidden = isOpen;
     ui.filterToggleBtn.setAttribute('aria-expanded', String(!isOpen));
     ui.filterToggleBtn.classList.toggle('active', !isOpen);
-    if (!isOpen) ui.recordsSearchInput.focus();
+    if (!isOpen) ui.recordsSearchInput?.focus();
 }
 
 function clearFilters() {
-    ui.recordsSearchInput.value = '';
-    ui.recordsDateRange.value   = 'all';
-    ui.recordsCustomRange.hidden = true;
-    ui.recordsStartDate.value   = '';
-    ui.recordsEndDate.value     = '';
+    if (ui.recordsSearchInput) ui.recordsSearchInput.value = '';
+    if (ui.recordsDateRange) ui.recordsDateRange.value   = 'all';
+    if (ui.recordsCustomRange) ui.recordsCustomRange.hidden = true;
+    if (ui.recordsStartDate) ui.recordsStartDate.value   = '';
+    if (ui.recordsEndDate) ui.recordsEndDate.value     = '';
     refreshActiveRecordsTab(false);
 }
 
@@ -348,7 +352,7 @@ function clearFilters() {
 async function loadAndApplySettings() {
     try {
         const stored   = await chromeStorageGet('local', SYNC_SETTINGS_KEY);
-        const settings = stored[SYNC_SETTINGS_KEY] || {};
+        const settings = stored?.[SYNC_SETTINGS_KEY] || {};
 
         const defaults = {
             autoSyncEnabled:        false,
@@ -361,20 +365,24 @@ async function loadAndApplySettings() {
 
         const s = { ...defaults, ...settings };
 
-        ui.enableAutoSync.checked = s.autoSyncEnabled;
-        setSelectValue(ui.syncInterval, String(s.syncInterval));
+        if (ui.enableAutoSync) ui.enableAutoSync.checked = s.autoSyncEnabled;
+        if (ui.syncInterval) setSelectValue(ui.syncInterval, String(s.syncInterval));
 
-        ui.lastSyncTimestamp.textContent = s.lastSyncTimestamp
-            ? formatRelativeTime(s.lastSyncTimestamp)
-            : 'Never';
+        if (ui.lastSyncTimestamp) {
+            ui.lastSyncTimestamp.textContent = s.lastSyncTimestamp
+                ? formatRelativeTime(s.lastSyncTimestamp)
+                : 'Never';
+        }
 
-        ui.extensionSyncStatus.textContent = s.autoSyncEnabled ? 'Enabled' : 'Disabled';
-        ui.extensionSyncStatus.className   = `detail-value status-indicator ${s.autoSyncEnabled ? 'success' : 'error'}`;
+        if (ui.extensionSyncStatus) {
+            ui.extensionSyncStatus.textContent = s.autoSyncEnabled ? 'Enabled' : 'Disabled';
+            ui.extensionSyncStatus.className   = `detail-value status-indicator ${s.autoSyncEnabled ? 'success' : 'error'}`;
+        }
 
-        setSelectValue(ui.logRetentionPolicy,     s.logRetentionPolicy);
-        setSelectValue(ui.historyRetentionPolicy, s.historyRetentionPolicy);
+        if (ui.logRetentionPolicy) setSelectValue(ui.logRetentionPolicy, s.logRetentionPolicy);
+        if (ui.historyRetentionPolicy) setSelectValue(ui.historyRetentionPolicy, s.historyRetentionPolicy);
 
-        for (const [key, enabled] of Object.entries(s.selectiveSync)) {
+        for (const [key, enabled] of Object.entries(s.selectiveSync || {})) {
             const cb = document.getElementById(`sync-${key}`);
             if (cb) cb.checked = Boolean(enabled);
         }
@@ -388,19 +396,19 @@ async function saveSyncSettings() {
     try {
         const selectiveSync = {};
         document.querySelectorAll('#selectiveSyncOptions input[type="checkbox"]').forEach(cb => {
-            selectiveSync[cb.dataset.key] = cb.checked;
+            if (cb.dataset.key) selectiveSync[cb.dataset.key] = cb.checked;
         });
 
         const settings = {
-            autoSyncEnabled:        ui.enableAutoSync.checked,
-            syncInterval:           parseInt(ui.syncInterval.value, 10) || 60,
+            autoSyncEnabled:        ui.enableAutoSync?.checked ?? false,
+            syncInterval:           parseInt(ui.syncInterval?.value, 10) || 60,
             selectiveSync,
-            logRetentionPolicy:     ui.logRetentionPolicy.value,
-            historyRetentionPolicy: ui.historyRetentionPolicy.value,
+            logRetentionPolicy:     ui.logRetentionPolicy?.value || String(DEFAULT_MAX_LOG_ENTRIES),
+            historyRetentionPolicy: ui.historyRetentionPolicy?.value || String(DEFAULT_MAX_VERSIONS),
         };
 
         const stored   = await chromeStorageGet('local', SYNC_SETTINGS_KEY);
-        const existing = stored[SYNC_SETTINGS_KEY] || {};
+        const existing = stored?.[SYNC_SETTINGS_KEY] || {};
         settings.lastSyncTimestamp = existing.lastSyncTimestamp || null;
 
         await chromeStorageSet('local', { [SYNC_SETTINGS_KEY]: settings });
@@ -424,10 +432,12 @@ async function saveSyncSettings() {
 async function updateActionStates() {
     try {
         const stored = await chromeStorageGet('local', SYNC_SETTINGS_KEY);
-        const settings = stored[SYNC_SETTINGS_KEY];
+        const settings = stored?.[SYNC_SETTINGS_KEY];
         const hasSelection = settings?.selectiveSync && Object.values(settings.selectiveSync).some(Boolean);
-        ui.syncNowBtn.disabled = !hasSelection;
-        ui.syncNowBtn.title = hasSelection ? '' : 'Select at least one data category in Options';
+        if (ui.syncNowBtn) {
+            ui.syncNowBtn.disabled = !hasSelection;
+            ui.syncNowBtn.title = hasSelection ? '' : 'Select at least one data category in Options';
+        }
     } catch (_) {}
 }
 
@@ -445,30 +455,34 @@ async function updateSyncStatus() {
             chromeSyncActive = true;
         } catch (_) { /* noop */ }
 
-        ui.chromeSyncStatus.textContent = chromeSyncActive ? 'Active' : 'Inactive';
-        ui.chromeSyncStatus.className   = `detail-value status-indicator ${chromeSyncActive ? 'success' : 'warning'}`;
+        if (ui.chromeSyncStatus) {
+            ui.chromeSyncStatus.textContent = chromeSyncActive ? 'Active' : 'Inactive';
+            ui.chromeSyncStatus.className   = `detail-value status-indicator ${chromeSyncActive ? 'success' : 'warning'}`;
+        }
 
         const bytesInUse = await chrome.storage.sync.getBytesInUse(null);
         const percentage = Math.min((bytesInUse / SYNC_QUOTA_BYTES) * 100, 100);
 
-        ui.syncProgress.style.width     = `${percentage}%`;
-        ui.syncProgressText.textContent = `${(bytesInUse / 1024).toFixed(1)} KB / 100 KB`;
-        ui.totalBytesUsed.textContent   = bytesInUse.toLocaleString();
-        ui.syncProgressBar.setAttribute('aria-valuenow', String(bytesInUse));
+        if (ui.syncProgress) ui.syncProgress.style.width     = `${percentage}%`;
+        if (ui.syncProgressText) ui.syncProgressText.textContent = `${(bytesInUse / 1024).toFixed(1)} KB / 100 KB`;
+        if (ui.totalBytesUsed) ui.totalBytesUsed.textContent   = bytesInUse.toLocaleString();
+        if (ui.syncProgressBar) ui.syncProgressBar.setAttribute('aria-valuenow', String(bytesInUse));
 
-        ui.syncProgress.classList.remove('warning', 'error');
-        if (percentage > 90) {
-            ui.syncProgress.classList.add('error');
-            setStatusMessage('Storage critical. Reduce sync scope or prune history.', 'error');
-        } else if (percentage > 75) {
-            ui.syncProgress.classList.add('warning');
-            setStatusMessage('Storage approaching quota limit.', 'warning');
-        } else {
-            setStatusMessage('Storage utilization nominal.', 'success');
+        if (ui.syncProgress) {
+            ui.syncProgress.classList.remove('warning', 'error');
+            if (percentage > 90) {
+                ui.syncProgress.classList.add('error');
+                setStatusMessage('Storage critical. Reduce sync scope or prune history.', 'error');
+            } else if (percentage > 75) {
+                ui.syncProgress.classList.add('warning');
+                setStatusMessage('Storage approaching quota limit.', 'warning');
+            } else {
+                setStatusMessage('Storage utilization nominal.', 'success');
+            }
         }
 
         const syncRaw    = await chromeStorageGet('sync', SYNC_DATA_KEY);
-        const latestData = syncRaw[SYNC_DATA_KEY]?.versions?.[0]?.data ?? null;
+        const latestData = syncRaw?.[SYNC_DATA_KEY]?.versions?.[0]?.data ?? null;
         renderQuotaBreakdown(latestData);
 
     } catch (err) {
@@ -480,9 +494,10 @@ async function updateSyncStatus() {
 }
 
 function renderQuotaBreakdown(latestData) {
+    if (!ui.quotaBreakdown) return;
     clearChildren(ui.quotaBreakdown);
 
-    if (!latestData) {
+    if (!latestData || typeof latestData !== 'object') {
         ui.quotaBreakdown.appendChild(makePlaceholder('Push data to generate a storage breakdown.'));
         return;
     }
@@ -525,12 +540,16 @@ function renderQuotaBreakdown(latestData) {
 // ==========================================================================
 
 async function guardedSyncToCloud() {
-    const settingsRaw = await chromeStorageGet('local', SYNC_SETTINGS_KEY);
-    const settings = settingsRaw[SYNC_SETTINGS_KEY];
-    const hasSelection = settings?.selectiveSync && Object.values(settings.selectiveSync).some(Boolean);
-    if (!hasSelection) {
-        showToast('No sync categories selected. Check Options.', 'warning');
-        return;
+    try {
+        const settingsRaw = await chromeStorageGet('local', SYNC_SETTINGS_KEY);
+        const settings = settingsRaw?.[SYNC_SETTINGS_KEY];
+        const hasSelection = settings?.selectiveSync && Object.values(settings.selectiveSync).some(Boolean);
+        if (!hasSelection) {
+            showToast('No sync categories selected. Check Options.', 'warning');
+            return;
+        }
+    } catch (e) {
+        console.error('guardedSyncToCloud:', e);
     }
 
     const now     = Date.now();
@@ -576,7 +595,7 @@ async function syncToCloud(isAutomatic = false) {
     setActionLoading(true, 'Pushing to cloud…');
     try {
         const settingsRaw = await chromeStorageGet('local', SYNC_SETTINGS_KEY);
-        const settings    = settingsRaw[SYNC_SETTINGS_KEY];
+        const settings    = settingsRaw?.[SYNC_SETTINGS_KEY];
 
         if (!settings?.selectiveSync) throw new Error('Sync scope undefined. Configure in Options.');
 
@@ -591,15 +610,16 @@ async function syncToCloud(isAutomatic = false) {
         };
 
         const syncRaw  = await chromeStorageGet('sync', SYNC_DATA_KEY);
-        const syncData = syncRaw[SYNC_DATA_KEY] || { versions: [] };
+        const syncData = syncRaw?.[SYNC_DATA_KEY] || { versions: [] };
 
         // Deduplicate: skip if identical to latest version
-        const latest = syncData.versions[0];
+        const latest = syncData.versions?.[0];
         if (latest && JSON.stringify(latest.data) === JSON.stringify(localData)) {
             showToast('Local state matches cloud. No changes detected.', 'info');
             return;
         }
 
+        if (!Array.isArray(syncData.versions)) syncData.versions = [];
         syncData.versions.unshift(newVersion);
         syncData.versions = applyHistoryRetention(syncData.versions, settings.historyRetentionPolicy);
 
@@ -649,12 +669,12 @@ async function restoreFromCloud(versionTimestamp) {
     setActionLoading(true, 'Restoring local state…');
     try {
         const syncRaw  = await chromeStorageGet('sync', SYNC_DATA_KEY);
-        const syncData = syncRaw[SYNC_DATA_KEY];
+        const syncData = syncRaw?.[SYNC_DATA_KEY];
 
         if (!syncData?.versions?.length) throw new Error('No cloud snapshot available.');
 
         const versionToRestore = versionTimestamp != null
-            ? syncData.versions.find(v => v.timestamp === versionTimestamp)
+            ? syncData.versions.find(v => v && v.timestamp === versionTimestamp)
             : syncData.versions[0];
 
         if (!versionToRestore) throw new Error('Version not found. It may have been pruned.');
@@ -662,7 +682,7 @@ async function restoreFromCloud(versionTimestamp) {
         // Conflict check for latest restore
         if (versionTimestamp == null) {
             const settingsRaw = await chromeStorageGet('local', SYNC_SETTINGS_KEY);
-            const settings    = settingsRaw[SYNC_SETTINGS_KEY];
+            const settings    = settingsRaw?.[SYNC_SETTINGS_KEY];
             if (settings?.lastSyncTimestamp && versionToRestore.timestamp < settings.lastSyncTimestamp) {
                 const choice = await showConflictDialog();
                 if (choice === 'local') {
@@ -701,10 +721,10 @@ async function deleteVersion(timestamp) {
 
     try {
         const syncRaw  = await chromeStorageGet('sync', SYNC_DATA_KEY);
-        const syncData = syncRaw[SYNC_DATA_KEY];
+        const syncData = syncRaw?.[SYNC_DATA_KEY];
         if (!syncData?.versions) throw new Error('No versions available.');
 
-        const updated = syncData.versions.filter(v => v.timestamp !== timestamp);
+        const updated = syncData.versions.filter(v => v && v.timestamp !== timestamp);
         if (updated.length === syncData.versions.length) throw new Error('Version not found.');
 
         await chrome.storage.sync.set({ [SYNC_DATA_KEY]: { ...syncData, versions: updated } });
@@ -753,23 +773,24 @@ async function confirmClearCloudData() {
 // ==========================================================================
 
 async function displayVersionHistory(fetchFresh) {
+    if (!ui.versionHistory) return;
     setPlaceholder(ui.versionHistory, 'Loading versions…');
 
     try {
         if (fetchFresh) {
             const raw         = await chromeStorageGet('sync', SYNC_DATA_KEY);
-            allHistoryEntries = raw[SYNC_DATA_KEY]?.versions ?? [];
+            allHistoryEntries = raw?.[SYNC_DATA_KEY]?.versions ?? [];
         }
 
         const filtered = applyFilters(allHistoryEntries, entry =>
-            JSON.stringify(entry.data).toLowerCase() + ' ' + (entry.source || '').toLowerCase()
+            JSON.stringify(entry?.data).toLowerCase() + ' ' + (entry?.source || '').toLowerCase()
         );
 
         if (filtered === null) return;
 
         clearChildren(ui.versionHistory);
 
-        if (allHistoryEntries.length === 0) {
+        if (!Array.isArray(allHistoryEntries) || allHistoryEntries.length === 0) {
             ui.versionHistory.appendChild(makePlaceholder('No versions available. Push data to create a snapshot.'));
             return;
         }
@@ -780,7 +801,9 @@ async function displayVersionHistory(fetchFresh) {
         }
 
         const frag = document.createDocumentFragment();
-        filtered.forEach((version, idx) => frag.appendChild(buildHistoryItem(version, idx === 0)));
+        filtered.forEach((version, idx) => {
+            if (version) frag.appendChild(buildHistoryItem(version, idx === 0));
+        });
         ui.versionHistory.appendChild(frag);
 
     } catch (err) {
@@ -794,6 +817,7 @@ async function displayVersionHistory(fetchFresh) {
 }
 
 function buildHistoryItem(version, isLatest) {
+    if (!version) return document.createElement('div');
     const dataSummary = Object.keys(version.data || {})
         .map(k => DATA_KEYS_TO_SYNC[k] || k)
         .join(', ') || 'No data';
@@ -865,6 +889,7 @@ function buildHistoryItem(version, isLatest) {
 // ==========================================================================
 
 function openVersionMenu(triggerBtn, version) {
+    if (!ui.versionActionMenu) return;
     if (activeVersionMenuBtn === triggerBtn && !ui.versionActionMenu.hidden) {
         closeVersionMenu();
         return;
@@ -934,8 +959,10 @@ function openVersionMenu(triggerBtn, version) {
 
 function closeVersionMenu() {
     const trigger = activeVersionMenuBtn;
-    ui.versionActionMenu.hidden = true;
-    ui.versionActionMenu.onkeydown = null;
+    if (ui.versionActionMenu) {
+        ui.versionActionMenu.hidden = true;
+        ui.versionActionMenu.onkeydown = null;
+    }
     activeVersionMenuBtn        = null;
     activeVersionMenuVersion    = null;
     if (trigger) {
@@ -949,17 +976,20 @@ function closeVersionMenu() {
 // ==========================================================================
 
 function showVersionData(version) {
+    if (!version || !ui.versionDataContent || !ui.versionDataOverlay) return;
     const formatted = JSON.stringify(version.data, null, 2);
     ui.versionDataContent.textContent = formatted;
     ui.versionDataOverlay.classList.add('active');
     ui.versionDataOverlay.setAttribute('aria-hidden', 'false');
-    ui.versionDataClose.focus();
+    ui.versionDataClose?.focus();
 }
 
 function closeVersionDataModal() {
-    ui.versionDataOverlay.classList.remove('active');
-    ui.versionDataOverlay.setAttribute('aria-hidden', 'true');
-    ui.versionDataContent.textContent = '';
+    if (ui.versionDataOverlay) {
+        ui.versionDataOverlay.classList.remove('active');
+        ui.versionDataOverlay.setAttribute('aria-hidden', 'true');
+    }
+    if (ui.versionDataContent) ui.versionDataContent.textContent = '';
     if (lastVersionMenuTrigger) {
         lastVersionMenuTrigger.focus();
         lastVersionMenuTrigger = null;
@@ -971,23 +1001,24 @@ function closeVersionDataModal() {
 // ==========================================================================
 
 async function displaySyncLog(fetchFresh) {
+    if (!ui.syncLog) return;
     setPlaceholder(ui.syncLog, 'Loading audit log…');
 
     try {
         if (fetchFresh) {
             const raw     = await chromeStorageGet('local', 'syncLog');
-            allLogEntries = raw.syncLog ?? [];
+            allLogEntries = raw?.syncLog ?? [];
         }
 
         const filtered = applyFilters(allLogEntries, entry =>
-            (entry.message || '').toLowerCase() + ' ' + (entry.type || '').toLowerCase()
+            (entry?.message || '').toLowerCase() + ' ' + (entry?.type || '').toLowerCase()
         );
 
         if (filtered === null) return;
 
         clearChildren(ui.syncLog);
 
-        if (allLogEntries.length === 0) {
+        if (!Array.isArray(allLogEntries) || allLogEntries.length === 0) {
             ui.syncLog.appendChild(makePlaceholder('No sync events recorded.'));
             return;
         }
@@ -998,7 +1029,9 @@ async function displaySyncLog(fetchFresh) {
         }
 
         const frag = document.createDocumentFragment();
-        filtered.forEach(entry => frag.appendChild(buildLogEntry(entry)));
+        filtered.forEach(entry => {
+            if (entry) frag.appendChild(buildLogEntry(entry));
+        });
         ui.syncLog.appendChild(frag);
 
     } catch (err) {
@@ -1011,6 +1044,7 @@ async function displaySyncLog(fetchFresh) {
 }
 
 function buildLogEntry(entry) {
+    if (!entry) return document.createElement('div');
     const div = document.createElement('div');
     div.className = 'log-entry';
 
@@ -1066,7 +1100,7 @@ function buildLogEntry(entry) {
 async function addLogEntry(message, type = 'info', details = '') {
     try {
         const raw        = await chromeStorageGet('local', 'syncLog');
-        const currentLog = raw.syncLog ?? [];
+        const currentLog = raw?.syncLog ?? [];
 
         const newEntry = {
             timestamp: Date.now(),
@@ -1077,7 +1111,7 @@ async function addLogEntry(message, type = 'info', details = '') {
         let newLog = [newEntry, ...currentLog];
 
         const settingsRaw = await chromeStorageGet('local', SYNC_SETTINGS_KEY);
-        const retention   = settingsRaw[SYNC_SETTINGS_KEY]?.logRetentionPolicy ?? String(DEFAULT_MAX_LOG_ENTRIES);
+        const retention   = settingsRaw?.[SYNC_SETTINGS_KEY]?.logRetentionPolicy ?? String(DEFAULT_MAX_LOG_ENTRIES);
         newLog = applyLogRetention(newLog, retention);
 
         await chromeStorageSet('local', { syncLog: newLog });
@@ -1094,22 +1128,24 @@ async function addLogEntry(message, type = 'info', details = '') {
 // ==========================================================================
 
 function applyHistoryRetention(versions, policy) {
+    if (!Array.isArray(versions)) return [];
     let result = [...versions];
     policy = policy || String(DEFAULT_MAX_VERSIONS);
 
     // Remove duplicates (same data payload, keep newest)
     const seen = new Set();
     result = result.filter(v => {
+        if (!v) return false;
         const key = JSON.stringify(v.data);
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
     });
 
-    if (policy.endsWith('d')) {
+    if (typeof policy === 'string' && policy.endsWith('d')) {
         const days   = parseInt(policy, 10);
         const cutoff = Date.now() - days * 864e5;
-        result = result.filter(v => v.timestamp >= cutoff);
+        result = result.filter(v => v && v.timestamp >= cutoff);
     } else {
         const n = Math.min(parseInt(policy, 10) || DEFAULT_MAX_VERSIONS, HARD_MAX_VERSIONS);
         result  = result.slice(0, n);
@@ -1119,13 +1155,14 @@ function applyHistoryRetention(versions, policy) {
 }
 
 function applyLogRetention(entries, policy) {
+    if (!Array.isArray(entries)) return [];
     let result = [...entries];
     policy = policy || String(DEFAULT_MAX_LOG_ENTRIES);
 
-    if (policy.endsWith('d')) {
+    if (typeof policy === 'string' && policy.endsWith('d')) {
         const days   = parseInt(policy, 10);
         const cutoff = Date.now() - days * 864e5;
-        result = result.filter(e => e.timestamp >= cutoff);
+        result = result.filter(e => e && e.timestamp >= cutoff);
     } else {
         const n = Math.min(parseInt(policy, 10) || DEFAULT_MAX_LOG_ENTRIES, HARD_MAX_LOG_ENTRIES);
         result  = result.slice(0, n);
@@ -1137,13 +1174,13 @@ function applyLogRetention(entries, policy) {
 async function applyRetentionPolicies() {
     try {
         const settingsRaw = await chromeStorageGet('local', SYNC_SETTINGS_KEY);
-        const settings    = settingsRaw[SYNC_SETTINGS_KEY] || {};
+        const settings    = settingsRaw?.[SYNC_SETTINGS_KEY] || {};
         const logPolicy   = settings.logRetentionPolicy     || String(DEFAULT_MAX_LOG_ENTRIES);
         const histPolicy  = settings.historyRetentionPolicy || String(DEFAULT_MAX_VERSIONS);
 
         // Log
         const logRaw     = await chromeStorageGet('local', 'syncLog');
-        const currentLog = logRaw.syncLog ?? [];
+        const currentLog = logRaw?.syncLog ?? [];
         const trimmedLog = applyLogRetention(currentLog, logPolicy);
         if (trimmedLog.length !== currentLog.length) {
             await chromeStorageSet('local', { syncLog: trimmedLog });
@@ -1152,7 +1189,7 @@ async function applyRetentionPolicies() {
 
         // History
         const syncRaw  = await chromeStorageGet('sync', SYNC_DATA_KEY);
-        const syncData = syncRaw[SYNC_DATA_KEY];
+        const syncData = syncRaw?.[SYNC_DATA_KEY];
         if (syncData?.versions) {
             const trimmedVersions = applyHistoryRetention(syncData.versions, histPolicy);
             if (trimmedVersions.length !== syncData.versions.length) {
@@ -1170,26 +1207,28 @@ async function applyRetentionPolicies() {
 // ==========================================================================
 
 function applyFilters(entries, textFn) {
-    const search    = ui.recordsSearchInput.value.trim().toLowerCase();
-    const dateRange = ui.recordsDateRange.value;
+    if (!Array.isArray(entries)) return [];
+    const search    = ui.recordsSearchInput?.value?.trim().toLowerCase() || '';
+    const dateRange = ui.recordsDateRange?.value || 'all';
 
     let startTs = null;
     let endTs   = null;
 
     if (dateRange === 'custom') {
-        if (ui.recordsStartDate.value) startTs = new Date(ui.recordsStartDate.value).getTime();
-        if (ui.recordsEndDate.value)   endTs   = new Date(ui.recordsEndDate.value).setHours(23, 59, 59, 999);
+        if (ui.recordsStartDate?.value) startTs = new Date(ui.recordsStartDate.value).getTime();
+        if (ui.recordsEndDate?.value)   endTs   = new Date(ui.recordsEndDate.value).setHours(23, 59, 59, 999);
     } else if (dateRange !== 'all') {
         const map = { '24h': 864e5, '7d': 7 * 864e5, '30d': 30 * 864e5 };
         startTs   = Date.now() - (map[dateRange] || 0);
     }
 
     return entries.filter(entry => {
+        if (!entry) return false;
         const text       = textFn(entry);
-        const matchText  = !search || text.includes(search);
+        const matchText  = !search || (typeof text === 'string' && text.includes(search));
         const ts         = entry.timestamp;
-        const matchStart = startTs == null || ts >= startTs;
-        const matchEnd   = endTs   == null || ts <= endTs;
+        const matchStart = startTs == null || (typeof ts === 'number' && ts >= startTs);
+        const matchEnd   = endTs   == null || (typeof ts === 'number' && ts <= endTs);
         return matchText && matchStart && matchEnd;
     });
 }
@@ -1199,17 +1238,17 @@ function applyFilters(entries, textFn) {
 // ==========================================================================
 
 function handleStorageChange(changes, areaName) {
-    if (areaName === 'sync' && changes[SYNC_DATA_KEY]) {
+    if (areaName === 'sync' && changes?.[SYNC_DATA_KEY]) {
         showToast('Sync data updated from another device.', 'info');
         updateSyncStatus();
         if (activeRecordsTab === 'history' && isRecordsPanelActive()) displayVersionHistory(true);
     }
     if (areaName === 'local') {
-        if (changes.syncLog && activeRecordsTab === 'log' && isRecordsPanelActive()) {
+        if (changes?.syncLog && activeRecordsTab === 'log' && isRecordsPanelActive()) {
             allLogEntries = changes.syncLog.newValue ?? [];
             displaySyncLog(false);
         }
-        if (changes[SYNC_SETTINGS_KEY]) {
+        if (changes?.[SYNC_SETTINGS_KEY]) {
             loadAndApplySettings();
             updateActionStates();
         }
@@ -1217,7 +1256,8 @@ function handleStorageChange(changes, areaName) {
 }
 
 function isRecordsPanelActive() {
-    return document.getElementById('records-panel')?.classList.contains('active');
+    const panel = document.getElementById('records-panel');
+    return panel?.classList.contains('active') ?? false;
 }
 
 // ==========================================================================
@@ -1233,9 +1273,9 @@ function setActionLoading(isLoading, msg) {
     buttons.forEach(btn => { if (btn) btn.disabled = isLoading; });
 
     if (isLoading) {
-        [ui.syncNowBtn, ui.restoreBtn, ui.clearSyncBtn].forEach(btn => {
+        buttons.forEach(btn => {
             if (!btn) return;
-            btn.dataset.originalText = btn.textContent.trim();
+            btn.dataset.originalText = btn.textContent?.trim() || '';
             clearChildren(btn);
             const spin = document.createElement('span');
             spin.className = 'icon loading';
@@ -1245,7 +1285,7 @@ function setActionLoading(isLoading, msg) {
         });
         if (msg) setStatusMessage(msg, 'info');
     } else {
-        [ui.syncNowBtn, ui.restoreBtn, ui.clearSyncBtn].forEach(btn => {
+        buttons.forEach(btn => {
             if (!btn || !btn.dataset.originalText) return;
             btn.textContent = btn.dataset.originalText;
             delete btn.dataset.originalText;
@@ -1254,11 +1294,13 @@ function setActionLoading(isLoading, msg) {
 }
 
 function setStatusMessage(message, type) {
+    if (!ui.statusMessage) return;
     ui.statusMessage.textContent = message;
     ui.statusMessage.className   = `status-message ${type}`;
 }
 
 function setPlaceholder(container, text) {
+    if (!container) return;
     clearChildren(container);
     container.appendChild(makePlaceholder(text));
 }
@@ -1270,6 +1312,10 @@ function setPlaceholder(container, text) {
 function showConfirmDialog(title, message, okText = 'Confirm') {
     return new Promise(resolve => {
         const d = ui.confirmDialog;
+        if (!d || !d.overlay || !d.title || !d.message || !d.okBtn || !d.cancelBtn) {
+            resolve(confirm(message));
+            return;
+        }
         d.title.textContent   = title;
         d.message.textContent = message;
         d.okBtn.textContent   = okText;
@@ -1295,6 +1341,10 @@ function showConfirmDialog(title, message, okText = 'Confirm') {
 function showConflictDialog() {
     return new Promise(resolve => {
         const d = ui.conflictDialog;
+        if (!d || !d.overlay || !d.keepLocalBtn || !d.keepCloudBtn) {
+            resolve('cloud');
+            return;
+        }
         d.overlay.classList.add('active');
         d.overlay.setAttribute('aria-hidden', 'false');
         d.keepCloudBtn.focus();
@@ -1317,6 +1367,7 @@ function showConflictDialog() {
 // ==========================================================================
 
 function showToast(message, type = 'info') {
+    if (!ui.toastContainer) return;
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     toast.setAttribute('role', 'alert');
@@ -1343,6 +1394,7 @@ function showToast(message, type = 'info') {
 // ==========================================================================
 
 function clearChildren(el) {
+    if (!el) return;
     while (el.firstChild) el.removeChild(el.firstChild);
 }
 
@@ -1360,7 +1412,8 @@ function makeStrong(text) {
 }
 
 function setSelectValue(selectEl, value) {
-    const exists  = [...selectEl.options].some(o => o.value === String(value));
+    if (!selectEl) return;
+    const exists  = [...(selectEl.options || [])].some(o => o.value === String(value));
     selectEl.value = exists ? String(value) : (selectEl.options[0]?.value ?? '');
 }
 
@@ -1385,6 +1438,10 @@ function formatRelativeTime(timestamp) {
 function chromeStorageGet(area, ...keys) {
     return new Promise((resolve, reject) => {
         const k = keys.length === 1 ? keys[0] : keys;
+        if (!chrome.storage?.[area]) {
+            reject(new Error(`Storage area "${area}" unavailable`));
+            return;
+        }
         chrome.storage[area].get(k, result => {
             if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
             else resolve(result);
@@ -1394,6 +1451,10 @@ function chromeStorageGet(area, ...keys) {
 
 function chromeStorageSet(area, data) {
     return new Promise((resolve, reject) => {
+        if (!chrome.storage?.[area]) {
+            reject(new Error(`Storage area "${area}" unavailable`));
+            return;
+        }
         chrome.storage[area].set(data, () => {
             if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
             else resolve();

@@ -13,7 +13,6 @@
     const TOAST_DURATION_MS       = 3000;
     const UNDO_DURATION_MS        = 8000;
     const EVENT_TYPES             = ['installed', 'uninstalled', 'updated', 'permissions_updated', 'enabled', 'disabled'];
-    const FILTER_STATE_KEY        = 'timelineFilterState_v2';
 
     /* ---------------------------------------------------------------------- */
     /*  State                                                                 */
@@ -37,14 +36,11 @@
         autoPruneOnStartup:   false,
         relativeTimestamps:   false,
         liveRefreshSeconds:   0,
-        keyboardShortcuts:    true,
-        persistFilters:       false,
         showRecordCount:      true,
     };
     let currentPage  = 1;
     let totalPages   = 1;
     let liveRefreshInterval = null;
-    let settingsSaveTimer   = null;
 
     /* ---------------------------------------------------------------------- */
     /*  DOM Cache                                                             */
@@ -86,6 +82,7 @@
     };
 
     const setBusyState = (busy) => {
+        if (!dom.initialLoading || !dom.contentArea) return;
         dom.initialLoading.style.display = busy ? 'flex' : 'none';
         dom.contentArea.style.opacity    = busy ? '0.5' : '1';
         dom.contentArea.style.pointerEvents = busy ? 'none' : 'auto';
@@ -151,7 +148,6 @@
         setBusyState(true);
         await loadInitialData();
         buildFilterCheckboxes();
-        if (settings.persistFilters) await restoreFilters();
         if (dom.currentYear) dom.currentYear.textContent = new Date().getFullYear();
         await maybeAutoPrune();
         startLiveRefresh();
@@ -164,7 +160,7 @@
         dom.initialLoading    = document.getElementById('initial-loading-indicator');
         dom.currentYear       = document.getElementById('current-year');
         dom.panels            = document.querySelectorAll('.content-panel');
-        dom.sidebarButtons    = document.querySelectorAll('.sidebar-button');
+        dom.sidebarButtons    = document.querySelectorAll('.sidebar-button[data-panel-target]');
         dom.body              = document.body;
 
         /* History */
@@ -203,8 +199,6 @@
         dom.autoPruneOnStartupToggle   = document.getElementById('auto-prune-startup-toggle');
         dom.relativeTimestampsToggle   = document.getElementById('relative-timestamps-toggle');
         dom.liveRefreshInput           = document.getElementById('live-refresh-input');
-        dom.keyboardShortcutsToggle    = document.getElementById('keyboard-shortcuts-toggle');
-        dom.persistFiltersToggle       = document.getElementById('persist-filters-toggle');
         dom.showRecordCountToggle      = document.getElementById('show-record-count-toggle');
         dom.resetDefaultsBtn           = document.getElementById('reset-defaults-btn');
         dom.settingsSavedIndicator     = document.getElementById('settings-saved-indicator');
@@ -249,8 +243,7 @@
         const autoSaveToggles = [
             dom.trackingEnabledToggle, dom.pruneOnLimitToggle, dom.displayTimestampsToggle,
             dom.autoPruneOnStartupToggle, dom.relativeTimestampsToggle,
-            dom.keyboardShortcutsToggle, dom.persistFiltersToggle, dom.showRecordCountToggle,
-            dom.sortOrderSelect
+            dom.showRecordCountToggle, dom.sortOrderSelect
         ];
         autoSaveToggles.forEach(el => el && el.addEventListener('change', () => debouncedAutoSave()));
 
@@ -301,7 +294,7 @@
         try {
             if (showLoading) setBusyState(true);
             const res = await chrome.runtime.sendMessage({ type: 'GET_EXTENSION_HISTORY' });
-            allHistoryRecords = (res.history || []).filter(r =>
+            allHistoryRecords = (res?.history || []).filter(r =>
                 r && typeof r === 'object' &&
                 typeof r.timestamp === 'number' &&
                 typeof r.extensionId === 'string' &&
@@ -312,8 +305,10 @@
         } catch (e) {
             console.error('Error loading history:', e);
             showToast('Failed to load history data.', 'error');
-            dom.noHistoryMessage.textContent = 'Could not load history.';
-            dom.noHistoryMessage.hidden = false;
+            if (dom.noHistoryMessage) {
+                dom.noHistoryMessage.textContent = 'Could not load history.';
+                dom.noHistoryMessage.hidden = false;
+            }
         } finally {
             if (showLoading) setBusyState(false);
         }
@@ -344,7 +339,6 @@
         totalPages  = Math.max(1, Math.ceil(filteredRecords.length / settings.logsPerPage));
         renderHistory();
         updateRecordCount();
-        if (settings.persistFilters) persistCurrentFilters();
     };
 
     const updateSettingsControlsState = () => {
@@ -392,6 +386,8 @@
     /*  UI Rendering                                                          */
     /* ---------------------------------------------------------------------- */
     const switchPanel = (targetId) => {
+        const targetPanel = document.getElementById(targetId);
+        if (!targetPanel) return;
         dom.sidebarButtons.forEach(btn => {
             const active = btn.dataset.panelTarget === targetId;
             btn.classList.toggle('active', active);
@@ -430,12 +426,13 @@
     };
 
     const renderHistory = () => {
+        if (!dom.historyList) return;
         while (dom.historyList.firstChild) dom.historyList.removeChild(dom.historyList.firstChild);
         const start = (currentPage - 1) * settings.logsPerPage;
         const page  = filteredRecords.slice(start, start + settings.logsPerPage);
 
-        dom.noHistoryMessage.hidden = filteredRecords.length > 0;
-        dom.paginationControls.hidden = filteredRecords.length === 0;
+        if (dom.noHistoryMessage) dom.noHistoryMessage.hidden = filteredRecords.length > 0;
+        if (dom.paginationControls) dom.paginationControls.hidden = filteredRecords.length === 0;
 
         if (filteredRecords.length === 0) return;
 
@@ -535,6 +532,7 @@
     };
 
     const renderPagination = () => {
+        if (!dom.paginationControls) return;
         dom.paginationControls.hidden = totalPages <= 1;
         dom.prevPageBtn.disabled = currentPage === 1;
         dom.nextPageBtn.disabled = currentPage === totalPages;
@@ -566,8 +564,6 @@
         dom.autoPruneOnStartupToggle.checked = settings.autoPruneOnStartup;
         dom.relativeTimestampsToggle.checked = settings.relativeTimestamps;
         dom.liveRefreshInput.value           = settings.liveRefreshSeconds;
-        dom.keyboardShortcutsToggle.checked  = settings.keyboardShortcuts;
-        dom.persistFiltersToggle.checked     = settings.persistFilters;
         dom.showRecordCountToggle.checked    = settings.showRecordCount;
         updateSettingsControlsState();
     };
@@ -583,8 +579,6 @@
         settings.autoPruneOnStartup   = dom.autoPruneOnStartupToggle.checked;
         settings.relativeTimestamps   = dom.relativeTimestampsToggle.checked;
         settings.liveRefreshSeconds   = Math.max(0, Math.min(300, parseInt(dom.liveRefreshInput.value,10)||0));
-        settings.keyboardShortcuts    = dom.keyboardShortcutsToggle.checked;
-        settings.persistFilters       = dom.persistFiltersToggle.checked;
         settings.showRecordCount      = dom.showRecordCountToggle.checked;
     };
 
@@ -611,43 +605,11 @@
             trackingEnabled: true, sortOrder: 'desc', logsPerPage: 25, pruneDays: 90,
             recordLimit: 1000, pruneOnLimit: true, displayTimestamps: true,
             autoPruneOnStartup: false, relativeTimestamps: false, liveRefreshSeconds: 0,
-            keyboardShortcuts: true, persistFilters: false, showRecordCount: true,
+            showRecordCount: true,
         };
         syncSettingsToUI();
         await saveSettings();
         showToast('Settings reset to defaults.', 'success');
-    };
-
-    /* ---------------------------------------------------------------------- */
-    /*  Filter persistence                                                    */
-    /* ---------------------------------------------------------------------- */
-    const persistCurrentFilters = async () => {
-        try {
-            await chrome.storage.local.set({
-                [FILTER_STATE_KEY]: {
-                    searchTerm: currentFilters.searchTerm,
-                    eventTypes: Array.from(currentFilters.eventTypes),
-                    startDate:  currentFilters.startDate,
-                    endDate:    currentFilters.endDate,
-                }
-            });
-        } catch (e) { console.error('Failed to persist filters:', e); }
-    };
-
-    const restoreFilters = async () => {
-        try {
-            const res = await chrome.storage.local.get(FILTER_STATE_KEY);
-            const s = res[FILTER_STATE_KEY];
-            if (!s) return;
-            currentFilters.searchTerm = s.searchTerm || '';
-            currentFilters.eventTypes = new Set(s.eventTypes || EVENT_TYPES);
-            currentFilters.startDate  = s.startDate || null;
-            currentFilters.endDate    = s.endDate || null;
-
-            dom.searchInput.value = currentFilters.searchTerm;
-            dom.startDateInput.value = currentFilters.startDate ? new Date(currentFilters.startDate).toISOString().split('T')[0] : '';
-            dom.endDateInput.value   = currentFilters.endDate   ? new Date(currentFilters.endDate).toISOString().split('T')[0] : '';
-        } catch (e) { console.error('Failed to restore filters:', e); }
     };
 
     /* ---------------------------------------------------------------------- */
@@ -676,10 +638,14 @@
     const handleDateFilterChange = () => {
         const s = dom.startDateInput.value;
         const e = dom.endDateInput.value;
-        if (s && e && new Date(s) > new Date(e)) {
-            showToast('Start date cannot be after end date.', 'error');
-            dom.endDateInput.value = '';
-            return;
+        if (s && e) {
+            const startDate = new Date(s);
+            const endDate = new Date(e);
+            if (startDate > endDate) {
+                showToast('Start date cannot be after end date.', 'error');
+                dom.endDateInput.value = '';
+                return;
+            }
         }
         currentFilters.startDate = s ? new Date(s).getTime() : null;
         currentFilters.endDate   = e ? new Date(e).setHours(23,59,59,999) : null;
@@ -715,7 +681,11 @@
     };
 
     const handleClearAllHistory = async () => {
-        const previous = allHistoryRecords;
+        if (!allHistoryRecords.length) {
+            showToast('No history to clear.', 'info');
+            return;
+        }
+        const previous = [...allHistoryRecords];
         const undo = async () => {
             try {
                 await chrome.runtime.sendMessage({ type: 'RESTORE_HISTORY', payload: previous });
@@ -836,30 +806,7 @@
     };
 
     /* ---------------------------------------------------------------------- */
-    /*  Keyboard Shortcuts                                                    */
-    /* ---------------------------------------------------------------------- */
-    const handleKeyboardShortcuts = (e) => {
-        if (!settings.keyboardShortcuts || e.ctrlKey || e.metaKey) return;
-        if (!e.altKey) return;
-        const k = e.key.toLowerCase();
-        const map = {
-            f: () => dom.searchInput.focus(),
-            g: () => toggleFilterPanel(),
-            r: () => handleResetFilters(),
-            c: () => handleClearAllHistory(),
-            s: () => switchPanel('panel-settings'),
-            h: () => switchPanel('panel-help'),
-            ',': () => dom.prevPageBtn.click(),
-            '<': () => dom.prevPageBtn.click(),
-            '.': () => dom.nextPageBtn.click(),
-            '>': () => dom.nextPageBtn.click(),
-        };
-        if (map[k]) { e.preventDefault(); map[k](); }
-    };
-
-    /* ---------------------------------------------------------------------- */
     /*  Entry Point                                                           */
     /* ---------------------------------------------------------------------- */
     document.addEventListener('DOMContentLoaded', initializeApp);
-    document.addEventListener('keydown', handleKeyboardShortcuts);
 })();

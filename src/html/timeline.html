@@ -32,10 +32,10 @@
                         </button>
                     </li>
                     <li>
-                        <button class="sidebar-button" data-panel-target="panel-help" aria-controls="panel-help">
+                        <a href="https://sites.google.com/view/modcore-em-help/manage-extensions/extension-activity-log-page" target="_blank" rel="noopener" class="sidebar-button">
                             <span class="icon icon-help" aria-hidden="true"></span>
                             <span>Help</span>
-                        </button>
+                        </a>
                     </li>
                 </ul>
             </nav>
@@ -246,80 +246,10 @@
                         </div>
                     </div>
 
-                    <div class="content-section">
-                        <h3 class="section-title small-title">Behavior</h3>
-                        <div class="setting-item">
-                            <div class="setting-label">
-                                <strong>Keyboard Shortcuts</strong>
-                                <p class="text-secondary">Enable Alt+key shortcuts for quick navigation.</p>
-                            </div>
-                            <input type="checkbox" id="keyboard-shortcuts-toggle" class="toggle-switch" checked>
-                        </div>
-                        <div class="setting-item">
-                            <div class="setting-label">
-                                <strong>Persist Filters</strong>
-                                <p class="text-secondary">Remember search and filter selections between sessions.</p>
-                            </div>
-                            <input type="checkbox" id="persist-filters-toggle" class="toggle-switch">
-                        </div>
-                    </div>
-
                     <div class="settings-actions">
                         <span id="settings-saved-indicator" class="save-indicator" hidden>Saved automatically</span>
                         <button id="reset-defaults-btn" class="btn tertiary">Reset to Defaults</button>
                     </div>
-                </div>
-            </section>
-
-            <section id="panel-help" class="content-panel" aria-labelledby="help-panel-title" hidden tabindex="-1">
-                <header class="panel-header">
-                    <h2 id="help-panel-title">Help & Information</h2>
-                    <p>Find answers to common questions about the history tracking feature.</p>
-                </header>
-                <div class="panel-content">
-                    <div class="content-section">
-                        <h3 class="section-title small-title">Frequently Asked Questions</h3>
-                        <details class="faq-item">
-                            <summary>How is my history data stored?</summary>
-                            <p>Your history is stored locally on your computer using the <code>chrome.storage.local</code> API. It is not synced to the cloud and is not sent to any remote servers, ensuring your privacy.</p>
-                        </details>
-                        <details class="faq-item">
-                            <summary>What types of events are tracked?</summary>
-                            <p>The system tracks key lifecycle events, including when an extension is installed, updated, uninstalled, enabled, or disabled. These events provide a clear timeline of changes to your extensions.</p>
-                        </details>
-                        <details class="faq-item">
-                            <summary>Why is some history missing for an uninstalled extension?</summary>
-                            <p>When an extension is uninstalled, its name and icon are removed from Chrome's records. The log will show "Unknown" for these details, but the event itself (e.g., "uninstalled") is preserved.</p>
-                        </details>
-                        <details class="faq-item">
-                            <summary>How do the pruning options work?</summary>
-                            <p>You can set a maximum number of records to keep or automatically delete records older than a certain number of days. These options help you manage storage space. Additionally, you can manually prune inactive extension history or specific event types at any time.</p>
-                        </details>
-                        <details class="faq-item">
-                            <summary>Are these logs sent to a server?</summary>
-                            <p>No, all logs and activity data are stored locally on your computer and are never sent to modcore or any third-party servers. Your privacy is fully respected and protected. For more details, see our <a href="https://sites.google.com/view/modcore-em-help/general-information/privacy-policy" target="_blank" rel="noopener" style="color: var(--primary-color); text-decoration: underline;">Privacy Policy</a>.</p>
-                        </details>
-                        <details class="faq-item">
-                            <summary>How can I backup and restore my history?</summary>
-                            <p>Timeline data is stored locally. While automatic cloud backup is not provided, you can use the pruning and limit controls to keep your data manageable. For external backups, advanced users can access the extension's local storage via Chrome's developer tools.</p>
-                        </details>
-                    </div>
-                    <div class="content-section">
-                        <h3 class="section-title small-title">Keyboard Shortcuts</h3>
-                        <ul class="shortcut-list">
-                            <li><kbd>Alt</kbd> + <kbd>F</kbd> Focus Search Box</li>
-                            <li><kbd>Alt</kbd> + <kbd>G</kbd> Toggle Filter Panel</li>
-                            <li><kbd>Alt</kbd> + <kbd>R</kbd> Reset Filters</li>
-                            <li><kbd>Alt</kbd> + <kbd>C</kbd> Clear All History</li>
-                            <li><kbd>Alt</kbd> + <kbd>S</kbd> Open Settings</li>
-                            <li><kbd>Alt</kbd> + <kbd>H</kbd> Open Help</li>
-                            <li><kbd>Alt</kbd> + <kbd>&lt;</kbd> Go to Previous Page</li>
-                            <li><kbd>Alt</kbd> + <kbd>&gt;</kbd> Go to Next Page</li>
-                        </ul>
-                    </div>
-                    <p style="margin-top: 24px; font-size: 13px; color: var(--text-secondary);">
-                        For more detailed information, visit the <a href="https://sites.google.com/view/modcore-em-help/manage-extensions/extension-activity-log-page" target="_blank" rel="noopener" style="color: var(--primary-color); text-decoration: underline;">modcore Timeline Documentation</a>.
-                    </p>
                 </div>
             </section>
         </main>

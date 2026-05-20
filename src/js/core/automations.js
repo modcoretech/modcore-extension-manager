@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let settings = { ...DEFAULT_SETTINGS };
     let searchDebounceTimer = null;
     let isRefreshing = false;
-    let ruleElementsCache = new Map(); // Cache for DOM elements
+    let ruleElementsCache = new Map();
 
     // --- DOM Element Cache ---
     const DOM = {};
@@ -82,7 +82,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function loadSettings() {
         try {
             const result = await chrome.storage.local.get(SETTINGS_KEY);
-            const stored = result[SETTINGS_KEY] || {};
+            const stored = result?.[SETTINGS_KEY] || {};
             settings = { ...DEFAULT_SETTINGS, ...stored };
 
             if (DOM['setting-confirm-delete']) DOM['setting-confirm-delete'].checked = settings.confirmBeforeDelete;
@@ -104,22 +104,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // --- Profile Loading (FIXED) ---
+    // --- Profile Loading ---
     async function loadProfiles() {
         try {
             const profilesData = await chrome.storage.local.get(PROFILES_STORAGE_KEY);
-            const raw = profilesData[PROFILES_STORAGE_KEY];
+            const raw = profilesData?.[PROFILES_STORAGE_KEY];
             
-            // popup.js stores: { profiles: { [id]: Profile }, order: string[] }
-            // We need to extract the profiles object, not the wrapper
             if (raw && typeof raw === 'object' && !Array.isArray(raw) && raw.profiles) {
                 allProfiles = Object.values(raw.profiles);
             } else {
-                // Fallback: handle legacy format or empty storage
                 allProfiles = [];
             }
             
-            // Normalize and validate profiles
             allProfiles = allProfiles.filter(p => p && typeof p === 'object').map(p => ({
                 id: p.id || '',
                 name: typeof p.name === 'string' ? p.name : 'Unnamed',
@@ -151,11 +147,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         label.setAttribute('aria-label', 'Enable or disable rule');
         const input = createElement('input');
         input.type = 'checkbox';
-        input.checked = isEnabled;
+        input.checked = !!isEnabled;
         input.dataset.ruleId = ruleId;
         input.classList.add('toggle-rule-btn');
         input.setAttribute('role', 'switch');
-        input.setAttribute('aria-checked', isEnabled);
+        input.setAttribute('aria-checked', !!isEnabled);
         const slider = createElement('span', 'slider');
         label.appendChild(input);
         label.appendChild(slider);
@@ -174,17 +170,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** Populates the target selector based on type. */
     const populateTargetSelector = (targetType, selectedIds = []) => {
         const container = DOM['target-selector-container'];
+        if (!container) return;
         container.textContent = '';
         let items = [];
         let labelText = '';
 
         switch (targetType) {
             case 'extension':
-                items = allExtensions;
+                items = allExtensions || [];
                 labelText = 'Select Extensions';
                 break;
             case 'profile':
-                items = allProfiles;
+                items = allProfiles || [];
                 labelText = 'Select Profile (One only)';
                 break;
         }
@@ -195,17 +192,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             placeholder.style.color = 'var(--color-text-secondary)';
             placeholder.style.padding = 'var(--space-4)';
             container.appendChild(placeholder);
-            DOM['target-selector-label'].textContent = labelText + ' *';
+            if (DOM['target-selector-label']) DOM['target-selector-label'].textContent = labelText + ' *';
             return;
         }
 
         const fragment = createFragment();
         items.forEach(item => {
+            if (!item) return;
             const id = item.id;
             const name = item.name || 'Unnamed';
-            const itemImgSrc = item.icons && item.icons.length > 0 && item.icons[item.icons.length - 1].url
-                               ? item.icons[item.icons.length - 1].url
-                               : DEFAULT_ICON_PLACEHOLDER;
+            let itemImgSrc = DEFAULT_ICON_PLACEHOLDER;
+            if (item.icons && Array.isArray(item.icons) && item.icons.length > 0) {
+                const lastIcon = item.icons[item.icons.length - 1];
+                if (lastIcon?.url) itemImgSrc = lastIcon.url;
+            }
 
             const itemDiv = createElement('div', 'extension-selector-item');
             const input = createElement('input');
@@ -213,7 +213,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             input.name = 'target-item-selection';
             input.id = `target-sel-${id}`;
             input.value = id;
-            if (selectedIds.includes(id)) {
+            if (selectedIds && selectedIds.includes(id)) {
                 input.checked = true;
             }
             
@@ -233,12 +233,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         
         container.appendChild(fragment);
-        DOM['target-selector-label'].textContent = labelText + ' *';
+        if (DOM['target-selector-label']) DOM['target-selector-label'].textContent = labelText + ' *';
     };
 
     /** Populates the action type select based on target type. */
     const populateActionTypeSelect = (targetType, selectedAction = 'enable') => {
         const select = DOM['rule-action-select'];
+        if (!select) return;
         select.textContent = '';
         let options = [];
 
@@ -269,9 +270,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         element.textContent = message;
         element.setAttribute('role', 'alert');
         
-        // Add visual invalid state to related input
         if (element.id === 'target-selector-error') {
-            DOM['target-selector-container'].classList.add('invalid-border');
+            if (DOM['target-selector-container']) DOM['target-selector-container'].classList.add('invalid-border');
         } else if (element.id === 'day-selector-error') {
             if (DOM.daySelector) DOM.daySelector.style.borderColor = 'var(--color-danger)';
         } else {
@@ -288,7 +288,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         element.removeAttribute('role');
         
         if (element.id === 'target-selector-error') {
-            DOM['target-selector-container'].classList.remove('invalid-border');
+            if (DOM['target-selector-container']) DOM['target-selector-container'].classList.remove('invalid-border');
         } else if (element.id === 'day-selector-error') {
             if (DOM.daySelector) DOM.daySelector.style.borderColor = '';
         } else {
@@ -305,7 +305,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             DOM['rule-time-error'], DOM['day-selector-error'], DOM['rule-url-error']
         ].forEach(clearValidationError);
         
-        DOM['target-selector-container'].classList.remove('invalid-border');
+        if (DOM['target-selector-container']) DOM['target-selector-container'].classList.remove('invalid-border');
         if (DOM.daySelector) DOM.daySelector.style.borderColor = '';
     };
 
@@ -365,13 +365,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const validateStep = (step) => {
         if (step === 1) {
-            const ruleName = DOM['rule-name-input'].value.trim();
+            const ruleName = DOM['rule-name-input']?.value?.trim() || '';
             if (!ruleName) {
                 showValidationError(DOM['rule-name-error'], 'Rule name is required.');
                 return false;
             }
-            const isNameTaken = allRules.some(r => 
-                r.name.toLowerCase() === ruleName.toLowerCase() && r.id !== DOM['rule-id-input'].value);
+            const isNameTaken = Array.isArray(allRules) && allRules.some(r => 
+                r && r.name && r.name.toLowerCase() === ruleName.toLowerCase() && r.id !== (DOM['rule-id-input']?.value || ''));
             if (isNameTaken) {
                 showValidationError(DOM['rule-name-error'], 'A rule with this name already exists.');
                 return false;
@@ -380,12 +380,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             return true;
         }
         if (step === 2) {
-            const selectedTargets = Array.from(DOM['target-selector-container'].querySelectorAll('input:checked')).map(cb => cb.value);
+            const container = DOM['target-selector-container'];
+            if (!container) return false;
+            const selectedTargets = Array.from(container.querySelectorAll('input:checked')).map(cb => cb.value);
             if (selectedTargets.length === 0) {
                 showValidationError(DOM['target-selector-error'], 'Please select at least one target.');
                 return false;
             }
-            if (DOM['rule-target-type-select'].value === 'profile' && selectedTargets.length > 1) {
+            if (DOM['rule-target-type-select']?.value === 'profile' && selectedTargets.length > 1) {
                 showValidationError(DOM['target-selector-error'], 'Please select only one profile.');
                 return false;
             }
@@ -394,8 +396,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             return true;
         }
         if (step === 3) {
-            if (DOM['trigger-type-select'].value === 'time') {
-                if (!DOM['rule-time-input'].value) {
+            if (DOM['trigger-type-select']?.value === 'time') {
+                if (!DOM['rule-time-input']?.value) {
                     showValidationError(DOM['rule-time-error'], 'Please select a time.');
                     return false;
                 }
@@ -408,7 +410,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 clearValidationError(DOM['day-selector-error']);
                 return true;
             } else {
-                if (!DOM['rule-url-input'].value.trim()) {
+                if (!DOM['rule-url-input']?.value?.trim()) {
                     showValidationError(DOM['rule-url-error'], 'URL cannot be empty.');
                     return false;
                 }
@@ -427,18 +429,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         try {
             // Load extensions
-            if (chrome.management && chrome.management.getSelf) {
+            if (chrome.management && chrome.management.getSelf && chrome.management.getAll) {
                 const self = await chrome.management.getSelf();
                 const extensions = await chrome.management.getAll();
-                allExtensions = extensions.filter(ext => ext.type === 'extension' && ext.id !== self.id);
+                allExtensions = extensions.filter(ext => ext && ext.type === 'extension' && ext.id !== self?.id);
+            } else {
+                allExtensions = [];
             }
             
-            // Load profiles (FIXED)
+            // Load profiles
             await loadProfiles();
 
             // Load rules
             const data = await chrome.storage.local.get(RULES_STORAGE_KEY);
-            allRules = data[RULES_STORAGE_KEY] || [];
+            allRules = Array.isArray(data?.[RULES_STORAGE_KEY]) ? data[RULES_STORAGE_KEY] : [];
             
             applyFiltersAndRender();
             updateBulkActionBarVisibility();
@@ -452,56 +456,61 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const applyFiltersAndRender = () => {
-        const queryLower = currentFilters.query.toLowerCase();
-        const filtered = allRules.filter(rule => {
+        const queryLower = (currentFilters.query || '').toLowerCase();
+        const filtered = Array.isArray(allRules) ? allRules.filter(rule => {
+            if (!rule || typeof rule !== 'object') return false;
             const searchMatch = !queryLower || 
-                rule.name.toLowerCase().includes(queryLower) ||
-                (rule.tags && rule.tags.some(tag => tag.toLowerCase().includes(queryLower)));
+                (rule.name && rule.name.toLowerCase().includes(queryLower)) ||
+                (Array.isArray(rule.tags) && rule.tags.some(tag => typeof tag === 'string' && tag.toLowerCase().includes(queryLower)));
             const statusMatch = currentFilters.status === 'all' || 
                 (currentFilters.status === 'enabled' && rule.enabled) || 
                 (currentFilters.status === 'disabled' && !rule.enabled);
-            const triggerMatch = currentFilters.trigger === 'all' || rule.trigger.type === currentFilters.trigger;
+            const triggerMatch = currentFilters.trigger === 'all' || rule.trigger?.type === currentFilters.trigger;
             const targetTypeMatch = currentFilters.targetType === 'all' || rule.targetType === currentFilters.targetType;
 
             return searchMatch && statusMatch && triggerMatch && targetTypeMatch;
-        });
+        }) : [];
         renderRules(filtered);
     };
     
     const renderRules = (rulesToRender) => {
         const container = DOM['rules-list-container'];
-        const hasRules = allRules.length > 0;
+        const noRulesEl = DOM['no-rules-placeholder'];
+        const noResultsEl = DOM['no-results-placeholder'];
+        if (!container) return;
+
+        const hasRules = Array.isArray(allRules) && allRules.length > 0;
         
-        DOM['no-rules-placeholder'].style.display = !hasRules ? 'block' : 'none';
-        
-        if (!hasRules) {
-            DOM['no-rules-placeholder'].textContent = '';
-            DOM['no-rules-placeholder'].appendChild(createElement('span', 'icon icon-list'));
-            DOM['no-rules-placeholder'].appendChild(createElement('h3', null, 'No Automation Rules Found'));
-            DOM['no-rules-placeholder'].appendChild(createElement('p', null, 'Use the sidebar to "Add New Rule" and get started.'));
-            const learnMoreLink = createElement('a', null, 'Learn more about Automation Rules...');
-            learnMoreLink.href = 'https://sites.google.com/view/modcore-em-help/manage-extensions/rules-page';
-            learnMoreLink.target = '_blank';
-            learnMoreLink.rel = 'noopener noreferrer';
-            learnMoreLink.style.display = 'block';
-            learnMoreLink.style.marginTop = '12px';
-            DOM['no-rules-placeholder'].appendChild(learnMoreLink);
-            container.textContent = '';
-            ruleElementsCache.clear();
-            updateSelectAllCheckboxState();
-            return;
+        if (noRulesEl) {
+            noRulesEl.style.display = !hasRules ? 'block' : 'none';
+            if (!hasRules) {
+                noRulesEl.textContent = '';
+                noRulesEl.appendChild(createElement('span', 'icon icon-list'));
+                noRulesEl.appendChild(createElement('h3', null, 'No Automation Rules Found'));
+                noRulesEl.appendChild(createElement('p', null, 'Use the sidebar to "Add New Rule" and get started.'));
+                const learnMoreLink = createElement('a', null, 'Learn more about Automation Rules...');
+                learnMoreLink.href = 'https://sites.google.com/view/modcore-em-help/manage-extensions/rules-page';
+                learnMoreLink.target = '_blank';
+                learnMoreLink.rel = 'noopener noreferrer';
+                learnMoreLink.style.display = 'block';
+                learnMoreLink.style.marginTop = '12px';
+                noRulesEl.appendChild(learnMoreLink);
+                container.textContent = '';
+                ruleElementsCache.clear();
+                updateSelectAllCheckboxState();
+                return;
+            }
         }
 
-        // Use a DocumentFragment for batch DOM updates
         const fragment = createFragment();
         const newCache = new Map();
         
         rulesToRender.forEach(rule => {
+            if (!rule || !rule.id) return;
             const existingElement = ruleElementsCache.get(rule.id);
             const newElement = createRuleElement(rule);
             
             if (existingElement && existingElement.isConnected) {
-                // Efficient replacement
                 existingElement.replaceWith(newElement);
             } else {
                 fragment.appendChild(newElement);
@@ -509,14 +518,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             newCache.set(rule.id, newElement);
         });
         
-        // Remove elements for rules that are no longer rendered
         ruleElementsCache.forEach((element, ruleId) => {
-            if (!newCache.has(ruleId) && element.isConnected) {
+            if (!newCache.has(ruleId) && element && element.isConnected) {
                 element.remove();
             }
         });
         
-        // Append new elements
         if (fragment.childNodes.length > 0) {
             container.appendChild(fragment);
         }
@@ -524,19 +531,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         ruleElementsCache = newCache;
         
         const hasResults = container.children.length > 0;
-        DOM['no-results-placeholder'].style.display = hasRules && !hasResults ? 'block' : 'none';
-        
-        if (hasRules && !hasResults) {
-            DOM['no-results-placeholder'].textContent = '';
-            DOM['no-results-placeholder'].appendChild(createElement('span', 'icon icon-search'));
-            DOM['no-results-placeholder'].appendChild(createElement('h3', null, 'No Rules Match Your Search'));
-            DOM['no-results-placeholder'].appendChild(createElement('p', null, 'Try searching for a different name or adjusting your filters.'));
+        if (noResultsEl) {
+            noResultsEl.style.display = hasRules && !hasResults ? 'block' : 'none';
+            if (hasRules && !hasResults) {
+                noResultsEl.textContent = '';
+                noResultsEl.appendChild(createElement('span', 'icon icon-search'));
+                noResultsEl.appendChild(createElement('h3', null, 'No Rules Match Your Search'));
+                noResultsEl.appendChild(createElement('p', null, 'Try searching for a different name or adjusting your filters.'));
+            }
         }
 
         updateSelectAllCheckboxState();
     };
     
     const createRuleElement = (rule) => {
+        if (!rule) return createElement('tr');
         const tr = createElement('tr', 'rule-row');
         tr.dataset.ruleId = rule.id;
         if (selectedRuleIds.has(rule.id)) {
@@ -557,10 +566,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const nameText = createElement('span', 'rule-name-text', sanitizeText(rule.name));
         nameDiv.appendChild(nameText);
         
-        if (rule.tags && rule.tags.length > 0) {
+        if (Array.isArray(rule.tags) && rule.tags.length > 0) {
             const tagsDiv = createElement('div', 'tags-container');
             rule.tags.forEach(tagText => {
-                tagsDiv.appendChild(createElement('span', 'tag', sanitizeText(tagText)));
+                if (typeof tagText === 'string') {
+                    tagsDiv.appendChild(createElement('span', 'tag', sanitizeText(tagText)));
+                }
             });
             nameDiv.appendChild(tagsDiv);
         }
@@ -568,21 +579,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Trigger cell
         const tdTrigger = createElement('td', 'col-trigger');
-        if (rule.trigger.type === 'time') {
-            const days = rule.trigger.days.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ');
-            tdTrigger.appendChild(createConditionElement('icon-clock', `${rule.trigger.time} - ${days}`));
+        if (rule.trigger?.type === 'time') {
+            const days = (rule.trigger.days || []).map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ');
+            tdTrigger.appendChild(createConditionElement('icon-clock', `${rule.trigger.time || '00:00'} - ${days}`));
         } else {
-            tdTrigger.appendChild(createConditionElement('icon-url', rule.trigger.url));
+            tdTrigger.appendChild(createConditionElement('icon-url', rule.trigger?.url || ''));
         }
 
         // Targets cell
         const tdTargets = createElement('td', 'col-targets');
         let targetsText = '';
         if (rule.targetType === 'extension') {
-            const names = allExtensions.filter(ext => rule.targetIds.includes(ext.id)).map(ext => ext.name);
+            const names = (allExtensions || []).filter(ext => ext && Array.isArray(rule.targetIds) && rule.targetIds.includes(ext.id)).map(ext => ext.name);
             targetsText = names.join(', ') || 'None';
         } else if (rule.targetType === 'profile') {
-            const profile = allProfiles.find(p => p.id === rule.targetIds[0]);
+            const profile = (allProfiles || []).find(p => p && p.id === rule.targetIds?.[0]);
             targetsText = profile ? sanitizeText(profile.name) : 'Unknown';
         }
         tdTargets.textContent = targetsText;
@@ -609,26 +620,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const findConflictingRules = (newRule) => {
-        const relevantRules = allRules.filter(r => r.enabled && r.id !== newRule.id);
+        if (!newRule || !Array.isArray(allRules)) return [];
+        const relevantRules = allRules.filter(r => r && r.enabled && r.id !== newRule.id);
         const conflicts = [];
         
         for (const existingRule of relevantRules) {
+            if (!existingRule.trigger || !newRule.trigger) continue;
             let triggersOverlap = false;
             if (newRule.trigger.type === 'time' && existingRule.trigger.type === 'time') {
                 if (newRule.trigger.time === existingRule.trigger.time) {
-                    const commonDays = newRule.trigger.days.filter(day => existingRule.trigger.days.includes(day));
+                    const newDays = newRule.trigger.days || [];
+                    const existingDays = existingRule.trigger.days || [];
+                    const commonDays = newDays.filter(day => existingDays.includes(day));
                     if (commonDays.length > 0) triggersOverlap = true;
                 }
             } else if (newRule.trigger.type === 'url' && existingRule.trigger.type === 'url') {
-                const newUrl = newRule.trigger.url.toLowerCase();
-                const existingUrl = existingRule.trigger.url.toLowerCase();
+                const newUrl = (newRule.trigger.url || '').toLowerCase();
+                const existingUrl = (existingRule.trigger.url || '').toLowerCase();
                 if (newUrl.includes(existingUrl) || existingUrl.includes(newUrl)) triggersOverlap = true;
             }
             
             if (!triggersOverlap) continue;
             
             let hasConflict = false;
-            if (newRule.targetType === existingRule.targetType) {
+            if (newRule.targetType === existingRule.targetType && Array.isArray(newRule.targetIds) && Array.isArray(existingRule.targetIds)) {
                 const commonTargets = newRule.targetIds.filter(id => existingRule.targetIds.includes(id));
                 if (commonTargets.length > 0) {
                     if (newRule.targetType === 'extension' && newRule.action !== existingRule.action) {
@@ -644,9 +659,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         return conflicts;
     };
 
-    // --- Bulk Action Logic (ENHANCED) ---
+    // --- Bulk Action Logic ---
 
     const toggleRuleSelection = (ruleId, isChecked) => {
+        if (!ruleId) return;
         if (isChecked) {
             selectedRuleIds.add(ruleId);
         } else {
@@ -667,12 +683,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         if (countSpan) countSpan.textContent = `${count} selected`;
         
+        if (!bar) return;
         if (count > 0) {
             bar.style.display = 'flex';
             requestAnimationFrame(() => bar.classList.add('active'));
         } else {
             bar.classList.remove('active');
-            // Use transitionend for smooth hide
             const onTransitionEnd = () => {
                 if (!bar.classList.contains('active')) {
                     bar.style.display = 'none';
@@ -685,7 +701,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const updateSelectAllCheckboxState = () => {
         const checkbox = DOM['select-all-rules'];
-        const visibleRuleIds = Array.from(DOM['rules-list-container'].querySelectorAll('tr[data-rule-id]')).map(el => el.dataset.ruleId);
+        if (!checkbox) return;
+        const container = DOM['rules-list-container'];
+        const visibleRuleIds = container ? Array.from(container.querySelectorAll('tr[data-rule-id]')).map(el => el.dataset.ruleId) : [];
         
         if (visibleRuleIds.length === 0) {
             checkbox.checked = false;
@@ -721,7 +739,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!confirmed) return;
         }
 
-        const updatedRules = allRules.filter(r => !selectedRuleIds.has(r.id));
+        const updatedRules = Array.isArray(allRules) ? allRules.filter(r => r && !selectedRuleIds.has(r.id)) : [];
         const deletedCount = selectedRuleIds.size;
         selectedRuleIds.clear();
         
@@ -741,12 +759,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const confirmed = await showConfirmDialog(`Are you sure you want to ${actionText} ${selectedRuleIds.size} selected rule(s)?`);
         
         if (confirmed) {
-            const updatedRules = allRules.map(rule => {
-                if (selectedRuleIds.has(rule.id)) {
+            const updatedRules = Array.isArray(allRules) ? allRules.map(rule => {
+                if (rule && selectedRuleIds.has(rule.id)) {
                     return { ...rule, enabled: enable };
                 }
                 return rule;
-            });
+            }) : [];
             const affectedCount = selectedRuleIds.size;
             selectedRuleIds.clear();
             
@@ -770,50 +788,56 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        const selectedTargetType = DOM['rule-target-type-select'].value;
-        const selectedTargetIds = Array.from(DOM['target-selector-container'].querySelectorAll('input:checked')).map(cb => cb.value);
+        const selectedTargetType = DOM['rule-target-type-select']?.value || 'extension';
+        const selectedTargetIds = Array.from(DOM['target-selector-container']?.querySelectorAll('input:checked') || []).map(cb => cb.value);
 
         const ruleData = {
-            id: DOM['rule-id-input'].value || `rule_${Date.now()}`,
-            name: DOM['rule-name-input'].value.trim(),
-            tags: DOM['rule-tags-input'].value.split(',').map(tag => tag.trim()).filter(Boolean),
+            id: DOM['rule-id-input']?.value || `rule_${Date.now()}`,
+            name: DOM['rule-name-input']?.value?.trim() || '',
+            tags: (DOM['rule-tags-input']?.value || '').split(',').map(tag => tag.trim()).filter(Boolean),
             targetType: selectedTargetType,
             targetIds: selectedTargetIds,
-            action: DOM['rule-action-select'].value,
-            trigger: { type: DOM['trigger-type-select'].value },
-            enabled: allRules.find(r => r.id === DOM['rule-id-input'].value)?.enabled ?? true,
+            action: DOM['rule-action-select']?.value || 'enable',
+            trigger: { type: DOM['trigger-type-select']?.value || 'time' },
+            enabled: true,
         };
+
+        const existingRule = Array.isArray(allRules) ? allRules.find(r => r && r.id === (DOM['rule-id-input']?.value || '')) : null;
+        if (existingRule && existingRule.enabled === false) {
+            ruleData.enabled = false;
+        }
         
         if (ruleData.trigger.type === 'time') {
             const selectedDays = Array.from(document.querySelectorAll('.day-selector input:checked')).map(cb => parseInt(cb.value, 10));
-            ruleData.trigger.time = DOM['rule-time-input'].value;
+            ruleData.trigger.time = DOM['rule-time-input']?.value || '00:00';
             ruleData.trigger.days = selectedDays;
         } else {
-            ruleData.trigger.url = DOM['rule-url-input'].value.trim();
+            ruleData.trigger.url = (DOM['rule-url-input']?.value || '').trim();
         }
         
         const conflicts = findConflictingRules(ruleData);
         if (conflicts.length > 0) {
             if (settings.autoDisableConflicts) {
                 conflicts.forEach(r => {
-                    const idx = allRules.findIndex(rule => rule.id === r.id);
+                    if (!r) return;
+                    const idx = allRules.findIndex(rule => rule && rule.id === r.id);
                     if (idx !== -1) allRules[idx].enabled = false;
                 });
                 showToast(`Auto-disabled ${conflicts.length} conflicting rule(s).`, 'info');
             } else {
-                const names = conflicts.map(r => `"${sanitizeText(r.name)}"`).join(', ');
+                const names = conflicts.map(r => `"${sanitizeText(r?.name)}"`).join(', ');
                 showToast(`Conflicts with: ${names}. Disable them or enable auto-disable in Settings.`, 'error');
                 return;
             }
         }
 
-        const existingRuleIndex = allRules.findIndex(r => r.id === ruleData.id);
+        const existingRuleIndex = Array.isArray(allRules) ? allRules.findIndex(r => r && r.id === ruleData.id) : -1;
         let updatedRules;
         if (existingRuleIndex > -1) {
             updatedRules = [...allRules];
             updatedRules[existingRuleIndex] = ruleData;
         } else {
-            updatedRules = [...allRules, ruleData];
+            updatedRules = Array.isArray(allRules) ? [...allRules, ruleData] : [ruleData];
         }
 
         chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updatedRules }, () => {
@@ -827,13 +851,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const ruleRow = e.target.closest('tr[data-rule-id]');
         if (!ruleRow) return;
         const ruleId = ruleRow.dataset.ruleId;
+        if (!ruleId) return;
 
         if (e.target.closest('.edit-rule-btn')) {
-            const ruleToEdit = allRules.find(r => r.id === ruleId);
+            const ruleToEdit = Array.isArray(allRules) ? allRules.find(r => r && r.id === ruleId) : null;
             if (ruleToEdit) showRuleForm(ruleToEdit);
         } 
         else if (e.target.closest('.delete-rule-btn')) {
-            const ruleToDelete = allRules.find(r => r.id === ruleId);
+            const ruleToDelete = Array.isArray(allRules) ? allRules.find(r => r && r.id === ruleId) : null;
             if (!ruleToDelete) return;
             
             if (settings.confirmBeforeDelete) {
@@ -841,7 +866,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!confirmed) return;
             }
             
-            const updatedRules = allRules.filter(r => r.id !== ruleId);
+            const updatedRules = Array.isArray(allRules) ? allRules.filter(r => r && r.id !== ruleId) : [];
             selectedRuleIds.delete(ruleId);
             chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updatedRules }, () => {
                 refreshUI();
@@ -850,7 +875,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         else if (e.target.classList.contains('toggle-rule-btn')) {
             const toggleInput = e.target;
-            const ruleToToggle = allRules.find(r => r.id === ruleId);
+            const ruleToToggle = Array.isArray(allRules) ? allRules.find(r => r && r.id === ruleId) : null;
             if (ruleToToggle) {
                 ruleToToggle.enabled = toggleInput.checked;
                 toggleInput.setAttribute('aria-checked', toggleInput.checked);
@@ -868,13 +893,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const handleSearchInput = () => {
         clearTimeout(searchDebounceTimer);
         searchDebounceTimer = setTimeout(() => {
-            currentFilters.query = DOM['rule-search-input'].value;
+            currentFilters.query = DOM['rule-search-input']?.value || '';
             applyFiltersAndRender();
         }, 150);
     };
 
     const handleTargetTypeChange = () => {
-        const selectedType = DOM['rule-target-type-select'].value;
+        const selectedType = DOM['rule-target-type-select']?.value || 'extension';
         populateTargetSelector(selectedType);
         populateActionTypeSelect(selectedType);
         clearValidationError(DOM['target-selector-error']);
@@ -882,28 +907,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const handleTriggerTypeChange = () => {
-        const isTime = DOM['trigger-type-select'].value === 'time';
-        DOM['time-condition-fields'].style.display = isTime ? 'block' : 'none';
-        DOM['url-condition-fields'].style.display = isTime ? 'none' : 'block';
+        const isTime = DOM['trigger-type-select']?.value === 'time';
+        if (DOM['time-condition-fields']) DOM['time-condition-fields'].style.display = isTime ? 'block' : 'none';
+        if (DOM['url-condition-fields']) DOM['url-condition-fields'].style.display = isTime ? 'none' : 'block';
         clearAllValidationErrors();
     };
 
     // Filter Side Sheet
-    const openFilterSheet = () => DOM['filter-side-sheet'].classList.add('active');
-    const closeFilterSheet = () => DOM['filter-side-sheet'].classList.remove('active');
+    const openFilterSheet = () => {
+        if (DOM['filter-side-sheet']) DOM['filter-side-sheet'].classList.add('active');
+    };
+    const closeFilterSheet = () => {
+        if (DOM['filter-side-sheet']) DOM['filter-side-sheet'].classList.remove('active');
+    };
 
     const handleApplyFilters = () => {
-        currentFilters.status = DOM['filter-status-select'].value;
-        currentFilters.trigger = DOM['filter-trigger-select'].value;
-        currentFilters.targetType = DOM['filter-target-type-select'].value;
+        currentFilters.status = DOM['filter-status-select']?.value || 'all';
+        currentFilters.trigger = DOM['filter-trigger-select']?.value || 'all';
+        currentFilters.targetType = DOM['filter-target-type-select']?.value || 'all';
         applyFiltersAndRender();
         closeFilterSheet();
     };
 
     const handleResetFilters = () => {
-        DOM['filter-status-select'].value = 'all';
-        DOM['filter-trigger-select'].value = 'all';
-        DOM['filter-target-type-select'].value = 'all';
+        if (DOM['filter-status-select']) DOM['filter-status-select'].value = 'all';
+        if (DOM['filter-trigger-select']) DOM['filter-trigger-select'].value = 'all';
+        if (DOM['filter-target-type-select']) DOM['filter-target-type-select'].value = 'all';
         currentFilters = { query: currentFilters.query, status: 'all', trigger: 'all', targetType: 'all' };
         applyFiltersAndRender();
     };
@@ -911,6 +940,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- Panel Navigation Logic ---
 
     const setActivePanel = (panelId) => {
+        if (!panelId) return;
         DOM.panels.forEach(panel => {
             panel.classList.remove('active');
             panel.setAttribute('aria-hidden', 'true');
@@ -937,48 +967,51 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const showRuleForm = (ruleToEdit = null) => {
-        DOM['rule-form'].reset();
+        const form = DOM['rule-form'];
+        if (form) form.reset();
         clearAllValidationErrors();
         showStep(1);
         
-        DOM['time-condition-fields'].style.display = 'block';
-        DOM['url-condition-fields'].style.display = 'none';
+        if (DOM['time-condition-fields']) DOM['time-condition-fields'].style.display = 'block';
+        if (DOM['url-condition-fields']) DOM['url-condition-fields'].style.display = 'none';
         
-        DOM['target-selector-container'].textContent = '';
-        DOM.dayCheckboxes.forEach(cb => cb.checked = false);
+        if (DOM['target-selector-container']) DOM['target-selector-container'].textContent = '';
+        if (DOM.dayCheckboxes) DOM.dayCheckboxes.forEach(cb => cb.checked = false);
 
         if (ruleToEdit) {
-            DOM['form-panel-title'].textContent = 'Edit Rule';
-            DOM['rule-id-input'].value = ruleToEdit.id;
-            DOM['rule-name-input'].value = ruleToEdit.name;
-            DOM['rule-tags-input'].value = (ruleToEdit.tags || []).map(tag => sanitizeText(tag)).join(', ');
+            if (DOM['form-panel-title']) DOM['form-panel-title'].textContent = 'Edit Rule';
+            if (DOM['rule-id-input']) DOM['rule-id-input'].value = ruleToEdit.id || '';
+            if (DOM['rule-name-input']) DOM['rule-name-input'].value = ruleToEdit.name || '';
+            if (DOM['rule-tags-input']) DOM['rule-tags-input'].value = (Array.isArray(ruleToEdit.tags) ? ruleToEdit.tags : []).map(tag => sanitizeText(tag)).join(', ');
             
-            DOM['rule-target-type-select'].value = ruleToEdit.targetType;
-            populateTargetSelector(ruleToEdit.targetType, ruleToEdit.targetIds);
-            populateActionTypeSelect(ruleToEdit.targetType, ruleToEdit.action);
-            DOM['rule-action-select'].value = ruleToEdit.action;
+            if (DOM['rule-target-type-select']) DOM['rule-target-type-select'].value = ruleToEdit.targetType || 'extension';
+            populateTargetSelector(ruleToEdit.targetType || 'extension', Array.isArray(ruleToEdit.targetIds) ? ruleToEdit.targetIds : []);
+            populateActionTypeSelect(ruleToEdit.targetType || 'extension', ruleToEdit.action || 'enable');
+            if (DOM['rule-action-select']) DOM['rule-action-select'].value = ruleToEdit.action || 'enable';
 
-            DOM['trigger-type-select'].value = ruleToEdit.trigger.type;
+            if (DOM['trigger-type-select']) DOM['trigger-type-select'].value = ruleToEdit.trigger?.type || 'time';
             
-            if (ruleToEdit.trigger.type === 'time') {
-                DOM['rule-time-input'].value = ruleToEdit.trigger.time;
-                ruleToEdit.trigger.days.forEach(day => {
-                    const checkbox = document.querySelector(`.day-selector input[value="${day}"]`);
-                    if (checkbox) checkbox.checked = true;
-                });
+            if (ruleToEdit.trigger?.type === 'time') {
+                if (DOM['rule-time-input']) DOM['rule-time-input'].value = ruleToEdit.trigger.time || '';
+                if (Array.isArray(ruleToEdit.trigger.days)) {
+                    ruleToEdit.trigger.days.forEach(day => {
+                        const checkbox = document.querySelector(`.day-selector input[value="${day}"]`);
+                        if (checkbox) checkbox.checked = true;
+                    });
+                }
             } else {
-                DOM['rule-url-input'].value = ruleToEdit.trigger.url;
+                if (DOM['rule-url-input']) DOM['rule-url-input'].value = ruleToEdit.trigger?.url || '';
             }
         } else {
-            DOM['form-panel-title'].textContent = 'Create New Rule';
-            DOM['rule-id-input'].value = '';
-            DOM['rule-tags-input'].value = '';
+            if (DOM['form-panel-title']) DOM['form-panel-title'].textContent = 'Create New Rule';
+            if (DOM['rule-id-input']) DOM['rule-id-input'].value = '';
+            if (DOM['rule-tags-input']) DOM['rule-tags-input'].value = '';
             
-            DOM['rule-target-type-select'].value = settings.defaultTargetType;
-            populateTargetSelector(settings.defaultTargetType);
-            populateActionTypeSelect(settings.defaultTargetType);
+            if (DOM['rule-target-type-select']) DOM['rule-target-type-select'].value = settings.defaultTargetType || 'extension';
+            populateTargetSelector(settings.defaultTargetType || 'extension');
+            populateActionTypeSelect(settings.defaultTargetType || 'extension');
             
-            DOM['trigger-type-select'].value = settings.defaultTriggerType;
+            if (DOM['trigger-type-select']) DOM['trigger-type-select'].value = settings.defaultTriggerType || 'time';
         }
         
         handleTriggerTypeChange();
@@ -1006,7 +1039,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             toast.addEventListener('transitionend', onTransitionEnd);
         }, 3000);
         
-        // Store timer for potential early dismissal
         toast._dismissTimer = timer;
     };
 
