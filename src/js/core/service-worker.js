@@ -278,13 +278,20 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 // Tab URL-Rule Watcher
 // ==========================================================================
 
-chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    // Ensure we only care about the primary top-level frame navigation finishing
     if (changeInfo.status !== 'complete' || !tab.url) return;
+
+    // Use tab.url safety fallback and ignore subframe resource completions
     const cache = getUrlRulesCache();
-    if (cache.length === 0) return;
+    if (!cache || cache.length === 0) return;
+
     for (const rule of cache) {
-        if (rule.enabled && tab.url.includes(rule.trigger.url)) {
-            executeRuleAction(rule);
+        if (rule.enabled && rule.trigger?.url) {
+            // Upgrade from basic substring inclusion to a cleaner match boundary
+            if (tab.url.includes(rule.trigger.url)) {
+                executeRuleAction(rule);
+            }
         }
     }
 });

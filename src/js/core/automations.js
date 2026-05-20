@@ -6,89 +6,80 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const DEFAULT_SETTINGS = {
         confirmBeforeDelete: true,
-        autoDisableConflicts: false,
         defaultTargetType: 'extension',
         defaultTriggerType: 'time'
     };
 
-    // --- Global State ---
-    let allRules = [];
-    let allExtensions = [];
-    let allProfiles = [];
-    let currentActivePanelId = 'rules-list-panel';
-    let selectedRuleIds = new Set();
-    let currentFilters = { query: '', status: 'all', trigger: 'all', targetType: 'all' };
-    let settings = { ...DEFAULT_SETTINGS };
-    let searchDebounceTimer = null;
-    let isRefreshing = false;
-    let ruleElementsCache = new Map();
+    // --- State ---
+    const state = {
+        allRules: [],
+        allExtensions: [],
+        allProfiles: [],
+        allTags: new Set(),
+        selectedRuleIds: new Set(),
+        currentFilters: { query: '', status: 'all', trigger: 'all', targetType: 'all', tag: 'all' },
+        settings: { ...DEFAULT_SETTINGS },
+        isRefreshing: false,
+        ruleElementsCache: new Map(),
+        searchDebounceTimer: null,
+        currentStep: 1
+    };
 
-    // --- DOM Element Cache ---
+    // --- DOM Cache ---
     const DOM = {};
-    
     function cacheDOM() {
         const ids = [
-            'rules-list-container', 'no-rules-placeholder', 'no-results-placeholder',
-            'rule-search-input', 'select-all-rules', 'filter-btn',
+            'rules-list-container', 'empty-state', 'no-results-placeholder', 'table-wrapper',
+            'rules-count-badge', 'rule-search-input', 'select-all-rules', 'filter-btn',
             'filter-side-sheet', 'filter-sheet-overlay', 'close-filter-sheet',
             'apply-filters-btn', 'reset-filters-btn', 'filter-status-select',
             'filter-trigger-select', 'filter-target-type-select',
             'bulk-actions-bar', 'selected-rules-count', 'bulk-enable-btn',
             'bulk-disable-btn', 'bulk-delete-btn',
             'add-rule-panel', 'rule-form', 'form-panel-title', 'rule-id-input',
-            'rule-name-input', 'rule-tags-input', 'rule-target-type-select',
-            'target-selector-container', 'target-selector-label', 'rule-action-select',
-            'trigger-type-select', 'time-condition-fields', 'url-condition-fields',
-            'rule-time-input', 'rule-url-input',
+            'rule-name-input', 'rule-tags-input',
+            'trigger-conditions-container', 'add-trigger-condition-btn', 'trigger-error',
+            'actions-container', 'add-action-btn', 'actions-error',
             'step-1-next', 'step-2-back', 'step-2-next', 'step-3-back',
-            'rule-name-error', 'target-selector-error', 'rule-action-error',
-            'rule-time-error', 'day-selector-error', 'rule-url-error',
-            'toast-container', 'back-to-rules-list', 'cancel-rule-form',
-            'setting-confirm-delete', 'setting-auto-disable-conflicts',
-            'setting-default-target-type', 'setting-default-trigger-type',
-            'confirm-dialog-overlay', 'confirm-dialog-message', 'confirm-ok-btn', 'confirm-cancel-btn'
+            'rule-name-error', 'back-to-rules-list', 'cancel-rule-form',
+            'setting-confirm-delete', 'setting-default-target-type', 'setting-default-trigger-type',
+            'confirm-dialog-overlay', 'confirm-dialog-message', 'confirm-ok-btn', 'confirm-cancel-btn',
+            'toast-container', 'tag-filter-bar', 'tag-chips-container', 'clear-tag-filter',
+            'empty-state-add-btn', 'reset-all-filters-btn', 'save-rule-btn'
         ];
-        
-        ids.forEach(id => {
-            DOM[id] = document.getElementById(id);
-        });
-        
+        ids.forEach(id => { DOM[id] = document.getElementById(id); });
         DOM.panels = document.querySelectorAll('.content-panel');
         DOM.navButtons = document.querySelectorAll('.sidebar-button');
-        DOM.daySelector = document.querySelector('.day-selector');
-        DOM.dayCheckboxes = document.querySelectorAll('.day-selector input');
+        DOM.stepTabs = document.querySelectorAll('.form-step');
+        DOM.stepContents = document.querySelectorAll('.form-step-content');
     }
 
-    // --- Utility Functions ---
+    // --- Utilities ---
     function sanitizeText(str) {
-        if (str === null || typeof str === 'undefined') return '';
+        if (str == null) return '';
         const temp = document.createElement('div');
         temp.textContent = String(str);
         return temp.textContent;
     }
 
-    const createElement = (tag, className, textContent) => {
-        const element = document.createElement(tag);
-        if (className) element.className = className;
-        if (textContent !== undefined && textContent !== null) {
-            element.textContent = textContent;
-        }
-        return element;
-    };
+    function createElement(tag, className, textContent) {
+        const el = document.createElement(tag);
+        if (className) el.className = className;
+        if (textContent != null) el.textContent = textContent;
+        return el;
+    }
 
-    const createFragment = () => document.createDocumentFragment();
+    function createFragment() { return document.createDocumentFragment(); }
 
-    // --- Settings Logic ---
+    // --- Settings ---
     async function loadSettings() {
         try {
             const result = await chrome.storage.local.get(SETTINGS_KEY);
             const stored = result?.[SETTINGS_KEY] || {};
-            settings = { ...DEFAULT_SETTINGS, ...stored };
-
-            if (DOM['setting-confirm-delete']) DOM['setting-confirm-delete'].checked = settings.confirmBeforeDelete;
-            if (DOM['setting-auto-disable-conflicts']) DOM['setting-auto-disable-conflicts'].checked = settings.autoDisableConflicts;
-            if (DOM['setting-default-target-type']) DOM['setting-default-target-type'].value = settings.defaultTargetType;
-            if (DOM['setting-default-trigger-type']) DOM['setting-default-trigger-type'].value = settings.defaultTriggerType;
+            state.settings = { ...DEFAULT_SETTINGS, ...stored };
+            if (DOM['setting-confirm-delete']) DOM['setting-confirm-delete'].checked = state.settings.confirmBeforeDelete;
+            if (DOM['setting-default-target-type']) DOM['setting-default-target-type'].value = state.settings.defaultTargetType;
+            if (DOM['setting-default-trigger-type']) DOM['setting-default-trigger-type'].value = state.settings.defaultTriggerType;
         } catch (e) {
             console.error('Failed to load settings:', e);
         }
@@ -96,7 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function saveSettings() {
         try {
-            await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
+            await chrome.storage.local.set({ [SETTINGS_KEY]: state.settings });
             showToast('Settings saved.', 'success');
         } catch (e) {
             console.error('Failed to save settings:', e);
@@ -104,500 +95,205 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // --- Profile Loading ---
+    // --- Data Loading ---
     async function loadProfiles() {
         try {
-            const profilesData = await chrome.storage.local.get(PROFILES_STORAGE_KEY);
-            const raw = profilesData?.[PROFILES_STORAGE_KEY];
-            
-            if (raw && typeof raw === 'object' && !Array.isArray(raw) && raw.profiles) {
-                allProfiles = Object.values(raw.profiles);
-            } else {
-                allProfiles = [];
+            const data = await chrome.storage.local.get(PROFILES_STORAGE_KEY);
+            const raw = data?.[PROFILES_STORAGE_KEY];
+            let profiles = [];
+            if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+                if (raw.profiles && typeof raw.profiles === 'object') profiles = Object.values(raw.profiles);
+                else profiles = Object.values(raw).filter(v => v && typeof v === 'object' && v.id);
             }
-            
-            allProfiles = allProfiles.filter(p => p && typeof p === 'object').map(p => ({
+            state.allProfiles = profiles.filter(p => p && typeof p === 'object').map(p => ({
                 id: p.id || '',
                 name: typeof p.name === 'string' ? p.name : 'Unnamed',
                 extensionStates: p.extensionStates || {},
                 shortcut: p.shortcut || null,
                 icons: p.icons || null
-            }));
-            
-            allProfiles.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            })).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         } catch (e) {
             console.error('Failed to load profiles:', e);
-            allProfiles = [];
+            state.allProfiles = [];
         }
     }
 
-    // --- Helper Functions for DOM Manipulation & Validation ---
-
-    const createIconButton = (iconClass, buttonClass, ariaLabel) => {
-        const button = createElement('button', `btn-icon ${buttonClass}`);
-        button.setAttribute('aria-label', ariaLabel);
-        button.type = 'button';
-        const icon = createElement('span', `icon ${iconClass}`);
-        button.appendChild(icon);
-        return button;
-    };
-
-    const createToggleSwitch = (ruleId, isEnabled) => {
-        const label = createElement('label', 'toggle-switch');
-        label.setAttribute('aria-label', 'Enable or disable rule');
-        const input = createElement('input');
-        input.type = 'checkbox';
-        input.checked = !!isEnabled;
-        input.dataset.ruleId = ruleId;
-        input.classList.add('toggle-rule-btn');
-        input.setAttribute('role', 'switch');
-        input.setAttribute('aria-checked', !!isEnabled);
-        const slider = createElement('span', 'slider');
-        label.appendChild(input);
-        label.appendChild(slider);
-        return label;
-    };
-
-    const createConditionElement = (iconClass, text) => {
-        const condition = createElement('div', 'rule-condition');
-        const icon = createElement('span', `icon ${iconClass}`);
-        const textDiv = createElement('div', 'condition-text', sanitizeText(text));
-        condition.appendChild(icon);
-        condition.appendChild(textDiv);
-        return condition;
-    };
-
-    /** Populates the target selector based on type. */
-    const populateTargetSelector = (targetType, selectedIds = []) => {
-        const container = DOM['target-selector-container'];
-        if (!container) return;
-        container.textContent = '';
-        let items = [];
-        let labelText = '';
-
-        switch (targetType) {
-            case 'extension':
-                items = allExtensions || [];
-                labelText = 'Select Extensions';
-                break;
-            case 'profile':
-                items = allProfiles || [];
-                labelText = 'Select Profile (One only)';
-                break;
-        }
-
-        if (items.length === 0) {
-            const placeholder = createElement('p', 'placeholder-text', `No ${targetType}s found.`);
-            placeholder.style.textAlign = 'center';
-            placeholder.style.color = 'var(--color-text-secondary)';
-            placeholder.style.padding = 'var(--space-4)';
-            container.appendChild(placeholder);
-            if (DOM['target-selector-label']) DOM['target-selector-label'].textContent = labelText + ' *';
-            return;
-        }
-
-        const fragment = createFragment();
-        items.forEach(item => {
-            if (!item) return;
-            const id = item.id;
-            const name = item.name || 'Unnamed';
-            let itemImgSrc = DEFAULT_ICON_PLACEHOLDER;
-            if (item.icons && Array.isArray(item.icons) && item.icons.length > 0) {
-                const lastIcon = item.icons[item.icons.length - 1];
-                if (lastIcon?.url) itemImgSrc = lastIcon.url;
-            }
-
-            const itemDiv = createElement('div', 'extension-selector-item');
-            const input = createElement('input');
-            input.type = targetType === 'profile' ? 'radio' : 'checkbox';
-            input.name = 'target-item-selection';
-            input.id = `target-sel-${id}`;
-            input.value = id;
-            if (selectedIds && selectedIds.includes(id)) {
-                input.checked = true;
-            }
-            
-            const label = createElement('label');
-            label.htmlFor = input.id;
-            
-            const img = createElement('img');
-            img.src = itemImgSrc;
-            img.alt = `Icon for ${sanitizeText(name)}`;
-            img.onerror = function() { this.src = DEFAULT_ICON_PLACEHOLDER; };
-
-            label.appendChild(img);
-            label.appendChild(createElement('span', null, sanitizeText(name)));
-            itemDiv.appendChild(input);
-            itemDiv.appendChild(label);
-            fragment.appendChild(itemDiv);
-        });
-        
-        container.appendChild(fragment);
-        if (DOM['target-selector-label']) DOM['target-selector-label'].textContent = labelText + ' *';
-    };
-
-    /** Populates the action type select based on target type. */
-    const populateActionTypeSelect = (targetType, selectedAction = 'enable') => {
-        const select = DOM['rule-action-select'];
-        if (!select) return;
-        select.textContent = '';
-        let options = [];
-
-        if (targetType === 'extension') {
-            options = [
-                { value: 'enable', text: 'Enable' },
-                { value: 'disable', text: 'Disable' }
-            ];
-        } else if (targetType === 'profile') {
-            options = [
-                { value: 'apply', text: 'Apply Profile' }
-            ];
-        }
-
-        options.forEach(optionData => {
-            const option = createElement('option');
-            option.value = optionData.value;
-            option.textContent = optionData.text;
-            if (optionData.value === selectedAction) {
-                option.selected = true;
-            }
-            select.appendChild(option);
-        });
-    };
-
-    const showValidationError = (element, message) => {
-        if (!element) return;
-        element.textContent = message;
-        element.setAttribute('role', 'alert');
-        
-        if (element.id === 'target-selector-error') {
-            if (DOM['target-selector-container']) DOM['target-selector-container'].classList.add('invalid-border');
-        } else if (element.id === 'day-selector-error') {
-            if (DOM.daySelector) DOM.daySelector.style.borderColor = 'var(--color-danger)';
-        } else {
-            const prev = element.previousElementSibling;
-            if (prev && (prev.tagName === 'INPUT' || prev.tagName === 'SELECT')) {
-                prev.classList.add('invalid');
-            }
-        }
-    };
-
-    const clearValidationError = (element) => {
-        if (!element) return;
-        element.textContent = '';
-        element.removeAttribute('role');
-        
-        if (element.id === 'target-selector-error') {
-            if (DOM['target-selector-container']) DOM['target-selector-container'].classList.remove('invalid-border');
-        } else if (element.id === 'day-selector-error') {
-            if (DOM.daySelector) DOM.daySelector.style.borderColor = '';
-        } else {
-            const prev = element.previousElementSibling;
-            if (prev && (prev.tagName === 'INPUT' || prev.tagName === 'SELECT')) {
-                prev.classList.remove('invalid');
-            }
-        }
-    };
-
-    const clearAllValidationErrors = () => {
-        [
-            DOM['rule-name-error'], DOM['target-selector-error'], DOM['rule-action-error'],
-            DOM['rule-time-error'], DOM['day-selector-error'], DOM['rule-url-error']
-        ].forEach(clearValidationError);
-        
-        if (DOM['target-selector-container']) DOM['target-selector-container'].classList.remove('invalid-border');
-        if (DOM.daySelector) DOM.daySelector.style.borderColor = '';
-    };
-
-    /** Custom confirmation dialog. Returns a Promise. */
-    const showConfirmDialog = (message) => {
-        return new Promise((resolve) => {
-            const overlay = DOM['confirm-dialog-overlay'];
-            const msgEl = DOM['confirm-dialog-message'];
-            const okBtn = DOM['confirm-ok-btn'];
-            const cancelBtn = DOM['confirm-cancel-btn'];
-            
-            if (!overlay || !msgEl || !okBtn || !cancelBtn) {
-                resolve(confirm(message));
-                return;
-            }
-            
-            msgEl.textContent = message;
-            overlay.classList.add('active');
-            okBtn.focus();
-
-            const cleanup = (result) => {
-                overlay.classList.remove('active');
-                okBtn.removeEventListener('click', onConfirm);
-                cancelBtn.removeEventListener('click', onCancel);
-                document.removeEventListener('keydown', handleEsc);
-                resolve(result);
-            };
-
-            const onConfirm = () => cleanup(true);
-            const onCancel = () => cleanup(false);
-            const handleEsc = (e) => {
-                if (e.key === 'Escape') onCancel();
-            };
-
-            okBtn.addEventListener('click', onConfirm);
-            cancelBtn.addEventListener('click', onCancel);
-            document.addEventListener('keydown', handleEsc);
-        });
-    };
-
-    // --- Stepper Logic ---
-    let currentStep = 1;
-    const totalSteps = 3;
-
-    const showStep = (step) => {
-        currentStep = step;
-        document.querySelectorAll('.form-step').forEach((el, idx) => {
-            const stepNum = idx + 1;
-            el.classList.toggle('active', stepNum === step);
-            el.classList.toggle('completed', stepNum < step);
-        });
-        document.querySelectorAll('.form-step-content').forEach(el => {
-            const contentStep = parseInt(el.dataset.stepContent, 10);
-            el.classList.toggle('active', contentStep === step);
-        });
-    };
-
-    const validateStep = (step) => {
-        if (step === 1) {
-            const ruleName = DOM['rule-name-input']?.value?.trim() || '';
-            if (!ruleName) {
-                showValidationError(DOM['rule-name-error'], 'Rule name is required.');
-                return false;
-            }
-            const isNameTaken = Array.isArray(allRules) && allRules.some(r => 
-                r && r.name && r.name.toLowerCase() === ruleName.toLowerCase() && r.id !== (DOM['rule-id-input']?.value || ''));
-            if (isNameTaken) {
-                showValidationError(DOM['rule-name-error'], 'A rule with this name already exists.');
-                return false;
-            }
-            clearValidationError(DOM['rule-name-error']);
-            return true;
-        }
-        if (step === 2) {
-            const container = DOM['target-selector-container'];
-            if (!container) return false;
-            const selectedTargets = Array.from(container.querySelectorAll('input:checked')).map(cb => cb.value);
-            if (selectedTargets.length === 0) {
-                showValidationError(DOM['target-selector-error'], 'Please select at least one target.');
-                return false;
-            }
-            if (DOM['rule-target-type-select']?.value === 'profile' && selectedTargets.length > 1) {
-                showValidationError(DOM['target-selector-error'], 'Please select only one profile.');
-                return false;
-            }
-            clearValidationError(DOM['target-selector-error']);
-            clearValidationError(DOM['rule-action-error']);
-            return true;
-        }
-        if (step === 3) {
-            if (DOM['trigger-type-select']?.value === 'time') {
-                if (!DOM['rule-time-input']?.value) {
-                    showValidationError(DOM['rule-time-error'], 'Please select a time.');
-                    return false;
-                }
-                const days = Array.from(document.querySelectorAll('.day-selector input:checked')).map(cb => parseInt(cb.value, 10));
-                if (days.length === 0) {
-                    showValidationError(DOM['day-selector-error'], 'Please select at least one day.');
-                    return false;
-                }
-                clearValidationError(DOM['rule-time-error']);
-                clearValidationError(DOM['day-selector-error']);
-                return true;
-            } else {
-                if (!DOM['rule-url-input']?.value?.trim()) {
-                    showValidationError(DOM['rule-url-error'], 'URL cannot be empty.');
-                    return false;
-                }
-                clearValidationError(DOM['rule-url-error']);
-                return true;
-            }
-        }
-        return true;
-    };
-
-    // --- Data & UI Management ---
-
-    const refreshUI = async () => {
-        if (isRefreshing) return;
-        isRefreshing = true;
-        
+    async function refreshUI() {
+        if (state.isRefreshing) return;
+        state.isRefreshing = true;
         try {
-            // Load extensions
-            if (chrome.management && chrome.management.getSelf && chrome.management.getAll) {
+            if (chrome.management?.getAll) {
                 const self = await chrome.management.getSelf();
-                const extensions = await chrome.management.getAll();
-                allExtensions = extensions.filter(ext => ext && ext.type === 'extension' && ext.id !== self?.id);
+                const exts = await chrome.management.getAll();
+                state.allExtensions = exts.filter(ext => ext && ext.type === 'extension' && ext.id !== self?.id);
             } else {
-                allExtensions = [];
+                state.allExtensions = [];
             }
-            
-            // Load profiles
             await loadProfiles();
-
-            // Load rules
             const data = await chrome.storage.local.get(RULES_STORAGE_KEY);
-            allRules = Array.isArray(data?.[RULES_STORAGE_KEY]) ? data[RULES_STORAGE_KEY] : [];
-            
+            state.allRules = Array.isArray(data?.[RULES_STORAGE_KEY]) ? data[RULES_STORAGE_KEY] : [];
+            extractAllTags();
             applyFiltersAndRender();
             updateBulkActionBarVisibility();
             updateSelectAllCheckboxState();
         } catch (error) {
-            console.error('Error initializing the page:', error);
+            console.error('Error refreshing UI:', error);
             showToast('Error loading data. Please refresh.', 'error');
         } finally {
-            isRefreshing = false;
+            state.isRefreshing = false;
         }
-    };
+    }
 
-    const applyFiltersAndRender = () => {
-        const queryLower = (currentFilters.query || '').toLowerCase();
-        const filtered = Array.isArray(allRules) ? allRules.filter(rule => {
+    function extractAllTags() {
+        state.allTags.clear();
+        state.allRules.forEach(rule => {
+            if (Array.isArray(rule.tags)) {
+                rule.tags.forEach(t => { if (typeof t === 'string' && t.trim()) state.allTags.add(t.trim()); });
+            }
+        });
+        renderTagFilter();
+    }
+
+    // --- Tag Filter UI ---
+    function renderTagFilter() {
+        const container = DOM['tag-chips-container'];
+        const bar = DOM['tag-filter-bar'];
+        if (!container || !bar) return;
+        container.textContent = '';
+        if (state.allTags.size === 0) {
+            bar.style.display = 'none';
+            return;
+        }
+        bar.style.display = 'flex';
+        const sorted = Array.from(state.allTags).sort((a, b) => a.localeCompare(b));
+        sorted.forEach(tag => {
+            const chip = createElement('button', 'tag-chip', sanitizeText(tag));
+            chip.type = 'button';
+            chip.setAttribute('aria-pressed', 'false');
+            chip.dataset.tag = tag;
+            if (state.currentFilters.tag === tag) {
+                chip.classList.add('active');
+                chip.setAttribute('aria-pressed', 'true');
+            }
+            chip.addEventListener('click', () => {
+                state.currentFilters.tag = state.currentFilters.tag === tag ? 'all' : tag;
+                applyFiltersAndRender();
+                renderTagFilter();
+                updateSelectAllCheckboxState();
+            });
+            container.appendChild(chip);
+        });
+        const clearBtn = DOM['clear-tag-filter'];
+        if (clearBtn) {
+            clearBtn.style.display = state.currentFilters.tag !== 'all' ? 'flex' : 'none';
+        }
+    }
+
+    // --- Filtering & Rendering ---
+    function applyFiltersAndRender() {
+        const queryLower = (state.currentFilters.query || '').toLowerCase();
+        const filtered = state.allRules.filter(rule => {
             if (!rule || typeof rule !== 'object') return false;
-            const searchMatch = !queryLower || 
+            const searchMatch = !queryLower ||
                 (rule.name && rule.name.toLowerCase().includes(queryLower)) ||
-                (Array.isArray(rule.tags) && rule.tags.some(tag => typeof tag === 'string' && tag.toLowerCase().includes(queryLower)));
-            const statusMatch = currentFilters.status === 'all' || 
-                (currentFilters.status === 'enabled' && rule.enabled) || 
-                (currentFilters.status === 'disabled' && !rule.enabled);
-            const triggerMatch = currentFilters.trigger === 'all' || rule.trigger?.type === currentFilters.trigger;
-            const targetTypeMatch = currentFilters.targetType === 'all' || rule.targetType === currentFilters.targetType;
-
-            return searchMatch && statusMatch && triggerMatch && targetTypeMatch;
-        }) : [];
+                (Array.isArray(rule.tags) && rule.tags.some(t => typeof t === 'string' && t.toLowerCase().includes(queryLower)));
+            const statusMatch = state.currentFilters.status === 'all' ||
+                (state.currentFilters.status === 'enabled' && rule.enabled) ||
+                (state.currentFilters.status === 'disabled' && !rule.enabled);
+            const triggerMatch = state.currentFilters.trigger === 'all' ||
+                (state.currentFilters.trigger === 'compound' && rule.trigger?.type === 'compound') ||
+                (state.currentFilters.trigger === 'time' && (rule.trigger?.type === 'time' || rule.trigger?.conditions?.some(c => c.type === 'time'))) ||
+                (state.currentFilters.trigger === 'url' && (rule.trigger?.type === 'url' || rule.trigger?.conditions?.some(c => c.type === 'url')));
+            const targetTypeMatch = state.currentFilters.targetType === 'all' || getRuleTargetType(rule) === state.currentFilters.targetType;
+            const tagMatch = state.currentFilters.tag === 'all' ||
+                (Array.isArray(rule.tags) && rule.tags.some(t => t === state.currentFilters.tag));
+            return searchMatch && statusMatch && triggerMatch && targetTypeMatch && tagMatch;
+        });
         renderRules(filtered);
-    };
-    
-    const renderRules = (rulesToRender) => {
+    }
+
+    function getRuleTargetType(rule) {
+        if (Array.isArray(rule.actions) && rule.actions.length > 0) return rule.actions[0].targetType;
+        return rule.targetType || 'extension';
+    }
+
+    function renderRules(rulesToRender) {
         const container = DOM['rules-list-container'];
-        const noRulesEl = DOM['no-rules-placeholder'];
-        const noResultsEl = DOM['no-results-placeholder'];
+        const emptyState = DOM['empty-state'];
+        const noResults = DOM['no-results-placeholder'];
+        const tableWrapper = DOM['table-wrapper'];
+        const countBadge = DOM['rules-count-badge'];
         if (!container) return;
 
-        const hasRules = Array.isArray(allRules) && allRules.length > 0;
-        
-        if (noRulesEl) {
-            noRulesEl.style.display = !hasRules ? 'block' : 'none';
-            if (!hasRules) {
-                noRulesEl.textContent = '';
-                noRulesEl.appendChild(createElement('span', 'icon icon-list'));
-                noRulesEl.appendChild(createElement('h3', null, 'No Automation Rules Found'));
-                noRulesEl.appendChild(createElement('p', null, 'Use the sidebar to "Add New Rule" and get started.'));
-                const learnMoreLink = createElement('a', null, 'Learn more about Automation Rules...');
-                learnMoreLink.href = 'https://sites.google.com/view/modcore-em-help/manage-extensions/rules-page';
-                learnMoreLink.target = '_blank';
-                learnMoreLink.rel = 'noopener noreferrer';
-                learnMoreLink.style.display = 'block';
-                learnMoreLink.style.marginTop = '12px';
-                noRulesEl.appendChild(learnMoreLink);
-                container.textContent = '';
-                ruleElementsCache.clear();
-                updateSelectAllCheckboxState();
-                return;
-            }
+        const hasRules = state.allRules.length > 0;
+        const hasResults = rulesToRender.length > 0;
+
+        if (countBadge) countBadge.textContent = hasRules ? String(state.allRules.length) : '';
+
+        if (emptyState) emptyState.style.display = !hasRules ? 'flex' : 'none';
+        if (tableWrapper) tableWrapper.style.display = hasRules ? 'block' : 'none';
+        if (noResults) noResults.style.display = hasRules && !hasResults ? 'block' : 'none';
+        if (!hasRules) {
+            container.textContent = '';
+            state.ruleElementsCache.clear();
+            updateSelectAllCheckboxState();
+            return;
         }
 
         const fragment = createFragment();
         const newCache = new Map();
-        
-        rulesToRender.forEach(rule => {
-            if (!rule || !rule.id) return;
-            const existingElement = ruleElementsCache.get(rule.id);
-            const newElement = createRuleElement(rule);
-            
-            if (existingElement && existingElement.isConnected) {
-                existingElement.replaceWith(newElement);
-            } else {
-                fragment.appendChild(newElement);
-            }
-            newCache.set(rule.id, newElement);
-        });
-        
-        ruleElementsCache.forEach((element, ruleId) => {
-            if (!newCache.has(ruleId) && element && element.isConnected) {
-                element.remove();
-            }
-        });
-        
-        if (fragment.childNodes.length > 0) {
-            container.appendChild(fragment);
-        }
-        
-        ruleElementsCache = newCache;
-        
-        const hasResults = container.children.length > 0;
-        if (noResultsEl) {
-            noResultsEl.style.display = hasRules && !hasResults ? 'block' : 'none';
-            if (hasRules && !hasResults) {
-                noResultsEl.textContent = '';
-                noResultsEl.appendChild(createElement('span', 'icon icon-search'));
-                noResultsEl.appendChild(createElement('h3', null, 'No Rules Match Your Search'));
-                noResultsEl.appendChild(createElement('p', null, 'Try searching for a different name or adjusting your filters.'));
-            }
-        }
 
+        rulesToRender.forEach(rule => {
+            if (!rule?.id) return;
+            const existing = state.ruleElementsCache.get(rule.id);
+            const el = createRuleElement(rule);
+            if (existing && existing.isConnected) existing.replaceWith(el);
+            else fragment.appendChild(el);
+            newCache.set(rule.id, el);
+        });
+
+        state.ruleElementsCache.forEach((el, id) => {
+            if (!newCache.has(id) && el?.isConnected) el.remove();
+        });
+
+        if (fragment.childNodes.length > 0) container.appendChild(fragment);
+        state.ruleElementsCache = newCache;
         updateSelectAllCheckboxState();
-    };
-    
-    const createRuleElement = (rule) => {
-        if (!rule) return createElement('tr');
+    }
+
+    function createRuleElement(rule) {
         const tr = createElement('tr', 'rule-row');
         tr.dataset.ruleId = rule.id;
-        if (selectedRuleIds.has(rule.id)) {
-            tr.classList.add('selected');
-        }
+        if (state.selectedRuleIds.has(rule.id)) tr.classList.add('selected');
 
-        // Checkbox cell
+        // Select cell
         const tdSelect = createElement('td', 'col-select');
-        const checkbox = createElement('input', 'rule-select-checkbox');
-        checkbox.type = 'checkbox';
-        checkbox.checked = selectedRuleIds.has(rule.id);
-        checkbox.setAttribute('aria-label', `Select rule ${sanitizeText(rule.name)}`);
-        tdSelect.appendChild(checkbox);
+        const cb = createElement('input', 'rule-select-checkbox');
+        cb.type = 'checkbox';
+        cb.checked = state.selectedRuleIds.has(rule.id);
+        cb.setAttribute('aria-label', `Select rule ${sanitizeText(rule.name)}`);
+        tdSelect.appendChild(cb);
 
         // Name cell
         const tdName = createElement('td', 'col-name');
         const nameDiv = createElement('div', 'rule-name-cell');
         const nameText = createElement('span', 'rule-name-text', sanitizeText(rule.name));
         nameDiv.appendChild(nameText);
-        
         if (Array.isArray(rule.tags) && rule.tags.length > 0) {
             const tagsDiv = createElement('div', 'tags-container');
-            rule.tags.forEach(tagText => {
-                if (typeof tagText === 'string') {
-                    tagsDiv.appendChild(createElement('span', 'tag', sanitizeText(tagText)));
-                }
-            });
+            rule.tags.forEach(t => { if (typeof t === 'string') tagsDiv.appendChild(createElement('span', 'tag', sanitizeText(t))); });
             nameDiv.appendChild(tagsDiv);
         }
         tdName.appendChild(nameDiv);
 
         // Trigger cell
         const tdTrigger = createElement('td', 'col-trigger');
-        if (rule.trigger?.type === 'time') {
-            const days = (rule.trigger.days || []).map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ');
-            tdTrigger.appendChild(createConditionElement('icon-clock', `${rule.trigger.time || '00:00'} - ${days}`));
-        } else {
-            tdTrigger.appendChild(createConditionElement('icon-url', rule.trigger?.url || ''));
-        }
+        tdTrigger.appendChild(buildTriggerSummary(rule.trigger));
 
         // Targets cell
         const tdTargets = createElement('td', 'col-targets');
-        let targetsText = '';
-        if (rule.targetType === 'extension') {
-            const names = (allExtensions || []).filter(ext => ext && Array.isArray(rule.targetIds) && rule.targetIds.includes(ext.id)).map(ext => ext.name);
-            targetsText = names.join(', ') || 'None';
-        } else if (rule.targetType === 'profile') {
-            const profile = (allProfiles || []).find(p => p && p.id === rule.targetIds?.[0]);
-            targetsText = profile ? sanitizeText(profile.name) : 'Unknown';
-        }
-        tdTargets.textContent = targetsText;
-        tdTargets.title = targetsText;
+        tdTargets.textContent = buildTargetsSummary(rule);
+        tdTargets.title = tdTargets.textContent;
 
         // Status cell
         const tdStatus = createElement('td', 'col-status');
@@ -617,227 +313,706 @@ document.addEventListener('DOMContentLoaded', async () => {
         tr.appendChild(tdStatus);
         tr.appendChild(tdActions);
         return tr;
-    };
+    }
 
-    const findConflictingRules = (newRule) => {
-        if (!newRule || !Array.isArray(allRules)) return [];
-        const relevantRules = allRules.filter(r => r && r.enabled && r.id !== newRule.id);
-        const conflicts = [];
-        
-        for (const existingRule of relevantRules) {
-            if (!existingRule.trigger || !newRule.trigger) continue;
-            let triggersOverlap = false;
-            if (newRule.trigger.type === 'time' && existingRule.trigger.type === 'time') {
-                if (newRule.trigger.time === existingRule.trigger.time) {
-                    const newDays = newRule.trigger.days || [];
-                    const existingDays = existingRule.trigger.days || [];
-                    const commonDays = newDays.filter(day => existingDays.includes(day));
-                    if (commonDays.length > 0) triggersOverlap = true;
-                }
-            } else if (newRule.trigger.type === 'url' && existingRule.trigger.type === 'url') {
-                const newUrl = (newRule.trigger.url || '').toLowerCase();
-                const existingUrl = (existingRule.trigger.url || '').toLowerCase();
-                if (newUrl.includes(existingUrl) || existingUrl.includes(newUrl)) triggersOverlap = true;
+    function buildTriggerSummary(trigger) {
+        if (!trigger) return createElement('span', null, '—');
+        if (trigger.type === 'compound' && Array.isArray(trigger.conditions)) {
+            const wrapper = createElement('div', 'rule-condition');
+            const count = trigger.conditions.length;
+            const icon = createElement('span', 'icon icon-clock'); // generic
+            const text = createElement('div', 'condition-text', `${count} condition${count !== 1 ? 's' : ''} (AND)`);
+            wrapper.appendChild(icon);
+            wrapper.appendChild(text);
+            return wrapper;
+        }
+        if (trigger.type === 'time') {
+            const days = (trigger.days || []).map(d => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d]).join(', ');
+            return createConditionElement('icon-clock', `${trigger.time || '00:00'} — ${days}`);
+        }
+        if (trigger.type === 'url') {
+            return createConditionElement('icon-url', trigger.url || '');
+        }
+        return createElement('span', null, '—');
+    }
+
+    function buildTargetsSummary(rule) {
+        const actions = Array.isArray(rule.actions) ? rule.actions : [{ type: rule.action, targetType: rule.targetType, targetIds: rule.targetIds }];
+        const parts = [];
+        actions.forEach(action => {
+            if (!action?.targetIds?.length) return;
+            if (action.targetType === 'extension') {
+                const names = state.allExtensions.filter(ext => action.targetIds.includes(ext.id)).map(ext => ext.name);
+                parts.push(names.join(', ') || 'Unknown extensions');
+            } else if (action.targetType === 'profile') {
+                const p = state.allProfiles.find(pr => pr.id === action.targetIds[0]);
+                parts.push(p ? sanitizeText(p.name) : 'Unknown profile');
             }
-            
-            if (!triggersOverlap) continue;
-            
-            let hasConflict = false;
-            if (newRule.targetType === existingRule.targetType && Array.isArray(newRule.targetIds) && Array.isArray(existingRule.targetIds)) {
-                const commonTargets = newRule.targetIds.filter(id => existingRule.targetIds.includes(id));
-                if (commonTargets.length > 0) {
-                    if (newRule.targetType === 'extension' && newRule.action !== existingRule.action) {
-                        hasConflict = true;
-                    } else if (newRule.targetType === 'profile' && newRule.action === 'apply' && existingRule.action === 'apply') {
-                        hasConflict = true;
+        });
+        return parts.join('; ') || '—';
+    }
+
+    function createConditionElement(iconClass, text) {
+        const wrap = createElement('div', 'rule-condition');
+        const icon = createElement('span', `icon ${iconClass}`);
+        const txt = createElement('div', 'condition-text', sanitizeText(text));
+        wrap.appendChild(icon);
+        wrap.appendChild(txt);
+        return wrap;
+    }
+
+    function createIconButton(iconClass, btnClass, ariaLabel) {
+        const btn = createElement('button', `btn-icon ${btnClass}`);
+        btn.setAttribute('aria-label', ariaLabel);
+        btn.type = 'button';
+        const icon = createElement('span', `icon ${iconClass}`);
+        btn.appendChild(icon);
+        return btn;
+    }
+
+    function createToggleSwitch(ruleId, isEnabled) {
+        const label = createElement('label', 'toggle-switch');
+        label.setAttribute('aria-label', isEnabled ? 'Disable rule' : 'Enable rule');
+        const input = createElement('input');
+        input.type = 'checkbox';
+        input.checked = !!isEnabled;
+        input.dataset.ruleId = ruleId;
+        input.classList.add('toggle-rule-btn');
+        input.setAttribute('role', 'switch');
+        input.setAttribute('aria-checked', !!isEnabled);
+        const slider = createElement('span', 'slider');
+        label.appendChild(input);
+        label.appendChild(slider);
+        return label;
+    }
+
+    // --- Stepper Logic ---
+    function showStep(step) {
+        state.currentStep = step;
+        DOM.stepTabs.forEach((tab, idx) => {
+            const num = idx + 1;
+            tab.classList.toggle('active', num === step);
+            tab.classList.toggle('completed', num < step);
+            tab.setAttribute('aria-selected', num === step);
+        });
+        DOM.stepContents.forEach(content => {
+            const contentStep = parseInt(content.dataset.stepContent, 10);
+            content.classList.toggle('active', contentStep === step);
+        });
+        // Focus management
+        if (step === 1) DOM['rule-name-input']?.focus();
+        else if (step === 2) DOM['add-trigger-condition-btn']?.focus();
+        else if (step === 3) DOM['add-action-btn']?.focus();
+    }
+
+    function validateStep(step) {
+        clearValidationError(DOM['rule-name-error']);
+        clearValidationError(DOM['trigger-error']);
+        clearValidationError(DOM['actions-error']);
+
+        if (step === 1) {
+            const name = DOM['rule-name-input']?.value?.trim();
+            if (!name) {
+                showValidationError(DOM['rule-name-error'], 'Rule name is required.');
+                return false;
+            }
+            const isTaken = state.allRules.some(r => r && r.name && r.name.toLowerCase() === name.toLowerCase() && r.id !== (DOM['rule-id-input']?.value || ''));
+            if (isTaken) {
+                showValidationError(DOM['rule-name-error'], 'A rule with this name already exists.');
+                return false;
+            }
+            return true;
+        }
+        if (step === 2) {
+            const conditions = collectConditionsFromForm();
+            if (conditions.length === 0) {
+                showValidationError(DOM['trigger-error'], 'Add at least one trigger condition.');
+                return false;
+            }
+            for (const c of conditions) {
+                if (c.type === 'time' && !c.time) {
+                    showValidationError(DOM['trigger-error'], 'Time is required for all time conditions.');
+                    return false;
+                }
+                if (c.type === 'time_range' && (!c.startTime || !c.endTime)) {
+                    showValidationError(DOM['trigger-error'], 'Start and end times are required for time ranges.');
+                    return false;
+                }
+                if (c.type === 'url' && !c.url?.trim()) {
+                    showValidationError(DOM['trigger-error'], 'URL is required for all URL conditions.');
+                    return false;
+                }
+                if ((c.type === 'time' || c.type === 'time_range') && (!c.days || c.days.length === 0)) {
+                    showValidationError(DOM['trigger-error'], 'Select at least one day for each time condition.');
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (step === 3) {
+            const actions = collectActionsFromForm();
+            if (actions.length === 0) {
+                showValidationError(DOM['actions-error'], 'Add at least one action.');
+                return false;
+            }
+            for (const a of actions) {
+                if (!a.targetIds || a.targetIds.length === 0) {
+                    showValidationError(DOM['actions-error'], 'Each action must have at least one target selected.');
+                    return false;
+                }
+                if (a.targetType === 'profile' && a.targetIds.length > 1) {
+                    showValidationError(DOM['actions-error'], 'Profile actions must select only one profile.');
+                    return false;
+                }
+            }
+            return true;
+        }
+        return true;
+    }
+
+    // --- Form Builders: Triggers ---
+    function renderConditions(conditions = []) {
+        const container = DOM['trigger-conditions-container'];
+        if (!container) return;
+        container.textContent = '';
+        conditions.forEach((c, i) => {
+            if (i > 0) container.appendChild(createAndConnector());
+            container.appendChild(createConditionCard(c, i));
+        });
+        updateConditionBadges();
+    }
+
+    function createAndConnector() {
+        const div = createElement('div', 'and-connector');
+        div.textContent = 'AND';
+        return div;
+    }
+
+    function createConditionCard(condition = {}, index) {
+        const card = createElement('div', 'condition-card');
+        card.dataset.index = index;
+
+        const header = createElement('div', 'condition-header');
+        const badge = createElement('span', 'condition-type-badge', `Condition ${index + 1}`);
+        const removeBtn = createIconButton('icon-trash', 'remove-condition-btn', 'Remove condition');
+        if (document.querySelectorAll('.condition-card').length <= 0) {
+            // Always allow removal if we will enforce min 1 elsewhere
+        }
+        header.appendChild(badge);
+        header.appendChild(removeBtn);
+
+        const body = createElement('div', 'condition-body');
+
+        // Type select
+        const typeGroup = createElement('div', 'form-group');
+        const typeLabel = createElement('label', 'form-label', 'Type');
+        const typeSelect = createElement('select', 'condition-type-select');
+        typeSelect.innerHTML = `
+            <option value="time" ${condition.type === 'time' ? 'selected' : ''}>Specific Time</option>
+            <option value="time_range" ${condition.type === 'time_range' ? 'selected' : ''}>Time Range</option>
+            <option value="url" ${condition.type === 'url' ? 'selected' : ''}>URL Match</option>
+        `;
+        typeGroup.appendChild(typeLabel);
+        typeGroup.appendChild(typeSelect);
+
+        const dynamicArea = createElement('div', 'condition-dynamic-area');
+        const renderDynamic = () => {
+            dynamicArea.textContent = '';
+            const type = typeSelect.value;
+            if (type === 'time') {
+                dynamicArea.appendChild(buildTimeFields(condition));
+            } else if (type === 'time_range') {
+                dynamicArea.appendChild(buildTimeRangeFields(condition));
+            } else if (type === 'url') {
+                dynamicArea.appendChild(buildUrlFields(condition));
+            }
+        };
+        typeSelect.addEventListener('change', renderDynamic);
+        renderDynamic();
+
+        body.appendChild(typeGroup);
+        body.appendChild(dynamicArea);
+        card.appendChild(header);
+        card.appendChild(body);
+
+        removeBtn.addEventListener('click', () => {
+            const cards = document.querySelectorAll('.condition-card');
+            if (cards.length <= 1) {
+                showToast('A rule needs at least one condition.', 'error');
+                return;
+            }
+            card.remove();
+            updateConditionBadges();
+        });
+
+        return card;
+    }
+
+    function buildTimeFields(condition = {}) {
+        const wrap = createElement('div', 'condition-row');
+        const timeGroup = createElement('div', 'form-group');
+        timeGroup.innerHTML = `<label class="form-label">Time <span aria-hidden="true">*</span></label>`;
+        const timeInput = createElement('input');
+        timeInput.type = 'time';
+        timeInput.className = 'condition-time-input';
+        timeInput.value = condition.time || '';
+        timeInput.required = true;
+        timeGroup.appendChild(timeInput);
+
+        const daysGroup = createElement('div', 'form-group');
+        daysGroup.innerHTML = `<label class="form-label">Days <span aria-hidden="true">*</span></label>`;
+        const daySelector = createElement('div', 'day-selector');
+        const days = condition.days || [];
+        const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        dayNames.forEach((name, val) => {
+            const cb = createElement('input');
+            cb.type = 'checkbox';
+            cb.value = val;
+            cb.id = `cond-day-${val}-${Math.random().toString(36).slice(2,7)}`;
+            cb.checked = days.includes(val);
+            const lbl = createElement('label', null, name);
+            lbl.htmlFor = cb.id;
+            daySelector.appendChild(cb);
+            daySelector.appendChild(lbl);
+        });
+        daysGroup.appendChild(daySelector);
+        wrap.appendChild(timeGroup);
+        wrap.appendChild(daysGroup);
+        return wrap;
+    }
+
+    function buildTimeRangeFields(condition = {}) {
+        const wrap = createElement('div', 'condition-row');
+        const startGroup = createElement('div', 'form-group');
+        startGroup.innerHTML = `<label class="form-label">Start <span aria-hidden="true">*</span></label>`;
+        const startInput = createElement('input');
+        startInput.type = 'time';
+        startInput.className = 'condition-start-time-input';
+        startInput.value = condition.startTime || '';
+        startGroup.appendChild(startInput);
+
+        const endGroup = createElement('div', 'form-group');
+        endGroup.innerHTML = `<label class="form-label">End <span aria-hidden="true">*</span></label>`;
+        const endInput = createElement('input');
+        endInput.type = 'time';
+        endInput.className = 'condition-end-time-input';
+        endInput.value = condition.endTime || '';
+        endGroup.appendChild(endInput);
+
+        const daysGroup = createElement('div', 'form-group');
+        daysGroup.innerHTML = `<label class="form-label">Days <span aria-hidden="true">*</span></label>`;
+        const daySelector = createElement('div', 'day-selector');
+        const days = condition.days || [];
+        const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        dayNames.forEach((name, val) => {
+            const cb = createElement('input');
+            cb.type = 'checkbox';
+            cb.value = val;
+            cb.id = `range-day-${val}-${Math.random().toString(36).slice(2,7)}`;
+            cb.checked = days.includes(val);
+            const lbl = createElement('label', null, name);
+            lbl.htmlFor = cb.id;
+            daySelector.appendChild(cb);
+            daySelector.appendChild(lbl);
+        });
+        daysGroup.appendChild(daySelector);
+
+        wrap.appendChild(startGroup);
+        wrap.appendChild(endGroup);
+        wrap.appendChild(daysGroup);
+        return wrap;
+    }
+
+    function buildUrlFields(condition = {}) {
+        const wrap = createElement('div', 'condition-row');
+        const urlGroup = createElement('div', 'form-group');
+        urlGroup.style.flex = '2';
+        urlGroup.innerHTML = `<label class="form-label">URL or Domain <span aria-hidden="true">*</span></label>`;
+        const urlInput = createElement('input');
+        urlInput.type = 'text';
+        urlInput.className = 'condition-url-input';
+        urlInput.placeholder = 'e.g., github.com or https://developer.chrome.com';
+        urlInput.value = condition.url || '';
+        urlGroup.appendChild(urlInput);
+
+        const matchGroup = createElement('div', 'form-group');
+        matchGroup.innerHTML = `<label class="form-label">Match</label>`;
+        const matchSelect = createElement('select', 'condition-match-type-select');
+        matchSelect.innerHTML = `
+            <option value="contains" ${condition.matchType === 'contains' || !condition.matchType ? 'selected' : ''}>Contains</option>
+            <option value="exact" ${condition.matchType === 'exact' ? 'selected' : ''}>Exact</option>
+            <option value="startsWith" ${condition.matchType === 'startsWith' ? 'selected' : ''}>Starts with</option>
+            <option value="regex" ${condition.matchType === 'regex' ? 'selected' : ''}>Regex</option>
+        `;
+        matchGroup.appendChild(matchSelect);
+
+        wrap.appendChild(urlGroup);
+        wrap.appendChild(matchGroup);
+        return wrap;
+    }
+
+    function updateConditionBadges() {
+        document.querySelectorAll('.condition-card').forEach((card, i) => {
+            const badge = card.querySelector('.condition-type-badge');
+            if (badge) badge.textContent = `Condition ${i + 1}`;
+        });
+    }
+
+    function collectConditionsFromForm() {
+        return Array.from(document.querySelectorAll('.condition-card')).map(card => {
+            const type = card.querySelector('.condition-type-select')?.value || 'time';
+            const base = { type };
+            if (type === 'time') {
+                base.time = card.querySelector('.condition-time-input')?.value || '';
+                base.days = Array.from(card.querySelectorAll('.day-selector input:checked')).map(cb => parseInt(cb.value, 10));
+            } else if (type === 'time_range') {
+                base.startTime = card.querySelector('.condition-start-time-input')?.value || '';
+                base.endTime = card.querySelector('.condition-end-time-input')?.value || '';
+                base.days = Array.from(card.querySelectorAll('.day-selector input:checked')).map(cb => parseInt(cb.value, 10));
+            } else if (type === 'url') {
+                base.url = (card.querySelector('.condition-url-input')?.value || '').trim();
+                base.matchType = card.querySelector('.condition-match-type-select')?.value || 'contains';
+            }
+            return base;
+        }).filter(c => {
+            if (c.type === 'time') return c.time;
+            if (c.type === 'time_range') return c.startTime && c.endTime;
+            if (c.type === 'url') return c.url;
+            return false;
+        });
+    }
+
+    // --- Form Builders: Actions ---
+    function renderActions(actions = []) {
+        const container = DOM['actions-container'];
+        if (!container) return;
+        container.textContent = '';
+        actions.forEach((a, i) => {
+            container.appendChild(createActionCard(a, i));
+        });
+        updateActionNumbers();
+    }
+
+    function createActionCard(action = {}, index) {
+        const card = createElement('div', 'action-card');
+        card.dataset.index = index;
+
+        const header = createElement('div', 'action-header');
+        const badge = createElement('span', 'action-number-badge', `Action ${index + 1}`);
+        const removeBtn = createIconButton('icon-trash', 'remove-action-btn', 'Remove action');
+        header.appendChild(badge);
+        header.appendChild(removeBtn);
+
+        const body = createElement('div', 'action-body');
+
+        // Target type
+        const typeRow = createElement('div', 'action-row');
+        const typeGroup = createElement('div', 'form-group');
+        typeGroup.innerHTML = `<label class="form-label">Target Type <span aria-hidden="true">*</span></label>`;
+        const typeSelect = createElement('select', 'action-target-type-select');
+        typeSelect.innerHTML = `
+            <option value="extension" ${action.targetType === 'extension' ? 'selected' : ''}>Extensions</option>
+            <option value="profile" ${action.targetType === 'profile' ? 'selected' : ''}>Profile</option>
+        `;
+        typeGroup.appendChild(typeSelect);
+
+        // Action type
+        const actGroup = createElement('div', 'form-group');
+        actGroup.innerHTML = `<label class="form-label">Action <span aria-hidden="true">*</span></label>`;
+        const actSelect = createElement('select', 'action-type-select');
+        actSelect.innerHTML = `
+            <option value="enable" ${action.type === 'enable' ? 'selected' : ''}>Enable</option>
+            <option value="disable" ${action.type === 'disable' ? 'selected' : ''}>Disable</option>
+            <option value="apply" ${action.type === 'apply' ? 'selected' : ''}>Apply</option>
+        `;
+        actGroup.appendChild(actSelect);
+
+        typeRow.appendChild(typeGroup);
+        typeRow.appendChild(actGroup);
+        body.appendChild(typeRow);
+
+        // Target selector
+        const targetGroup = createElement('div', 'form-group');
+        targetGroup.innerHTML = `<label class="form-label">Select Targets <span aria-hidden="true">*</span></label>`;
+        const targetContainer = createElement('div', 'mini-target-selector');
+        targetContainer.dataset.index = index;
+        targetGroup.appendChild(targetContainer);
+        body.appendChild(targetGroup);
+
+        const populateTargets = () => {
+            const tType = typeSelect.value;
+            const selected = action.targetIds || [];
+            targetContainer.textContent = '';
+            let items = [];
+            if (tType === 'extension') items = state.allExtensions;
+            else if (tType === 'profile') items = state.allProfiles;
+
+            if (items.length === 0) {
+                targetContainer.appendChild(createElement('p', 'placeholder-text', `No ${tType}s found.`));
+                return;
+            }
+            items.forEach(item => {
+                if (!item) return;
+                const id = item.id;
+                const name = item.name || 'Unnamed';
+                let imgSrc = DEFAULT_ICON_PLACEHOLDER;
+                if (item.icons?.length > 0 && item.icons[item.icons.length - 1]?.url) {
+                    imgSrc = item.icons[item.icons.length - 1].url;
+                }
+                const row = createElement('div', 'extension-selector-item');
+                const input = createElement('input');
+                input.type = tType === 'profile' ? 'radio' : 'checkbox';
+                input.name = `action-target-${index}`;
+                input.value = id;
+                input.checked = selected.includes(id);
+                const lbl = createElement('label');
+                lbl.htmlFor = `act-${index}-target-${id}`;
+                input.id = lbl.htmlFor;
+                const img = createElement('img');
+                img.src = imgSrc;
+                img.alt = '';
+                img.onerror = function() { this.src = DEFAULT_ICON_PLACEHOLDER; };
+                lbl.appendChild(img);
+                lbl.appendChild(createElement('span', null, sanitizeText(name)));
+                row.appendChild(input);
+                row.appendChild(lbl);
+                targetContainer.appendChild(row);
+            });
+        };
+
+        const updateActionTypeOptions = () => {
+            const tType = typeSelect.value;
+            const oldVal = actSelect.value;
+            actSelect.textContent = '';
+            if (tType === 'extension') {
+                actSelect.appendChild(new Option('Enable', 'enable'));
+                actSelect.appendChild(new Option('Disable', 'disable'));
+            } else {
+                actSelect.appendChild(new Option('Apply', 'apply'));
+            }
+            // Restore if valid
+            if (Array.from(actSelect.options).some(o => o.value === oldVal)) actSelect.value = oldVal;
+        };
+
+        typeSelect.addEventListener('change', () => {
+            updateActionTypeOptions();
+            populateTargets();
+        });
+        updateActionTypeOptions();
+        populateTargets();
+
+        card.appendChild(header);
+        card.appendChild(body);
+
+        removeBtn.addEventListener('click', () => {
+            const cards = document.querySelectorAll('.action-card');
+            if (cards.length <= 1) {
+                showToast('A rule needs at least one action.', 'error');
+                return;
+            }
+            card.remove();
+            updateActionNumbers();
+        });
+
+        return card;
+    }
+
+    function updateActionNumbers() {
+        document.querySelectorAll('.action-card').forEach((card, i) => {
+            const badge = card.querySelector('.action-number-badge');
+            if (badge) badge.textContent = `Action ${i + 1}`;
+            const inputs = card.querySelectorAll('input[type="checkbox"], input[type="radio"]');
+            inputs.forEach(inp => {
+                const oldName = inp.name;
+                const newName = `action-target-${i}`;
+                if (oldName && oldName !== newName) {
+                    inp.name = newName;
+                    const lbl = inp.nextElementSibling;
+                    if (lbl && lbl.htmlFor) {
+                        const oldId = inp.id;
+                        inp.id = oldId.replace(/act-\d+-/, `act-${i}-`);
+                        lbl.htmlFor = inp.id;
                     }
                 }
+            });
+        });
+    }
+
+    function collectActionsFromForm() {
+        return Array.from(document.querySelectorAll('.action-card')).map(card => {
+            const targetType = card.querySelector('.action-target-type-select')?.value || 'extension';
+            const type = card.querySelector('.action-type-select')?.value || 'enable';
+            const targetIds = Array.from(card.querySelectorAll('.mini-target-selector input:checked')).map(cb => cb.value);
+            return { targetType, type, targetIds };
+        }).filter(a => a.targetIds.length > 0);
+    }
+
+    // --- Validation Helpers ---
+    function showValidationError(element, message) {
+        if (!element) return;
+        element.textContent = message;
+        element.setAttribute('role', 'alert');
+        const input = element.previousElementSibling;
+        if (input && (input.tagName === 'INPUT' || input.tagName === 'SELECT' || input.tagName === 'TEXTAREA')) {
+            input.classList.add('invalid');
+            input.setAttribute('aria-invalid', 'true');
+        }
+    }
+
+    function clearValidationError(element) {
+        if (!element) return;
+        element.textContent = '';
+        element.removeAttribute('role');
+        const input = element.previousElementSibling;
+        if (input && (input.tagName === 'INPUT' || input.tagName === 'SELECT' || input.tagName === 'TEXTAREA')) {
+            input.classList.remove('invalid');
+            input.removeAttribute('aria-invalid');
+        }
+    }
+
+    function clearAllValidationErrors() {
+        clearValidationError(DOM['rule-name-error']);
+        clearValidationError(DOM['trigger-error']);
+        clearValidationError(DOM['actions-error']);
+        document.querySelectorAll('.invalid').forEach(el => {
+            el.classList.remove('invalid');
+            el.removeAttribute('aria-invalid');
+        });
+    }
+
+    // --- Conflict Detection (Strict Prevention) ---
+    function findConflictingRules(newRule) {
+        if (!newRule.enabled) return [];
+        const conflicts = [];
+        const relevant = state.allRules.filter(r => r && r.enabled && r.id !== newRule.id);
+        const newActions = newRule.actions || [{ type: newRule.action, targetType: newRule.targetType, targetIds: newRule.targetIds }];
+        const newTrigger = newRule.trigger;
+
+        for (const existing of relevant) {
+            if (!existing.trigger) continue;
+            if (!triggersOverlap(newTrigger, existing.trigger)) continue;
+
+            const existingActions = existing.actions || [{ type: existing.action, targetType: existing.targetType, targetIds: existing.targetIds }];
+            for (const na of newActions) {
+                for (const ea of existingActions) {
+                    if (actionsConflict(na, ea)) {
+                        conflicts.push(existing);
+                        break;
+                    }
+                }
+                if (conflicts.includes(existing)) break;
             }
-            
-            if (hasConflict) conflicts.push(existingRule);
         }
         return conflicts;
-    };
+    }
 
-    // --- Bulk Action Logic ---
-
-    const toggleRuleSelection = (ruleId, isChecked) => {
-        if (!ruleId) return;
-        if (isChecked) {
-            selectedRuleIds.add(ruleId);
-        } else {
-            selectedRuleIds.delete(ruleId);
-        }
-        const ruleRowElement = document.querySelector(`tr[data-rule-id="${ruleId}"]`);
-        if (ruleRowElement) {
-            ruleRowElement.classList.toggle('selected', isChecked);
-        }
-        updateBulkActionBarVisibility();
-        updateSelectAllCheckboxState();
-    };
-
-    const updateBulkActionBarVisibility = () => {
-        const count = selectedRuleIds.size;
-        const bar = DOM['bulk-actions-bar'];
-        const countSpan = DOM['selected-rules-count'];
-        
-        if (countSpan) countSpan.textContent = `${count} selected`;
-        
-        if (!bar) return;
-        if (count > 0) {
-            bar.style.display = 'flex';
-            requestAnimationFrame(() => bar.classList.add('active'));
-        } else {
-            bar.classList.remove('active');
-            const onTransitionEnd = () => {
-                if (!bar.classList.contains('active')) {
-                    bar.style.display = 'none';
+    function triggersOverlap(t1, t2) {
+        const c1 = t1?.type === 'compound' ? (t1.conditions || []) : [t1];
+        const c2 = t2?.type === 'compound' ? (t2.conditions || []) : [t2];
+        for (const a of c1) {
+            for (const b of c2) {
+                if (!a || !b) continue;
+                if (a.type === 'time' && b.type === 'time') {
+                    if (a.time === b.time) {
+                        const d1 = a.days || [];
+                        const d2 = b.days || [];
+                        if (d1.some(d => d2.includes(d))) return true;
+                    }
+                } else if ((a.type === 'time' && b.type === 'time_range') || (a.type === 'time_range' && b.type === 'time')) {
+                    // Simplification: any shared day is potential overlap
+                    const d1 = a.days || [];
+                    const d2 = b.days || [];
+                    if (d1.some(d => d2.includes(d))) return true;
+                } else if (a.type === 'time_range' && b.type === 'time_range') {
+                    const d1 = a.days || [];
+                    const d2 = b.days || [];
+                    if (d1.some(d => d2.includes(d))) return true;
+                } else if (a.type === 'url' && b.type === 'url') {
+                    const u1 = (a.url || '').toLowerCase();
+                    const u2 = (b.url || '').toLowerCase();
+                    if (u1.includes(u2) || u2.includes(u1)) return true;
                 }
-                bar.removeEventListener('transitionend', onTransitionEnd);
-            };
-            bar.addEventListener('transitionend', onTransitionEnd);
+            }
         }
-    };
+        return false;
+    }
 
-    const updateSelectAllCheckboxState = () => {
-        const checkbox = DOM['select-all-rules'];
-        if (!checkbox) return;
-        const container = DOM['rules-list-container'];
-        const visibleRuleIds = container ? Array.from(container.querySelectorAll('tr[data-rule-id]')).map(el => el.dataset.ruleId) : [];
-        
-        if (visibleRuleIds.length === 0) {
-            checkbox.checked = false;
-            checkbox.indeterminate = false;
-            checkbox.disabled = true;
-            return;
+    function actionsConflict(a1, a2) {
+        if (!a1 || !a2) return false;
+        // Cross-type: profile vs extension
+        if (a1.targetType !== a2.targetType) {
+            if (a1.targetType === 'profile' && a2.targetType === 'extension') {
+                const profile = state.allProfiles.find(p => p.id === a1.targetIds?.[0]);
+                if (profile?.extensionStates && a2.targetIds?.some(id => id in profile.extensionStates)) return true;
+            }
+            if (a2.targetType === 'profile' && a1.targetType === 'extension') {
+                const profile = state.allProfiles.find(p => p.id === a2.targetIds?.[0]);
+                if (profile?.extensionStates && a1.targetIds?.some(id => id in profile.extensionStates)) return true;
+            }
+            return false;
         }
-        
-        checkbox.disabled = false;
-        const allVisibleSelected = visibleRuleIds.every(id => selectedRuleIds.has(id));
-        const someVisibleSelected = visibleRuleIds.some(id => selectedRuleIds.has(id));
-        
-        checkbox.checked = allVisibleSelected;
-        checkbox.indeterminate = someVisibleSelected && !allVisibleSelected;
-    };
-
-    const handleSelectAllChange = (isChecked) => {
-        const visibleRuleCheckboxes = document.querySelectorAll('#rules-list-container .rule-select-checkbox');
-        visibleRuleCheckboxes.forEach(checkbox => {
-            checkbox.checked = isChecked;
-            const ruleId = checkbox.closest('tr')?.dataset.ruleId;
-            if (ruleId) toggleRuleSelection(ruleId, isChecked);
-        });
-    };
-
-    const bulkDeleteSelected = async () => {
-        if (selectedRuleIds.size === 0) {
-            showToast('No rules selected for deletion.', 'info');
-            return;
+        // Same type
+        const common = (a1.targetIds || []).filter(id => (a2.targetIds || []).includes(id));
+        if (common.length === 0) return false;
+        if (a1.targetType === 'extension') {
+            if ((a1.type === 'enable' && a2.type === 'disable') || (a1.type === 'disable' && a2.type === 'enable')) return true;
+        } else if (a1.targetType === 'profile') {
+            if (a1.type === 'apply' && a2.type === 'apply' && a1.targetIds[0] !== a2.targetIds[0]) return true;
         }
-        if (settings.confirmBeforeDelete) {
-            const confirmed = await showConfirmDialog(`Are you sure you want to delete ${selectedRuleIds.size} selected rule(s)?`);
-            if (!confirmed) return;
-        }
+        return false;
+    }
 
-        const updatedRules = Array.isArray(allRules) ? allRules.filter(r => r && !selectedRuleIds.has(r.id)) : [];
-        const deletedCount = selectedRuleIds.size;
-        selectedRuleIds.clear();
-        
-        chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updatedRules }, () => {
-            refreshUI();
-            showToast(`${deletedCount} rule(s) deleted.`, 'success');
-        });
-    };
-
-    const bulkToggleSelected = async (enable) => {
-        if (selectedRuleIds.size === 0) {
-            showToast(`No rules selected to ${enable ? 'enable' : 'disable'}.`, 'info');
-            return;
-        }
-
-        const actionText = enable ? 'enable' : 'disable';
-        const confirmed = await showConfirmDialog(`Are you sure you want to ${actionText} ${selectedRuleIds.size} selected rule(s)?`);
-        
-        if (confirmed) {
-            const updatedRules = Array.isArray(allRules) ? allRules.map(rule => {
-                if (rule && selectedRuleIds.has(rule.id)) {
-                    return { ...rule, enabled: enable };
-                }
-                return rule;
-            }) : [];
-            const affectedCount = selectedRuleIds.size;
-            selectedRuleIds.clear();
-            
-            chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updatedRules }, () => {
-                refreshUI();
-                showToast(`${affectedCount} rule(s) ${actionText}d.`, 'success');
-            });
-        }
-    };
-
-    // --- Event Handlers ---
-
-    const handleFormSubmit = async (e) => {
+    // --- Form Submit ---
+    async function handleFormSubmit(e) {
         e.preventDefault();
-        
         if (!validateStep(1) || !validateStep(2) || !validateStep(3)) {
             if (!validateStep(1)) showStep(1);
             else if (!validateStep(2)) showStep(2);
             else showStep(3);
-            showToast('Please correct the errors in the form.', 'error');
+            showToast('Please correct the errors before saving.', 'error');
             return;
         }
 
-        const selectedTargetType = DOM['rule-target-type-select']?.value || 'extension';
-        const selectedTargetIds = Array.from(DOM['target-selector-container']?.querySelectorAll('input:checked') || []).map(cb => cb.value);
+        const conditions = collectConditionsFromForm();
+        const trigger = { type: 'compound', operator: 'and', conditions };
+        const actions = collectActionsFromForm();
 
         const ruleData = {
             id: DOM['rule-id-input']?.value || `rule_${Date.now()}`,
             name: DOM['rule-name-input']?.value?.trim() || '',
-            tags: (DOM['rule-tags-input']?.value || '').split(',').map(tag => tag.trim()).filter(Boolean),
-            targetType: selectedTargetType,
-            targetIds: selectedTargetIds,
-            action: DOM['rule-action-select']?.value || 'enable',
-            trigger: { type: DOM['trigger-type-select']?.value || 'time' },
-            enabled: true,
+            tags: (DOM['rule-tags-input']?.value || '').split(',').map(t => t.trim()).filter(Boolean),
+            trigger,
+            actions,
+            enabled: true
         };
 
-        const existingRule = Array.isArray(allRules) ? allRules.find(r => r && r.id === (DOM['rule-id-input']?.value || '')) : null;
-        if (existingRule && existingRule.enabled === false) {
-            ruleData.enabled = false;
-        }
-        
-        if (ruleData.trigger.type === 'time') {
-            const selectedDays = Array.from(document.querySelectorAll('.day-selector input:checked')).map(cb => parseInt(cb.value, 10));
-            ruleData.trigger.time = DOM['rule-time-input']?.value || '00:00';
-            ruleData.trigger.days = selectedDays;
-        } else {
-            ruleData.trigger.url = (DOM['rule-url-input']?.value || '').trim();
-        }
-        
-        const conflicts = findConflictingRules(ruleData);
-        if (conflicts.length > 0) {
-            if (settings.autoDisableConflicts) {
-                conflicts.forEach(r => {
-                    if (!r) return;
-                    const idx = allRules.findIndex(rule => rule && rule.id === r.id);
-                    if (idx !== -1) allRules[idx].enabled = false;
-                });
-                showToast(`Auto-disabled ${conflicts.length} conflicting rule(s).`, 'info');
-            } else {
-                const names = conflicts.map(r => `"${sanitizeText(r?.name)}"`).join(', ');
-                showToast(`Conflicts with: ${names}. Disable them or enable auto-disable in Settings.`, 'error');
-                return;
-            }
+        // Preserve disabled state when editing
+        const existing = state.allRules.find(r => r.id === ruleData.id);
+        if (existing && existing.enabled === false) ruleData.enabled = false;
+
+        // Add legacy fields for backward compatibility
+        const legacyAction = actions[0];
+        if (legacyAction) {
+            ruleData.action = legacyAction.type;
+            ruleData.targetType = legacyAction.targetType;
+            ruleData.targetIds = legacyAction.targetIds;
         }
 
-        const existingRuleIndex = Array.isArray(allRules) ? allRules.findIndex(r => r && r.id === ruleData.id) : -1;
+        // Strict conflict prevention
+        const conflicts = findConflictingRules(ruleData);
+        if (conflicts.length > 0) {
+            const names = conflicts.map(r => `"${sanitizeText(r.name)}"`).join(', ');
+            showToast(`Cannot save: conflicts with ${names}. Disable conflicting rules first.`, 'error');
+            return;
+        }
+
         let updatedRules;
-        if (existingRuleIndex > -1) {
-            updatedRules = [...allRules];
-            updatedRules[existingRuleIndex] = ruleData;
+        const idx = state.allRules.findIndex(r => r.id === ruleData.id);
+        if (idx > -1) {
+            updatedRules = [...state.allRules];
+            updatedRules[idx] = ruleData;
         } else {
-            updatedRules = Array.isArray(allRules) ? [...allRules, ruleData] : [ruleData];
+            updatedRules = [...state.allRules, ruleData];
         }
 
         chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updatedRules }, () => {
@@ -845,211 +1020,274 @@ document.addEventListener('DOMContentLoaded', async () => {
             showToast('Rule saved successfully!', 'success');
             setActivePanel('rules-list-panel');
         });
-    };
-    
-    const handleRulesListClick = async (e) => {
-        const ruleRow = e.target.closest('tr[data-rule-id]');
-        if (!ruleRow) return;
-        const ruleId = ruleRow.dataset.ruleId;
+    }
+
+    // --- Rule List Interactions ---
+    async function handleRulesListClick(e) {
+        const row = e.target.closest('tr[data-rule-id]');
+        if (!row) return;
+        const ruleId = row.dataset.ruleId;
         if (!ruleId) return;
 
         if (e.target.closest('.edit-rule-btn')) {
-            const ruleToEdit = Array.isArray(allRules) ? allRules.find(r => r && r.id === ruleId) : null;
-            if (ruleToEdit) showRuleForm(ruleToEdit);
-        } 
-        else if (e.target.closest('.delete-rule-btn')) {
-            const ruleToDelete = Array.isArray(allRules) ? allRules.find(r => r && r.id === ruleId) : null;
-            if (!ruleToDelete) return;
-            
-            if (settings.confirmBeforeDelete) {
-                const confirmed = await showConfirmDialog(`Are you sure you want to delete the rule "${sanitizeText(ruleToDelete.name)}"?`);
+            const rule = state.allRules.find(r => r?.id === ruleId);
+            if (rule) showRuleForm(rule);
+        } else if (e.target.closest('.delete-rule-btn')) {
+            const rule = state.allRules.find(r => r?.id === ruleId);
+            if (!rule) return;
+            if (state.settings.confirmBeforeDelete) {
+                const confirmed = await showConfirmDialog(`Delete the rule "${sanitizeText(rule.name)}"? This cannot be undone.`);
                 if (!confirmed) return;
             }
-            
-            const updatedRules = Array.isArray(allRules) ? allRules.filter(r => r && r.id !== ruleId) : [];
-            selectedRuleIds.delete(ruleId);
-            chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updatedRules }, () => {
+            const updated = state.allRules.filter(r => r?.id !== ruleId);
+            state.selectedRuleIds.delete(ruleId);
+            chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updated }, () => {
                 refreshUI();
                 showToast('Rule deleted.', 'success');
             });
-        }
-        else if (e.target.classList.contains('toggle-rule-btn')) {
-            const toggleInput = e.target;
-            const ruleToToggle = Array.isArray(allRules) ? allRules.find(r => r && r.id === ruleId) : null;
-            if (ruleToToggle) {
-                ruleToToggle.enabled = toggleInput.checked;
-                toggleInput.setAttribute('aria-checked', toggleInput.checked);
-                chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: allRules }, () => {
+        } else if (e.target.classList.contains('toggle-rule-btn')) {
+            const toggle = e.target;
+            const rule = state.allRules.find(r => r?.id === ruleId);
+            if (rule) {
+                rule.enabled = toggle.checked;
+                toggle.setAttribute('aria-checked', toggle.checked);
+                chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: state.allRules }, () => {
                     refreshUI();
-                    showToast(`Rule "${sanitizeText(ruleToToggle.name)}" ${ruleToToggle.enabled ? 'enabled' : 'disabled'}.`, 'success');
+                    showToast(`Rule "${sanitizeText(rule.name)}" ${rule.enabled ? 'enabled' : 'disabled'}.`, 'success');
                 });
             }
-        }
-        else if (e.target.classList.contains('rule-select-checkbox')) {
+        } else if (e.target.classList.contains('rule-select-checkbox')) {
             toggleRuleSelection(ruleId, e.target.checked);
         }
-    };
+    }
 
-    const handleSearchInput = () => {
-        clearTimeout(searchDebounceTimer);
-        searchDebounceTimer = setTimeout(() => {
-            currentFilters.query = DOM['rule-search-input']?.value || '';
-            applyFiltersAndRender();
-        }, 150);
-    };
+    function toggleRuleSelection(ruleId, isChecked) {
+        if (!ruleId) return;
+        if (isChecked) state.selectedRuleIds.add(ruleId);
+        else state.selectedRuleIds.delete(ruleId);
+        const row = document.querySelector(`tr[data-rule-id="${ruleId}"]`);
+        if (row) row.classList.toggle('selected', isChecked);
+        updateBulkActionBarVisibility();
+        updateSelectAllCheckboxState();
+    }
 
-    const handleTargetTypeChange = () => {
-        const selectedType = DOM['rule-target-type-select']?.value || 'extension';
-        populateTargetSelector(selectedType);
-        populateActionTypeSelect(selectedType);
-        clearValidationError(DOM['target-selector-error']);
-        clearValidationError(DOM['rule-action-error']);
-    };
-
-    const handleTriggerTypeChange = () => {
-        const isTime = DOM['trigger-type-select']?.value === 'time';
-        if (DOM['time-condition-fields']) DOM['time-condition-fields'].style.display = isTime ? 'block' : 'none';
-        if (DOM['url-condition-fields']) DOM['url-condition-fields'].style.display = isTime ? 'none' : 'block';
-        clearAllValidationErrors();
-    };
-
-    // Filter Side Sheet
-    const openFilterSheet = () => {
-        if (DOM['filter-side-sheet']) DOM['filter-side-sheet'].classList.add('active');
-    };
-    const closeFilterSheet = () => {
-        if (DOM['filter-side-sheet']) DOM['filter-side-sheet'].classList.remove('active');
-    };
-
-    const handleApplyFilters = () => {
-        currentFilters.status = DOM['filter-status-select']?.value || 'all';
-        currentFilters.trigger = DOM['filter-trigger-select']?.value || 'all';
-        currentFilters.targetType = DOM['filter-target-type-select']?.value || 'all';
-        applyFiltersAndRender();
-        closeFilterSheet();
-    };
-
-    const handleResetFilters = () => {
-        if (DOM['filter-status-select']) DOM['filter-status-select'].value = 'all';
-        if (DOM['filter-trigger-select']) DOM['filter-trigger-select'].value = 'all';
-        if (DOM['filter-target-type-select']) DOM['filter-target-type-select'].value = 'all';
-        currentFilters = { query: currentFilters.query, status: 'all', trigger: 'all', targetType: 'all' };
-        applyFiltersAndRender();
-    };
-
-    // --- Panel Navigation Logic ---
-
-    const setActivePanel = (panelId) => {
-        if (!panelId) return;
-        DOM.panels.forEach(panel => {
-            panel.classList.remove('active');
-            panel.setAttribute('aria-hidden', 'true');
-        });
-        DOM.navButtons.forEach(btn => btn.classList.remove('active'));
-
-        const targetPanel = document.getElementById(panelId);
-        if (targetPanel) {
-            targetPanel.classList.add('active');
-            targetPanel.setAttribute('aria-hidden', 'false');
-            currentActivePanelId = panelId;
-
-            const navButton = document.querySelector(`[aria-controls="${panelId}"]`);
-            if (navButton) navButton.classList.add('active');
+    function updateBulkActionBarVisibility() {
+        const count = state.selectedRuleIds.size;
+        const bar = DOM['bulk-actions-bar'];
+        const countSpan = DOM['selected-rules-count'];
+        if (countSpan) countSpan.textContent = `${count} selected`;
+        if (!bar) return;
+        if (count > 0) {
+            bar.style.display = 'flex';
+            requestAnimationFrame(() => bar.classList.add('active'));
+        } else {
+            bar.classList.remove('active');
+            const onEnd = () => {
+                if (!bar.classList.contains('active')) bar.style.display = 'none';
+                bar.removeEventListener('transitionend', onEnd);
+            };
+            bar.addEventListener('transitionend', onEnd);
         }
+    }
 
+    function updateSelectAllCheckboxState() {
+        const cb = DOM['select-all-rules'];
+        if (!cb) return;
+        const visibleIds = Array.from(document.querySelectorAll('#rules-list-container tr[data-rule-id]')).map(el => el.dataset.ruleId);
+        if (visibleIds.length === 0) {
+            cb.checked = false;
+            cb.indeterminate = false;
+            cb.disabled = true;
+            return;
+        }
+        cb.disabled = false;
+        const allSel = visibleIds.every(id => state.selectedRuleIds.has(id));
+        const someSel = visibleIds.some(id => state.selectedRuleIds.has(id));
+        cb.checked = allSel;
+        cb.indeterminate = someSel && !allSel;
+    }
+
+    function handleSelectAllChange(isChecked) {
+        document.querySelectorAll('#rules-list-container .rule-select-checkbox').forEach(cb => {
+            cb.checked = isChecked;
+            const id = cb.closest('tr')?.dataset.ruleId;
+            if (id) toggleRuleSelection(id, isChecked);
+        });
+    }
+
+    async function bulkDeleteSelected() {
+        if (state.selectedRuleIds.size === 0) {
+            showToast('No rules selected.', 'info');
+            return;
+        }
+        if (state.settings.confirmBeforeDelete) {
+            const confirmed = await showConfirmDialog(`Delete ${state.selectedRuleIds.size} selected rule(s)? This cannot be undone.`);
+            if (!confirmed) return;
+        }
+        const updated = state.allRules.filter(r => !state.selectedRuleIds.has(r.id));
+        const count = state.selectedRuleIds.size;
+        state.selectedRuleIds.clear();
+        chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updated }, () => {
+            refreshUI();
+            showToast(`${count} rule(s) deleted.`, 'success');
+        });
+    }
+
+    async function bulkToggleSelected(enable) {
+        if (state.selectedRuleIds.size === 0) {
+            showToast(`No rules selected.`, 'info');
+            return;
+        }
+        const action = enable ? 'enable' : 'disable';
+        const confirmed = await showConfirmDialog(`${action.charAt(0).toUpperCase() + action.slice(1)} ${state.selectedRuleIds.size} selected rule(s)?`);
+        if (!confirmed) return;
+        const updated = state.allRules.map(r => state.selectedRuleIds.has(r.id) ? { ...r, enabled: enable } : r);
+        const count = state.selectedRuleIds.size;
+        state.selectedRuleIds.clear();
+        chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updated }, () => {
+            refreshUI();
+            showToast(`${count} rule(s) ${action}d.`, 'success');
+        });
+    }
+
+    // --- Panel Navigation ---
+    function setActivePanel(panelId) {
+        if (!panelId) return;
+        DOM.panels.forEach(p => {
+            p.classList.remove('active');
+            p.setAttribute('aria-hidden', 'true');
+        });
+        DOM.navButtons.forEach(b => b.classList.remove('active'));
+        const target = document.getElementById(panelId);
+        if (target) {
+            target.classList.add('active');
+            target.setAttribute('aria-hidden', 'false');
+            const btn = document.querySelector(`[aria-controls="${panelId}"]`);
+            if (btn) {
+                btn.classList.add('active');
+                if (btn.tagName === 'BUTTON') btn.setAttribute('aria-current', 'page');
+            }
+        }
         if (panelId === 'rules-list-panel') {
             DOM['rule-search-input']?.focus();
-            selectedRuleIds.clear();
+            state.selectedRuleIds.clear();
             updateBulkActionBarVisibility();
-        } else if (panelId === 'add-rule-panel') {
-            DOM['rule-name-input']?.focus();
         }
-    };
+    }
 
-    const showRuleForm = (ruleToEdit = null) => {
-        const form = DOM['rule-form'];
-        if (form) form.reset();
+    function showRuleForm(ruleToEdit = null) {
+        DOM['rule-form']?.reset();
         clearAllValidationErrors();
         showStep(1);
-        
-        if (DOM['time-condition-fields']) DOM['time-condition-fields'].style.display = 'block';
-        if (DOM['url-condition-fields']) DOM['url-condition-fields'].style.display = 'none';
-        
-        if (DOM['target-selector-container']) DOM['target-selector-container'].textContent = '';
-        if (DOM.dayCheckboxes) DOM.dayCheckboxes.forEach(cb => cb.checked = false);
+        DOM['rule-id-input'].value = '';
 
         if (ruleToEdit) {
-            if (DOM['form-panel-title']) DOM['form-panel-title'].textContent = 'Edit Rule';
-            if (DOM['rule-id-input']) DOM['rule-id-input'].value = ruleToEdit.id || '';
-            if (DOM['rule-name-input']) DOM['rule-name-input'].value = ruleToEdit.name || '';
-            if (DOM['rule-tags-input']) DOM['rule-tags-input'].value = (Array.isArray(ruleToEdit.tags) ? ruleToEdit.tags : []).map(tag => sanitizeText(tag)).join(', ');
-            
-            if (DOM['rule-target-type-select']) DOM['rule-target-type-select'].value = ruleToEdit.targetType || 'extension';
-            populateTargetSelector(ruleToEdit.targetType || 'extension', Array.isArray(ruleToEdit.targetIds) ? ruleToEdit.targetIds : []);
-            populateActionTypeSelect(ruleToEdit.targetType || 'extension', ruleToEdit.action || 'enable');
-            if (DOM['rule-action-select']) DOM['rule-action-select'].value = ruleToEdit.action || 'enable';
+            DOM['form-panel-title'].textContent = 'Edit Rule';
+            DOM['rule-id-input'].value = ruleToEdit.id || '';
+            DOM['rule-name-input'].value = ruleToEdit.name || '';
+            DOM['rule-tags-input'].value = (Array.isArray(ruleToEdit.tags) ? ruleToEdit.tags : []).map(t => sanitizeText(t)).join(', ');
 
-            if (DOM['trigger-type-select']) DOM['trigger-type-select'].value = ruleToEdit.trigger?.type || 'time';
-            
-            if (ruleToEdit.trigger?.type === 'time') {
-                if (DOM['rule-time-input']) DOM['rule-time-input'].value = ruleToEdit.trigger.time || '';
-                if (Array.isArray(ruleToEdit.trigger.days)) {
-                    ruleToEdit.trigger.days.forEach(day => {
-                        const checkbox = document.querySelector(`.day-selector input[value="${day}"]`);
-                        if (checkbox) checkbox.checked = true;
-                    });
-                }
-            } else {
-                if (DOM['rule-url-input']) DOM['rule-url-input'].value = ruleToEdit.trigger?.url || '';
+            // Normalize trigger to compound for editing
+            let trigger = ruleToEdit.trigger;
+            if (trigger && trigger.type !== 'compound') {
+                trigger = { type: 'compound', operator: 'and', conditions: [{ ...trigger }] };
+            } else if (!trigger || !trigger.conditions) {
+                trigger = { type: 'compound', operator: 'and', conditions: [{ type: state.settings.defaultTriggerType || 'time' }] };
             }
-        } else {
-            if (DOM['form-panel-title']) DOM['form-panel-title'].textContent = 'Create New Rule';
-            if (DOM['rule-id-input']) DOM['rule-id-input'].value = '';
-            if (DOM['rule-tags-input']) DOM['rule-tags-input'].value = '';
-            
-            if (DOM['rule-target-type-select']) DOM['rule-target-type-select'].value = settings.defaultTargetType || 'extension';
-            populateTargetSelector(settings.defaultTargetType || 'extension');
-            populateActionTypeSelect(settings.defaultTargetType || 'extension');
-            
-            if (DOM['trigger-type-select']) DOM['trigger-type-select'].value = settings.defaultTriggerType || 'time';
-        }
-        
-        handleTriggerTypeChange();
-        handleTargetTypeChange();
-        setActivePanel('add-rule-panel');
-        DOM['rule-name-input']?.focus();
-    };
+            renderConditions(trigger.conditions || []);
 
-    // --- Toast Notification ---
-    const showToast = (message, type = 'info') => {
+            // Normalize actions
+            let actions = ruleToEdit.actions;
+            if (!actions && ruleToEdit.action) {
+                actions = [{
+                    targetType: ruleToEdit.targetType || 'extension',
+                    type: ruleToEdit.action || 'enable',
+                    targetIds: ruleToEdit.targetIds || []
+                }];
+            } else if (!actions) {
+                actions = [{ targetType: 'extension', type: 'enable', targetIds: [] }];
+            }
+            renderActions(actions);
+        } else {
+            DOM['form-panel-title'].textContent = 'Create New Rule';
+            const defaultType = state.settings.defaultTriggerType || 'time';
+            renderConditions([{ type: defaultType }]);
+            renderActions([{ targetType: state.settings.defaultTargetType || 'extension', type: 'enable', targetIds: [] }]);
+        }
+        setActivePanel('add-rule-panel');
+    }
+
+    // --- Dialogs & Toasts ---
+    function showConfirmDialog(message) {
+        return new Promise((resolve) => {
+            const overlay = DOM['confirm-dialog-overlay'];
+            const msgEl = DOM['confirm-dialog-message'];
+            const okBtn = DOM['confirm-ok-btn'];
+            const cancelBtn = DOM['confirm-cancel-btn'];
+            if (!overlay || !msgEl || !okBtn || !cancelBtn) {
+                resolve(confirm(message));
+                return;
+            }
+            msgEl.textContent = message;
+            overlay.classList.add('active');
+            const previouslyFocused = document.activeElement;
+            okBtn.focus();
+
+            const cleanup = (result) => {
+                overlay.classList.remove('active');
+                okBtn.removeEventListener('click', onConfirm);
+                cancelBtn.removeEventListener('click', onCancel);
+                document.removeEventListener('keydown', onKey);
+                if (previouslyFocused && previouslyFocused.focus) previouslyFocused.focus();
+                resolve(result);
+            };
+            const onConfirm = () => cleanup(true);
+            const onCancel = () => cleanup(false);
+            const onKey = (e) => {
+                if (e.key === 'Escape') onCancel();
+                if (e.key === 'Tab') trapFocus(e, overlay);
+            };
+            okBtn.addEventListener('click', onConfirm);
+            cancelBtn.addEventListener('click', onCancel);
+            document.addEventListener('keydown', onKey);
+        });
+    }
+
+    function trapFocus(e, container) {
+        const focusables = container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (!focusables.length) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
+    }
+
+    function showToast(message, type = 'info') {
         const container = DOM['toast-container'];
         if (!container) return;
-        
         const toast = createElement('div', `toast ${type}`, message);
         container.appendChild(toast);
-
-        requestAnimationFrame(() => toast.classList.add('show')); 
-        
-        const timer = setTimeout(() => {
+        requestAnimationFrame(() => toast.classList.add('show'));
+        setTimeout(() => {
             toast.classList.remove('show');
-            const onTransitionEnd = () => {
-                toast.remove();
-                toast.removeEventListener('transitionend', onTransitionEnd);
-            };
-            toast.addEventListener('transitionend', onTransitionEnd);
-        }, 3000);
-        
-        toast._dismissTimer = timer;
-    };
+            const remove = () => { toast.remove(); toast.removeEventListener('transitionend', remove); };
+            toast.addEventListener('transitionend', remove);
+        }, 4000);
+    }
 
-    // --- Initialization & Event Wiring ---
-    
+    // --- Event Listeners ---
     function initEventListeners() {
-        // Navigation
-        DOM.navButtons.forEach(button => {
-            button.addEventListener('click', (e) => {
-                if (button.tagName === 'A') return;
-                const panelId = button.getAttribute('aria-controls');
+        // Nav
+        DOM.navButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                if (btn.tagName === 'A') return;
+                e.preventDefault();
+                const panelId = btn.getAttribute('aria-controls');
                 if (!panelId) return;
                 if (panelId === 'add-rule-panel') showRuleForm();
                 else setActivePanel(panelId);
@@ -1059,6 +1297,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         DOM['back-to-rules-list']?.addEventListener('click', () => setActivePanel('rules-list-panel'));
         DOM['cancel-rule-form']?.addEventListener('click', () => setActivePanel('rules-list-panel'));
         DOM['rule-form']?.addEventListener('submit', handleFormSubmit);
+        DOM['empty-state-add-btn']?.addEventListener('click', () => showRuleForm());
 
         // Stepper
         DOM['step-1-next']?.addEventListener('click', () => { if (validateStep(1)) showStep(2); });
@@ -1066,63 +1305,123 @@ document.addEventListener('DOMContentLoaded', async () => {
         DOM['step-2-next']?.addEventListener('click', () => { if (validateStep(2)) showStep(3); });
         DOM['step-3-back']?.addEventListener('click', () => showStep(2));
 
-        // Search & Filters
-        DOM['rule-search-input']?.addEventListener('input', handleSearchInput);
-        DOM['rule-target-type-select']?.addEventListener('change', handleTargetTypeChange);
-        DOM['trigger-type-select']?.addEventListener('change', handleTriggerTypeChange);
+        // Trigger builder
+        DOM['add-trigger-condition-btn']?.addEventListener('click', () => {
+            const container = DOM['trigger-conditions-container'];
+            const cards = container?.querySelectorAll('.condition-card');
+            const lastType = cards?.length > 0 
+                ? cards[cards.length - 1].querySelector('.condition-type-select')?.value 
+                : 'time';
+            container?.appendChild(createAndConnector());
+            container?.appendChild(createConditionCard({ type: lastType }, cards?.length || 0));
+            updateConditionBadges();
+        });
 
-        // Filter Sheet
-        DOM['filter-btn']?.addEventListener('click', openFilterSheet);
+        // Action builder
+        DOM['add-action-btn']?.addEventListener('click', () => {
+            const container = DOM['actions-container'];
+            const cards = container?.querySelectorAll('.action-card');
+            container?.appendChild(createActionCard({
+                targetType: state.settings.defaultTargetType || 'extension',
+                type: 'enable',
+                targetIds: []
+            }, cards?.length || 0));
+            updateActionNumbers();
+        });
+
+        // Search & filters
+        DOM['rule-search-input']?.addEventListener('input', () => {
+            clearTimeout(state.searchDebounceTimer);
+            state.searchDebounceTimer = setTimeout(() => {
+                state.currentFilters.query = DOM['rule-search-input']?.value || '';
+                applyFiltersAndRender();
+            }, 150);
+        });
+
+        // Filter sheet
+        DOM['filter-btn']?.addEventListener('click', () => {
+            DOM['filter-side-sheet']?.classList.add('active');
+            DOM['filter-btn']?.setAttribute('aria-expanded', 'true');
+            DOM['close-filter-sheet']?.focus();
+        });
         DOM['close-filter-sheet']?.addEventListener('click', closeFilterSheet);
         DOM['filter-sheet-overlay']?.addEventListener('click', closeFilterSheet);
-        DOM['apply-filters-btn']?.addEventListener('click', handleApplyFilters);
-        DOM['reset-filters-btn']?.addEventListener('click', handleResetFilters);
+        DOM['apply-filters-btn']?.addEventListener('click', () => {
+            state.currentFilters.status = DOM['filter-status-select']?.value || 'all';
+            state.currentFilters.trigger = DOM['filter-trigger-select']?.value || 'all';
+            state.currentFilters.targetType = DOM['filter-target-type-select']?.value || 'all';
+            applyFiltersAndRender();
+            closeFilterSheet();
+        });
+        DOM['reset-filters-btn']?.addEventListener('click', () => {
+            DOM['filter-status-select'] && (DOM['filter-status-select'].value = 'all');
+            DOM['filter-trigger-select'] && (DOM['filter-trigger-select'].value = 'all');
+            DOM['filter-target-type-select'] && (DOM['filter-target-type-select'].value = 'all');
+            state.currentFilters = { query: state.currentFilters.query, status: 'all', trigger: 'all', targetType: 'all', tag: 'all' };
+            applyFiltersAndRender();
+            renderTagFilter();
+        });
+        DOM['reset-all-filters-btn']?.addEventListener('click', () => {
+            DOM['rule-search-input'] && (DOM['rule-search-input'].value = '');
+            state.currentFilters = { query: '', status: 'all', trigger: 'all', targetType: 'all', tag: 'all' };
+            applyFiltersAndRender();
+            renderTagFilter();
+        });
+        DOM['clear-tag-filter']?.addEventListener('click', () => {
+            state.currentFilters.tag = 'all';
+            applyFiltersAndRender();
+            renderTagFilter();
+        });
 
-        // Bulk Actions
+        // Bulk actions
         DOM['select-all-rules']?.addEventListener('change', (e) => handleSelectAllChange(e.target.checked));
         DOM['bulk-enable-btn']?.addEventListener('click', () => bulkToggleSelected(true));
         DOM['bulk-disable-btn']?.addEventListener('click', () => bulkToggleSelected(false));
         DOM['bulk-delete-btn']?.addEventListener('click', bulkDeleteSelected);
 
-        // Rules list delegation
+        // List delegation
         DOM['rules-list-container']?.addEventListener('click', handleRulesListClick);
 
         // Settings
         DOM['setting-confirm-delete']?.addEventListener('change', (e) => {
-            settings.confirmBeforeDelete = e.target.checked;
-            saveSettings();
-        });
-        DOM['setting-auto-disable-conflicts']?.addEventListener('change', (e) => {
-            settings.autoDisableConflicts = e.target.checked;
+            state.settings.confirmBeforeDelete = e.target.checked;
             saveSettings();
         });
         DOM['setting-default-target-type']?.addEventListener('change', (e) => {
-            settings.defaultTargetType = e.target.value;
+            state.settings.defaultTargetType = e.target.value;
             saveSettings();
         });
         DOM['setting-default-trigger-type']?.addEventListener('change', (e) => {
-            settings.defaultTriggerType = e.target.value;
+            state.settings.defaultTriggerType = e.target.value;
             saveSettings();
         });
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
-            if (e.key === '/' && currentActivePanelId === 'rules-list-panel') {
-                e.preventDefault(); 
+            if (e.key === '/' && !isTypingInInput() && document.getElementById('rules-list-panel')?.classList.contains('active')) {
+                e.preventDefault();
                 DOM['rule-search-input']?.focus();
-            } 
-            else if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
-                e.preventDefault(); 
+            } else if ((e.ctrlKey || e.metaKey) && e.key === 'n' && !isTypingInInput()) {
+                e.preventDefault();
                 showRuleForm();
-            }
-            else if ((e.ctrlKey || e.metaKey) && e.key === 's' && currentActivePanelId === 'add-rule-panel') {
+            } else if ((e.ctrlKey || e.metaKey) && e.key === 's' && document.getElementById('add-rule-panel')?.classList.contains('active')) {
                 e.preventDefault();
                 DOM['rule-form']?.requestSubmit();
             }
         });
     }
 
-    // --- Main Initialization ---
+    function closeFilterSheet() {
+        DOM['filter-side-sheet']?.classList.remove('active');
+        DOM['filter-btn']?.setAttribute('aria-expanded', 'false');
+    }
+
+    function isTypingInInput() {
+        const tag = document.activeElement?.tagName;
+        return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable;
+    }
+
+    // --- Init ---
     cacheDOM();
     initEventListeners();
     await loadSettings();

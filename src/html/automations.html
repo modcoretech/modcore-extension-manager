@@ -16,188 +16,181 @@
             <div class="sidebar-header">
                 <h1 class="sidebar-title">Rules Management</h1>
             </div>
-            <nav class="sidebar-nav">
+            <nav class="sidebar-nav" aria-label="Main navigation">
                 <ul>
-                    <li><button id="nav-view-rules" class="sidebar-button active" aria-controls="rules-list-panel"><span class="icon icon-list"></span> View All Rules</button></li>
-                    <li><button id="nav-add-rule" class="sidebar-button" aria-controls="add-rule-panel"><span class="icon icon-add"></span> Add New Rule</button></li>
-                    <li><button id="nav-settings" class="sidebar-button" aria-controls="settings-panel"><span class="icon icon-settings"></span> Settings</button></li>
-                    <li><a id="nav-help" class="sidebar-button" href="https://sites.google.com/view/modcore-em-help/manage-extensions/rules-page" target="_blank" rel="noopener noreferrer"><span class="icon icon-help"></span> Help</a></li>
+                    <li><button id="nav-view-rules" class="sidebar-button active" aria-controls="rules-list-panel" aria-current="page"><span class="icon icon-list" aria-hidden="true"></span> View All Rules</button></li>
+                    <li><button id="nav-add-rule" class="sidebar-button" aria-controls="add-rule-panel"><span class="icon icon-add" aria-hidden="true"></span> Add New Rule</button></li>
+                    <li><button id="nav-settings" class="sidebar-button" aria-controls="settings-panel"><span class="icon icon-settings" aria-hidden="true"></span> Settings</button></li>
+                    <li><a id="nav-help" class="sidebar-button" href="https://sites.google.com/view/modcore-em-help/manage-extensions/rules-page" target="_blank" rel="noopener noreferrer"><span class="icon icon-help" aria-hidden="true"></span> Help</a></li>
                 </ul>
             </nav>
         </aside>
 
         <main class="content-area">
 
+            <!-- RULES LIST PANEL -->
             <div id="rules-list-panel" class="content-panel active" role="tabpanel" aria-labelledby="nav-view-rules">
                 <div class="panel-header">
                     <div class="panel-header-text">
-                        <h2>Your Automation Rules</h2>
-                        <p>Manage rules to automatically enable or disable extensions or apply profiles.</p>
+                        <h2>Your Automation Rules <span id="rules-count-badge" class="count-badge" aria-live="polite"></span></h2>
+                        <p>Manage rules to automatically enable, disable, or apply profiles.</p>
                     </div>
                     <div class="header-actions">
-                        <button id="filter-btn" class="btn-icon" aria-label="Open filters">
-                            <span class="icon icon-filter"></span>
+                        <button id="filter-btn" class="btn-icon" aria-label="Open filters" aria-expanded="false" aria-controls="filter-side-sheet">
+                            <span class="icon icon-filter" aria-hidden="true"></span>
                         </button>
                     </div>
                 </div>
                 
                 <div class="search-and-controls">
                    <div class="search-container">
-                       <span class="icon icon-search"></span>
-                       <input type="search" id="rule-search-input" placeholder="Search rules by name or tag..." class="search-input" aria-label="Search rules">
+                       <span class="icon icon-search" aria-hidden="true"></span>
+                       <input type="search" id="rule-search-input" placeholder="Search rules by name or tag…" class="search-input" aria-label="Search rules">
                    </div>
                 </div>
 
-                <div class="table-wrapper">
+                <div class="tag-filter-bar" id="tag-filter-bar" style="display: none;" aria-label="Tag filters">
+                    <span class="tag-filter-label">Filter by tag:</span>
+                    <div class="tag-chips-container" id="tag-chips-container" role="list"></div>
+                    <button type="button" class="btn-icon" id="clear-tag-filter" aria-label="Clear tag filter" style="display: none;">
+                        <span class="icon icon-close" aria-hidden="true"></span>
+                    </button>
+                </div>
+
+                <!-- Empty state: shown when zero rules exist -->
+                <div id="empty-state" class="empty-state-card" role="status" style="display: none;">
+                    <div class="empty-state-icon" aria-hidden="true">
+                        <span class="icon icon-list"></span>
+                    </div>
+                    <h3>No Automation Rules Yet</h3>
+                    <p>Create your first rule to automatically manage extensions and profiles based on time or the websites you visit.</p>
+                    <button type="button" class="btn primary btn-large" id="empty-state-add-btn">
+                        <span class="icon icon-add" aria-hidden="true"></span> Create First Rule
+                    </button>
+                    <a href="https://sites.google.com/view/modcore-em-help/manage-extensions/rules-page" target="_blank" rel="noopener noreferrer" class="empty-state-link">Learn more about Automation Rules</a>
+                </div>
+
+                <!-- Table: only shown when rules exist -->
+                <div class="table-wrapper" id="table-wrapper" style="display: none;">
                     <table class="rules-table">
                         <thead>
                             <tr>
-                                <th class="col-select"><input type="checkbox" id="select-all-rules" class="rule-select-checkbox" aria-label="Select all rules"></th>
-                                <th class="col-name">Name</th>
-                                <th class="col-trigger">Trigger</th>
-                                <th class="col-targets">Targets</th>
-                                <th class="col-status">Status</th>
-                                <th class="col-actions"></th>
+                                <th class="col-select" scope="col"><input type="checkbox" id="select-all-rules" class="rule-select-checkbox" aria-label="Select all visible rules"></th>
+                                <th class="col-name" scope="col">Name</th>
+                                <th class="col-trigger" scope="col">Trigger</th>
+                                <th class="col-targets" scope="col">Targets</th>
+                                <th class="col-status" scope="col">Status</th>
+                                <th class="col-actions" scope="col"><span class="sr-only">Actions</span></th>
                             </tr>
                         </thead>
                         <tbody id="rules-list-container" aria-live="polite"></tbody>
                     </table>
                 </div>
                 
-                <div id="no-rules-placeholder" class="placeholder" role="status" style="display: none;">
-                    <span class="icon icon-list"></span>
-                    <h3>No Automation Rules Found</h3>
-                    <p>Use the sidebar to "Add New Rule" and get started.</p>
-                </div>
-
+                <!-- No-results placeholder: shown when filters return nothing -->
                 <div id="no-results-placeholder" class="placeholder" role="status" style="display: none;">
-                    <span class="icon icon-search"></span>
-                    <h3>No Rules Match Your Search</h3>
-                    <p>Try searching for a different name or adjusting your filters.</p>
+                    <span class="icon icon-search" aria-hidden="true"></span>
+                    <h3>No Rules Match Your Filters</h3>
+                    <p>Try a different search term or reset your filters.</p>
+                    <button type="button" class="btn tertiary" id="reset-all-filters-btn">Reset All Filters</button>
                 </div>
 
+                <!-- Bulk actions bar -->
                 <div id="bulk-actions-bar" class="bulk-actions-bar" style="display: none;" role="toolbar" aria-label="Bulk actions for selected rules">
                     <span class="selected-count" id="selected-rules-count" aria-live="polite">0 selected</span>
                     <button type="button" class="btn primary" id="bulk-enable-btn" aria-label="Enable selected rules">
-                        <span class="icon icon-bulk-enable"></span> Enable Selected
+                        <span class="icon icon-bulk-enable" aria-hidden="true"></span> Enable
                     </button>
                     <button type="button" class="btn tertiary" id="bulk-disable-btn" aria-label="Disable selected rules">
-                        <span class="icon icon-bulk-disable"></span> Disable Selected
+                        <span class="icon icon-bulk-disable" aria-hidden="true"></span> Disable
                     </button>
                     <button type="button" class="btn danger" id="bulk-delete-btn" aria-label="Delete selected rules">
-                        <span class="icon icon-trash"></span> Delete Selected
+                        <span class="icon icon-trash" aria-hidden="true"></span> Delete
                     </button>
                 </div>
             </div>
 
+            <!-- ADD / EDIT RULE PANEL -->
             <div id="add-rule-panel" class="content-panel" role="tabpanel" aria-labelledby="nav-add-rule">
                  <div class="form-section-header">
                     <button type="button" id="back-to-rules-list" class="btn-icon" aria-label="Back to rules list">
-                        <span class="icon icon-arrow-left"></span>
+                        <span class="icon icon-arrow-left" aria-hidden="true"></span>
                     </button>
                     <h3 id="form-panel-title">Create New Rule</h3>
                 </div>
                 <form id="rule-form" novalidate aria-live="polite">
                     <input type="hidden" id="rule-id-input">
 
-                    <div class="form-stepper">
-                        <div class="form-step active" data-step="1">1. Basics</div>
-                        <div class="form-step" data-step="2">2. Action</div>
-                        <div class="form-step" data-step="3">3. Trigger</div>
+                    <!-- Stepper -->
+                    <div class="form-stepper" role="tablist" aria-label="Rule creation steps">
+                        <div class="form-step active" data-step="1" role="tab" aria-selected="true" aria-controls="step-content-1" id="step-tab-1">1. Basics</div>
+                        <div class="form-step" data-step="2" role="tab" aria-selected="false" aria-controls="step-content-2" id="step-tab-2">2. Triggers</div>
+                        <div class="form-step" data-step="3" role="tab" aria-selected="false" aria-controls="step-content-3" id="step-tab-3">3. Actions</div>
                     </div>
 
-                    <div class="form-step-content active" data-step-content="1">
+                    <!-- Step 1: Basics -->
+                    <div class="form-step-content active" data-step-content="1" id="step-content-1" role="tabpanel" aria-labelledby="step-tab-1">
                         <div class="form-group">
                             <label for="rule-name-input" class="form-label">Rule Name <span aria-hidden="true">*</span></label>
-                            <input type="text" id="rule-name-input" placeholder="e.g., Work Focus Mode" required aria-required="true">
-                            <p id="rule-name-error" class="error-message" aria-live="polite"></p>
+                            <input type="text" id="rule-name-input" placeholder="e.g., Work Focus Mode" required aria-required="true" aria-describedby="rule-name-hint">
+                            <p id="rule-name-hint" class="form-help-text">Give your rule a clear name so you can recognize it later.</p>
+                            <p id="rule-name-error" class="error-message" aria-live="assertive"></p>
                         </div>
                         <div class="form-group">
-                            <label for="rule-tags-input" class="form-label">Tags (comma-separated)</label>
-                            <input type="text" id="rule-tags-input" placeholder="e.g., work, productivity">
+                            <label for="rule-tags-input" class="form-label">Tags <span class="label-subtext">(comma-separated)</span></label>
+                            <input type="text" id="rule-tags-input" placeholder="e.g., work, productivity" aria-describedby="tags-hint">
+                            <p id="tags-hint" class="form-help-text">Tags help you filter and organize rules.</p>
                         </div>
                         <div class="form-actions step-actions">
                             <button type="button" class="btn tertiary" id="cancel-rule-form">Cancel</button>
-                            <button type="button" class="btn primary" id="step-1-next">Next</button>
+                            <button type="button" class="btn primary" id="step-1-next">Next: Triggers</button>
                         </div>
                     </div>
 
-                    <div class="form-step-content" data-step-content="2">
+                    <!-- Step 2: Triggers -->
+                    <div class="form-step-content" data-step-content="2" id="step-content-2" role="tabpanel" aria-labelledby="step-tab-2">
                         <div class="form-group">
-                            <label for="rule-target-type-select" class="form-label">Target Type <span aria-hidden="true">*</span></label>
-                            <select id="rule-target-type-select" required aria-required="true">
-                                <option value="extension">Extensions</option>
-                                <option value="profile">Profiles</option>
-                            </select>
+                            <label class="form-label">Trigger Conditions <span aria-hidden="true">*</span></label>
+                            <p class="form-help-text">All visible conditions must be met (AND logic) for this rule to run.</p>
                         </div>
-                        <div class="form-group">
-                            <label id="target-selector-label" class="form-label">Select Targets <span aria-hidden="true">*</span></label>
-                            <div id="target-selector-container" class="extension-selector-list" role="group" aria-labelledby="target-selector-label"></div>
-                            <p id="target-selector-error" class="error-message" aria-live="polite"></p>
-                        </div>
-                        <div class="form-group">
-                            <label for="rule-action-select" class="form-label">Action <span aria-hidden="true">*</span></label>
-                            <select id="rule-action-select" required aria-required="true"></select>
-                            <p id="rule-action-error" class="error-message" aria-live="polite"></p>
-                        </div>
+                        <div id="trigger-conditions-container" class="conditions-container"></div>
+                        <button type="button" class="btn secondary" id="add-trigger-condition-btn">
+                            <span class="icon icon-add" aria-hidden="true"></span> Add Condition
+                        </button>
+                        <p id="trigger-error" class="error-message" aria-live="assertive"></p>
+
                         <div class="form-actions step-actions">
                             <button type="button" class="btn tertiary" id="step-2-back">Back</button>
-                            <button type="button" class="btn primary" id="step-2-next">Next</button>
+                            <button type="button" class="btn primary" id="step-2-next">Next: Actions</button>
                         </div>
                     </div>
 
-                    <div class="form-step-content" data-step-content="3">
+                    <!-- Step 3: Actions -->
+                    <div class="form-step-content" data-step-content="3" id="step-content-3" role="tabpanel" aria-labelledby="step-tab-3">
                         <div class="form-group">
-                            <label for="trigger-type-select" class="form-label">Condition (Trigger) <span aria-hidden="true">*</span></label>
-                            <select id="trigger-type-select" required aria-required="true">
-                                <option value="time">When a specific time is met</option>
-                                <option value="url">When a specific URL is visited</option>
-                            </select>
+                            <label class="form-label">Actions <span aria-hidden="true">*</span></label>
+                            <p class="form-help-text">Define what happens when triggers fire. Actions run top-to-bottom.</p>
                         </div>
+                        <div id="actions-container" class="actions-container"></div>
+                        <button type="button" class="btn secondary" id="add-action-btn">
+                            <span class="icon icon-add" aria-hidden="true"></span> Add Action
+                        </button>
+                        <p id="actions-error" class="error-message" aria-live="assertive"></p>
 
-                        <div id="time-condition-fields">
-                            <div class="form-group">
-                                <label for="rule-time-input" class="form-label">Time <span aria-hidden="true">*</span></label>
-                                <input type="time" id="rule-time-input" required aria-required="true">
-                                <p id="rule-time-error" class="error-message" aria-live="polite"></p>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">On these days <span aria-hidden="true">*</span></label>
-                                <div class="day-selector" role="group" aria-labelledby="day-selector-label">
-                                    <input type="checkbox" id="day-sun" value="0"><label for="day-sun">Sun</label>
-                                    <input type="checkbox" id="day-mon" value="1"><label for="day-mon">Mon</label>
-                                    <input type="checkbox" id="day-tue" value="2"><label for="day-tue">Tue</label>
-                                    <input type="checkbox" id="day-wed" value="3"><label for="day-wed">Wed</label>
-                                    <input type="checkbox" id="day-thu" value="4"><label for="day-thu">Thu</label>
-                                    <input type="checkbox" id="day-fri" value="5"><label for="day-fri">Fri</label>
-                                    <input type="checkbox" id="day-sat" value="6"><label for="day-sat">Sat</label>
-                                </div>
-                                <p id="day-selector-error" class="error-message" aria-live="polite"></p>
-                            </div>
-                        </div>
-
-                        <div id="url-condition-fields" style="display: none;">
-                            <div class="form-group">
-                                <label for="rule-url-input" class="form-label">URL or Domain contains <span aria-hidden="true">*</span></label>
-                                <input type="text" id="rule-url-input" placeholder="e.g., youtube.com or developer.chrome.com" required aria-required="true">
-                                <p id="rule-url-error" class="error-message" aria-live="polite"></p>
-                                <p class="form-help-text">Don't forget to add https:// at the beginning.</p>
-                            </div>
-                        </div>
-                        
                         <div class="form-actions step-actions">
                             <button type="button" class="btn tertiary" id="step-3-back">Back</button>
-                            <button type="submit" class="btn primary">Save Rule</button>
+                            <button type="submit" class="btn primary" id="save-rule-btn">Save Rule</button>
                         </div>
                     </div>
                 </form>
             </div>
 
+            <!-- SETTINGS PANEL -->
             <div id="settings-panel" class="content-panel" role="tabpanel" aria-labelledby="nav-settings">
                 <div class="panel-header">
                     <div class="panel-header-text">
                         <h2>Automation Settings</h2>
-                        <p>Configure default behaviors and preferences for your automation rules.</p>
+                        <p>Configure default behaviors and preferences.</p>
                     </div>
                 </div>
                 <div class="settings-list">
@@ -208,16 +201,6 @@
                         </div>
                         <label class="toggle-switch">
                             <input type="checkbox" id="setting-confirm-delete">
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                    <div class="setting-item">
-                        <div class="setting-info">
-                            <h4>Auto-disable conflicts</h4>
-                            <p>Automatically disable existing rules that conflict with a newly saved rule.</p>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="setting-auto-disable-conflicts">
                             <span class="slider"></span>
                         </label>
                     </div>
@@ -234,7 +217,7 @@
                     <div class="setting-item">
                         <div class="setting-info">
                             <h4>Default trigger type</h4>
-                            <p>Pre-select this trigger when creating a new rule.</p>
+                            <p>Pre-select the first trigger condition type.</p>
                         </div>
                         <select id="setting-default-trigger-type" class="filter-control-select">
                             <option value="time">Time-based</option>
@@ -247,13 +230,14 @@
         </main>
     </div>
 
+    <!-- FILTER SIDE SHEET -->
     <div id="filter-side-sheet" class="side-sheet" role="dialog" aria-modal="true" aria-label="Filter rules">
         <div class="side-sheet-overlay" id="filter-sheet-overlay"></div>
         <div class="side-sheet-panel">
             <div class="side-sheet-header">
                 <h3>Filter Rules</h3>
                 <button type="button" class="btn-icon" id="close-filter-sheet" aria-label="Close filters">
-                    <span class="icon icon-close"></span>
+                    <span class="icon icon-close" aria-hidden="true"></span>
                 </button>
             </div>
             <div class="side-sheet-content">
@@ -271,6 +255,7 @@
                         <option value="all">All Triggers</option>
                         <option value="time">Time-based</option>
                         <option value="url">URL-based</option>
+                        <option value="compound">Compound</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -289,11 +274,13 @@
         </div>
     </div>
 
+    <!-- TOASTS -->
     <div id="toast-container" aria-live="assertive" aria-atomic="true"></div>
 
+    <!-- CONFIRM DIALOG -->
     <div id="confirm-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title" aria-describedby="confirm-dialog-message">
         <div class="confirm-dialog-content">
-            <h3 id="confirm-dialog-title" style="display: none;">Confirmation</h3>
+            <h3 id="confirm-dialog-title" class="sr-only">Confirmation</h3>
             <p id="confirm-dialog-message"></p>
             <div class="confirm-dialog-buttons">
                 <button type="button" class="btn tertiary" id="confirm-cancel-btn">Cancel</button>
