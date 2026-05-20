@@ -1,47 +1,40 @@
-// safety-center.js - modcore Safety Center (permissions.json-driven)
-
 (function () {
+    'use strict';
 
-    // ─── DOM refs ────────────────────────────────────────────────────────────
-    const $ = id => document.getElementById(id);
+    // ─── Constants ───────────────────────────────────────────────────────────
+    const PERMISSIONS_JSON_CANDIDATES = [
+        '../data/permissions.json',
+        '../../data/permissions.json',
+        'data/permissions.json'
+    ];
 
-    const extensionIcon          = $('extension-icon');
-    const extensionName          = $('extension-name');
-    const overallScoreValue      = $('overall-score-value');
-    const overallScoreCategory   = $('overall-score-category');
-    const overallScoreExplanation= $('score-explanation');
-    const allPermissionsList     = $('all-permissions-list');
-    const toastContainer         = $('toast-container');
-    const singleExtensionView    = $('single-extension-view');
-    const allExtensionsView      = $('all-extensions-view');
-    const allExtensionsList      = $('all-extensions-list');
-    const permissionCountList    = $('permission-count-list');
-    const riskRatingList         = $('risk-rating-list');
-    const filteredExtensionsView = $('filtered-extensions-view');
-    const filteredExtensionsList = $('filtered-extensions-list');
-    const filteredViewHeader     = $('filtered-view-header');
-    const permissionSearchInput  = $('permission-search-input');
-    const privacyScoreGraph      = $('privacy-score-graph');
-    const securityScoreGraph     = $('security-score-graph');
-    const privacyScoreValue      = $('privacy-score-value');
-    const securityScoreValue     = $('security-score-value');
-
-    // ─── permissions.json data (populated after fetch) ───────────────────────
-    let PERM_DB       = {};   // keyed by permission name
-    let PERM_CATS     = {};   // categories meta
-    let PERM_RISK_META= {};   // riskLevels meta
-
-    // ─── Internal risk mapping: json riskLevel → our scoring buckets ─────────
-    // permissions.json uses: "low" | "medium" | "high" | "varies"
-    // We keep: "low" | "moderate" | "high" | "critical"   (unchanged UI labels)
-    const JSON_TO_INTERNAL = {
-        low:    'low',
-        medium: 'moderate',
-        high:   'high',
-        varies: 'moderate'
+    const RISK_LEVELS = {
+        excellent:  { scoreMin: 85, class: 'risk-excellent',  label: 'Excellent',  description: 'This extension requests minimal permissions and demonstrates exceptional respect for your security and privacy. Safe for use.' },
+        good:       { scoreMin: 70, class: 'risk-good',       label: 'Good',       description: 'Requests standard permissions appropriate for its functionality. Generally safe with acceptable privacy practices.' },
+        moderate:   { scoreMin: 50, class: 'risk-moderate',   label: 'Moderate',   description: 'Requests permissions that warrant review. Verify the extension\'s purpose aligns with requested capabilities.' },
+        concerning: { scoreMin: 30, class: 'risk-concerning', label: 'Concerning', description: 'Requests sensitive permissions that could impact privacy or security. Carefully evaluate necessity before use.' },
+        'high-risk':{ scoreMin: 0,  class: 'risk-high-risk',  label: 'High Risk',  description: 'Requests extensive permissions with significant security and privacy implications. Only install from thoroughly trusted sources.' }
     };
 
-    // Base impact scores per internal level (security, privacy)
+    const LEVEL_ORDER = ['critical', 'high', 'moderate', 'low'];
+    const LEVEL_LABELS = {
+        critical: 'Critical Risk',
+        high: 'High Risk',
+        moderate: 'Moderate Risk',
+        low: 'Standard'
+    };
+
+    const LEVEL_PILL_MAP = {
+        critical: 'risk-high-risk',
+        high: 'risk-high-risk',
+        moderate: 'risk-moderate',
+        low: 'risk-good'
+    };
+
+    const JSON_TO_INTERNAL = {
+        low: 'low', medium: 'moderate', high: 'high', varies: 'moderate'
+    };
+
     const LEVEL_BASE_IMPACT = {
         critical: { security: 90, privacy: 85 },
         high:     { security: 65, privacy: 70 },
@@ -49,8 +42,6 @@
         low:      { security:  8, privacy:  8 }
     };
 
-    // Category privacy/security weights
-    // categories in json: privacy, security, functionality, accessibility, data
     const CAT_WEIGHTS = {
         privacy:       { security: 0.4, privacy: 1.0 },
         security:      { security: 1.0, privacy: 0.5 },
@@ -59,130 +50,201 @@
         accessibility: { security: 0.2, privacy: 0.2 }
     };
 
-    // ─── Risk level definitions (UI display) ─────────────────────────────────
-    const RISK_LEVELS = {
-        excellent: {
-            scoreMin: 85,
-            class: 'risk-excellent',
-            label: 'Excellent',
-            description: 'This extension requests minimal permissions and demonstrates exceptional respect for your security and privacy. Safe for use.'
-        },
-        good: {
-            scoreMin: 70,
-            class: 'risk-good',
-            label: 'Good',
-            description: 'Requests standard permissions appropriate for its functionality. Generally safe with acceptable privacy practices.'
-        },
-        moderate: {
-            scoreMin: 50,
-            class: 'risk-moderate',
-            label: 'Moderate',
-            description: 'Requests permissions that warrant review. Verify the extension\'s purpose aligns with requested capabilities.'
-        },
-        concerning: {
-            scoreMin: 30,
-            class: 'risk-concerning',
-            label: 'Concerning',
-            description: 'Requests sensitive permissions that could impact privacy or security. Carefully evaluate necessity before use.'
-        },
-        'high-risk': {
-            scoreMin: 0,
-            class: 'risk-high-risk',
-            label: 'High Risk',
-            description: 'Requests extensive permissions with significant security and privacy implications. Only install from thoroughly trusted sources.'
-        }
+    // ─── State ─────────────────────────────────────────────────────────────────
+    let permDB = {};
+    let permCats = {};
+    let permRiskMeta = {};
+    let permFilterState = {
+        risk: new Set(['critical', 'high', 'moderate', 'low']),
+        type: new Set(['api', 'host']),
+        search: ''
     };
 
-    // ─── Fetch permissions.json ───────────────────────────────────────────────
-    async function loadPermissionsDB() {
-        // Resolve path relative to this script's location
-        const scriptSrc = document.currentScript?.src || '';
-        let base = scriptSrc ? scriptSrc.replace(/\/js\/.*$/, '') : '';
-        const candidates = [
-            base ? `${base}/data/permissions.json` : null,
-            '../data/permissions.json',
-            '../data/permissions.json',
-            'permissions.json'
-        ].filter(Boolean);
+    // ─── DOM Refs ──────────────────────────────────────────────────────────────
+    const $ = id => document.getElementById(id);
 
-        for (const url of candidates) {
-            try {
-                const resp = await fetch(url);
-                if (resp.ok) {
-                    const data = await resp.json();
-                    PERM_DB        = data.permissions   || {};
-                    PERM_CATS      = data.categories    || {};
-                    PERM_RISK_META = data.riskLevels    || {};
-                    return;
-                }
-            } catch (_) { /* try next */ }
-        }
-        console.warn('[SafetyCenter] Could not load permissions.json - falling back to empty DB.');
+    const els = {};
+
+    function cacheElements() {
+        els.allView = $('all-extensions-view');
+        els.singleView = $('single-extension-view');
+        els.filteredView = $('filtered-extensions-view');
+
+        els.allExtensionsList = $('all-extensions-list');
+        els.permissionCountList = $('permission-count-list');
+        els.riskRatingList = $('risk-rating-list');
+        els.totalCount = $('total-extensions-count');
+        els.enabledCount = $('enabled-extensions-count');
+        els.highRiskCount = $('high-risk-count');
+        els.concerningCount = $('concerning-count');
+        els.moderateCount = $('moderate-risk-count');
+        els.analyticsSummary = $('analytics-summary');
+        els.searchInput = $('permission-search-input');
+
+        els.extensionIcon = $('extension-icon');
+        els.extensionName = $('extension-name');
+        els.overallScoreValue = $('overall-score-value');
+        els.overallScoreCategory = $('overall-score-category');
+        els.scoreExplanation = $('score-explanation');
+        els.securityScoreGraph = $('security-score-graph');
+        els.securityScoreValue = $('security-score-value');
+        els.privacyScoreGraph = $('privacy-score-graph');
+        els.privacyScoreValue = $('privacy-score-value');
+        els.scoreBreakdown = $('score-breakdown');
+        els.allPermissionsList = $('all-permissions-list');
+        els.permSearchInput = $('perm-search-input');
+        els.permFilterBtn = $('perm-filter-btn');
+        els.permFilterDropdown = $('perm-filter-dropdown');
+        els.backToDash = $('back-to-dashboard-btn');
+        els.scoreInfoBtn = $('score-info-btn');
+        els.scoreInfoTooltip = $('score-info-tooltip');
+
+        els.filteredList = $('filtered-extensions-list');
+        els.filteredHeader = $('filtered-view-header');
+        els.filteredSubtitle = $('filtered-view-subtitle');
+        els.backFromFiltered = $('back-from-filtered-btn');
+
+        els.toastContainer = $('toast-container');
+
+        els.permPopup = $('permission-popup');
+        els.permPopupOverlay = $('permission-popup-overlay');
+        els.permPopupClose = $('permission-popup-close');
+        els.permPopupTitle = $('permission-popup-title');
+        els.permPopupRisk = $('permission-popup-risk');
+        els.permPopupCategory = $('permission-popup-category');
+        els.permPopupShortDesc = $('permission-popup-short-desc');
+        els.permPopupDetailedDesc = $('permission-popup-detailed-desc');
+        els.permPopupUseCases = $('permission-popup-use-cases');
+        els.permPopupMitigation = $('permission-popup-mitigation');
+        els.permPopupLink = $('permission-popup-link');
     }
 
-    // ─── Permission info resolver ─────────────────────────────────────────────
-    /**
-     * Returns a normalised info object for a given permission string.
-     * Pulls from permissions.json (PERM_DB); falls back gracefully.
-     */
-    function getPermInfo(permission) {
-        // Direct lookup
-        let entry = PERM_DB[permission];
+    // ─── Utilities ─────────────────────────────────────────────────────────────
+    const clearEl = el => { while (el.firstChild) el.removeChild(el.firstChild); };
 
-        // Prefix lookup: e.g. "http://*/*" → use "<all_urls>" logic
+    const createEl = (tag, opts = {}) => {
+        const el = document.createElement(tag);
+        if (opts.className) el.className = opts.className;
+        if (opts.id) el.id = opts.id;
+        if (opts.text) el.textContent = opts.text;
+        if (opts.attrs) Object.entries(opts.attrs).forEach(([k, v]) => el.setAttribute(k, v));
+        return el;
+    };
+
+    const setText = (el, text) => { if (el) el.textContent = text ?? ''; };
+
+    const debounce = (fn, ms) => {
+        let t;
+        return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+    };
+
+    // ─── Data Loading ────────────────────────────────────────────────────────────
+    async function loadPermissionsDB() {
+        for (const url of PERMISSIONS_JSON_CANDIDATES) {
+            try {
+                const r = await fetch(url);
+                if (r.ok) {
+                    const d = await r.json();
+                    permDB = d.permissions || {};
+                    permCats = d.categories || {};
+                    permRiskMeta = d.riskLevels || {};
+                    return;
+                }
+            } catch (_) {}
+        }
+        console.warn('[SafetyCenter] permissions.json not loaded');
+    }
+
+    // ─── Permission Resolver ───────────────────────────────────────────────────
+    function getPermInfo(permission, isHost = false) {
+        if (isHost) {
+            const base = permDB['<<all_urls>'] || permDB['host_permissions'] || {};
+            let riskLevel = 'varies';
+            let description = 'Access specific websites or patterns.';
+
+            if (permission === '<all_urls>') {
+                riskLevel = 'high';
+                description = 'Access data and modify behavior on ALL websites you visit.';
+            } else if (permission.includes('*')) {
+                riskLevel = 'medium';
+                description = `Access websites matching pattern: "${permission}". Can read and change data on matching sites.`;
+            } else {
+                riskLevel = 'low';
+                description = `Access specific site: "${permission}". Can read and change data on this site.`;
+            }
+
+            return {
+                level: JSON_TO_INTERNAL[riskLevel] || 'moderate',
+                rawLevel: riskLevel,
+                security_impact: riskLevel === 'high' ? 80 : riskLevel === 'medium' ? 50 : 15,
+                privacy_impact: riskLevel === 'high' ? 75 : riskLevel === 'medium' ? 45 : 12,
+                type: 'host',
+                categories: (base.category || ['functionality']).map(c => permCats[c]?.name || capitalise(c)),
+                description: description,
+                shortDescription: base.shortDescription || description,
+                detailedDescription: base.detailedDescription || 'Host permissions allow extensions to interact with specific websites.',
+                link: base.chromeLink || 'https://developer.chrome.com/docs/extensions/mv3/match_patterns/',
+                requiresHost: true,
+                mv3Compatible: base.mv3Compatible !== false,
+                commonUseCases: base.commonUseCases || ['Site-specific enhancements', 'Content modification'],
+                mitigationTips: base.mitigationTips || ['Use specific patterns', 'Avoid broad wildcards'],
+                displayName: permission
+            };
+        }
+
+        let entry = permDB[permission];
         if (!entry) {
             if (/^https?:\/\/\*/.test(permission) || permission === '<all_urls>') {
-                entry = PERM_DB['<all_urls>'] || PERM_DB['host_permissions'];
+                entry = permDB['<<all_urls>'] || permDB['host_permissions'];
             }
         }
 
         if (entry) {
-            const jsonLevel   = entry.riskLevel || 'low';
+            const jsonLevel = entry.riskLevel || 'low';
             const internalLvl = JSON_TO_INTERNAL[jsonLevel] || 'low';
-            const cats        = Array.isArray(entry.category) ? entry.category : [entry.category || 'functionality'];
+            const cats = Array.isArray(entry.category) ? entry.category : [entry.category || 'functionality'];
 
-            // Build weighted base impacts from categories
             let secImpact = LEVEL_BASE_IMPACT[internalLvl].security;
-            let privImpact= LEVEL_BASE_IMPACT[internalLvl].privacy;
-
-            // Adjust based on declared categories
+            let privImpact = LEVEL_BASE_IMPACT[internalLvl].privacy;
             const hasPriv = cats.includes('privacy') || cats.includes('data');
-            const hasSec  = cats.includes('security');
-            if (hasPriv)  privImpact  = Math.min(100, privImpact * 1.25);
-            if (hasSec)   secImpact   = Math.min(100, secImpact  * 1.25);
+            const hasSec = cats.includes('security');
+            if (hasPriv) privImpact = Math.min(100, privImpact * 1.25);
+            if (hasSec) secImpact = Math.min(100, secImpact * 1.25);
 
             return {
-                level:           internalLvl,
+                level: internalLvl,
+                rawLevel: jsonLevel,
                 security_impact: secImpact,
-                privacy_impact:  privImpact,
-                type:            cats[0] || 'functionality',
-                categories:      cats.map(c => PERM_CATS[c]?.name || capitalise(c)),
-                description:     entry.detailedDescription || entry.shortDescription || 'No description available.',
-                shortDescription:entry.shortDescription || '',
-                link:            entry.chromeLink || null,
-                requiresHost:    entry.requiresHostPermission || false,
-                mv3Compatible:   entry.mv3Compatible !== false,
-                commonUseCases:  entry.commonUseCases || [],
-                mitigationTips:  entry.mitigationTips || [],
-                displayName:     entry.name || permission
+                privacy_impact: privImpact,
+                type: 'api',
+                categories: cats.map(c => permCats[c]?.name || capitalise(c)),
+                description: entry.detailedDescription || entry.shortDescription || 'No description available.',
+                shortDescription: entry.shortDescription || '',
+                detailedDescription: entry.detailedDescription || '',
+                link: entry.chromeLink || null,
+                requiresHost: entry.requiresHostPermission || false,
+                mv3Compatible: entry.mv3Compatible !== false,
+                commonUseCases: entry.commonUseCases || [],
+                mitigationTips: entry.mitigationTips || [],
+                displayName: entry.name || permission
             };
         }
 
-        // Unknown / unrecognised permission
         return {
-            level:           'moderate',
+            level: 'moderate',
+            rawLevel: 'medium',
             security_impact: 45,
-            privacy_impact:  45,
-            type:            'unknown',
-            categories:      ['Unclassified'],
-            description:     'Unrecognised permission. Exercise caution as impact cannot be determined without additional analysis.',
-            shortDescription:'Unknown permission',
-            link:            null,
-            requiresHost:    false,
-            mv3Compatible:   true,
-            commonUseCases:  [],
-            mitigationTips:  ['Research this permission before granting'],
-            displayName:     permission
+            privacy_impact: 45,
+            type: 'api',
+            categories: ['Unclassified'],
+            description: 'Unrecognised permission. Exercise caution as impact cannot be determined without additional analysis.',
+            shortDescription: 'Unknown permission',
+            link: null,
+            requiresHost: false,
+            mv3Compatible: true,
+            commonUseCases: [],
+            mitigationTips: ['Research this permission before granting'],
+            displayName: permission
         };
     }
 
@@ -190,237 +252,306 @@
         return str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
     }
 
-    // ─── Score calculation ────────────────────────────────────────────────────
-    /**
-     * Calculate comprehensive security assessment scores from a permissions array.
-     * Uses permissions.json data for accurate weighted impact.
-     */
-    function calculateSecurityScores(permissions) {
-        if (!permissions || permissions.length === 0) {
-            return { overallScore: 100, securityScore: 100, privacyScore: 100, category: 'excellent', permissionCount: 0, breakdown: [] };
+    // ─── Scoring ───────────────────────────────────────────────────────────────
+    function calculateScores(apiPerms, hostPerms) {
+        const all = [
+            ...(apiPerms || []).map(p => ({ name: p, isHost: false })),
+            ...(hostPerms || []).map(p => ({ name: p, isHost: true }))
+        ];
+
+        if (all.length === 0) {
+            return {
+                overallScore: 100, securityScore: 100, privacyScore: 100,
+                category: 'excellent', count: 0, breakdown: []
+            };
         }
 
-        let totalSecurity = 0;
-        let totalPrivacy  = 0;
-        const breakdown   = [];
+        let totalSec = 0, totalPriv = 0;
+        const breakdown = [];
 
-        // First pass: highest-impact permissions are counted fully; subsequent ones
-        // have diminishing returns to prevent score collapse on big but benign extensions.
-        const sorted = [...permissions].sort((a, b) => {
-            const ia = getPermInfo(a);
-            const ib = getPermInfo(b);
+        const sorted = [...all].sort((a, b) => {
+            const ia = getPermInfo(a.name, a.isHost);
+            const ib = getPermInfo(b.name, b.isHost);
             return (ib.security_impact + ib.privacy_impact) - (ia.security_impact + ia.privacy_impact);
         });
 
-        sorted.forEach((permission, idx) => {
-            const info = getPermInfo(permission);
-
-            // Diminishing returns: each successive permission adds 85% of previous weight
+        sorted.forEach((perm, idx) => {
+            const info = getPermInfo(perm.name, perm.isHost);
             const dimFactor = Math.pow(0.88, idx);
+            const criticalBoost = info.level === 'critical' ? 1.5 : info.level === 'high' ? 1.15 : 1.0;
 
-            // Critical permissions bypass diminishing returns partially
-            const criticalBoost = info.level === 'critical' ? 1.5 :
-                                  info.level === 'high'     ? 1.15 : 1.0;
+            const secContrib = info.security_impact * dimFactor * criticalBoost;
+            const privContrib = info.privacy_impact * dimFactor * criticalBoost;
 
-            const secContrib  = info.security_impact * dimFactor * criticalBoost;
-            const privContrib = info.privacy_impact  * dimFactor * criticalBoost;
+            totalSec += secContrib;
+            totalPriv += privContrib;
 
-            totalSecurity += secContrib;
-            totalPrivacy  += privContrib;
-
-            breakdown.push({ permission, info, secContrib: Math.round(secContrib), privContrib: Math.round(privContrib) });
+            breakdown.push({
+                permission: perm.name,
+                isHost: perm.isHost,
+                info,
+                secContrib: Math.round(secContrib),
+                privContrib: Math.round(privContrib)
+            });
         });
 
-        // Sprawl bonus: many permissions increase risk regardless of individual level
-        const sprawlBonus = Math.min(permissions.length * 1.8, 25);
-        totalSecurity += sprawlBonus;
-        totalPrivacy  += sprawlBonus;
+        const sprawl = Math.min(all.length * 1.8, 25);
+        totalSec += sprawl;
+        totalPriv += sprawl;
 
-        // Normalise against a calibrated max
-        const maxImpact    = 500;
-        const securityScore = Math.max(0, Math.min(100, Math.round(100 - (totalSecurity / maxImpact) * 100)));
-        const privacyScore  = Math.max(0, Math.min(100, Math.round(100 - (totalPrivacy  / maxImpact) * 100)));
+        const maxImpact = 500;
+        const secScore = Math.max(0, Math.min(100, Math.round(100 - (totalSec / maxImpact) * 100)));
+        const privScore = Math.max(0, Math.min(100, Math.round(100 - (totalPriv / maxImpact) * 100)));
 
-        // Overall: 55% lower score + 45% higher score (penalises one bad dimension strongly)
-        const lower = Math.min(securityScore, privacyScore);
-        const upper = Math.max(securityScore, privacyScore);
-        const overallScore = Math.round(lower * 0.6 + upper * 0.4);
+        const lower = Math.min(secScore, privScore);
+        const upper = Math.max(secScore, privScore);
+        const overall = Math.round(lower * 0.6 + upper * 0.4);
 
-        // Determine category
         let category = 'high-risk';
         for (const [key, lvl] of Object.entries(RISK_LEVELS)) {
-            if (overallScore >= lvl.scoreMin) { category = key; break; }
+            if (overall >= lvl.scoreMin) { category = key; break; }
         }
 
-        return { overallScore, securityScore, privacyScore, category, permissionCount: permissions.length, breakdown };
+        return {
+            overallScore: overall,
+            securityScore: secScore,
+            privacyScore: privScore,
+            category,
+            count: all.length,
+            breakdown
+        };
     }
 
-    // ─── Score display ────────────────────────────────────────────────────────
-    function updateScoreDisplays(scores) {
-        const levelInfo = RISK_LEVELS[scores.category];
+    // ─── UI: Toast ─────────────────────────────────────────────────────────────
+    function showToast(message, type = 'info', duration = 3500) {
+        const toast = createEl('div', { className: `toast toast-${type}`, attrs: { role: 'alert' } });
+        toast.textContent = message;
+        els.toastContainer.appendChild(toast);
 
-        // Overall
-        overallScoreValue.textContent      = scores.overallScore;
-        overallScoreCategory.textContent   = levelInfo.label;
-        overallScoreCategory.className     = `score-label ${levelInfo.class}`;
-        overallScoreExplanation.textContent= levelInfo.description;
-
-        // Security circle
-        securityScoreValue.textContent = scores.securityScore;
-        securityScoreGraph.style.setProperty('--score-value', scores.securityScore);
-        applyScoreColor(securityScoreGraph, securityScoreValue, scores.securityScore);
-
-        // Privacy circle
-        privacyScoreValue.textContent = scores.privacyScore;
-        privacyScoreGraph.style.setProperty('--score-value', scores.privacyScore);
-        applyScoreColor(privacyScoreGraph, privacyScoreValue, scores.privacyScore);
+        requestAnimationFrame(() => toast.classList.add('toast-show'));
+        setTimeout(() => {
+            toast.classList.remove('toast-show');
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
     }
 
-    function applyScoreColor(circle, label, score) {
-        const colorVar = score >= 85 ? '--color-excellent' :
-                         score >= 70 ? '--color-good'      :
-                         score >= 50 ? '--color-moderate'  :
-                         score >= 30 ? '--color-concerning': '--color-high-risk';
-        const color = getComputedStyle(document.documentElement).getPropertyValue(colorVar).trim();
-        circle.style.background = `conic-gradient(${color} calc(${score} * 1%), var(--color-border-light) calc(${score} * 1%))`;
-    }
+    // ─── UI: Popup ─────────────────────────────────────────────────────────────
+    function showPermPopup(name, isHost, info) {
+        closePermPopup();
 
-    // ─── Permission list rendering ────────────────────────────────────────────
-    function createPermissionListItem(permission) {
-        const info = getPermInfo(permission);
+        setText(els.permPopupTitle, isHost ? `Host: ${name}` : info.displayName || name);
 
-        const item = document.createElement('li');
-        item.className = `permission-item permission-${info.level}`;
+        const meta = permRiskMeta[info.rawLevel] || {};
+        els.permPopupRisk.className = `permission-popup-risk risk-${info.rawLevel}`;
+        setText(els.permPopupRisk, meta.name || `${info.level} risk`);
+        els.permPopupRisk.style.backgroundColor = meta.containerColor || '';
+        els.permPopupRisk.style.color = meta.color || '';
 
-        // Icon
-        const iconContainer = document.createElement('div');
-        iconContainer.className = `permission-icon ${RISK_LEVELS[info.level]?.class || 'risk-moderate'}`;
-        const iconSymbol = { critical: '!', high: '!', moderate: '~', low: '✓' }[info.level] || '?';
-        iconContainer.setAttribute('aria-label', `${info.level} risk`);
-        iconContainer.textContent = iconSymbol;
-
-        // Content
-        const content = document.createElement('div');
-        content.className = 'permission-content';
-
-        // Header row
-        const header = document.createElement('div');
-        header.className = 'permission-header';
-
-        const titleRow = document.createElement('div');
-        titleRow.className = 'permission-title-row';
-
-        const title = document.createElement('h5');
-        title.className = 'permission-title';
-        title.textContent = info.displayName || permission;
-
-        // Flags row: host required, mv3 compat
-        const flags = document.createElement('div');
-        flags.className = 'permission-flags';
-
-        if (info.requiresHost) {
-            const flag = document.createElement('span');
-            flag.className = 'permission-flag permission-flag-host';
-            flag.textContent = 'Needs host access';
-            flag.title = 'This permission requires host/URL permissions to be effective';
-            flags.appendChild(flag);
-        }
-        if (!info.mv3Compatible) {
-            const flag = document.createElement('span');
-            flag.className = 'permission-flag permission-flag-mv2';
-            flag.textContent = 'MV2 only';
-            flag.title = 'This permission is not compatible with Manifest V3';
-            flags.appendChild(flag);
-        }
-
-        titleRow.appendChild(title);
-        if (flags.children.length) titleRow.appendChild(flags);
-
-        const rightSide = document.createElement('div');
-        rightSide.className = 'permission-right';
-
-        // Badges
-        const badges = document.createElement('div');
-        badges.className = 'permission-badges';
+        clearEl(els.permPopupCategory);
         info.categories.forEach(cat => {
-            const badge = document.createElement('span');
-            badge.className = 'permission-badge';
-            badge.textContent = cat;
-            badges.appendChild(badge);
+            els.permPopupCategory.appendChild(createEl('span', { className: 'category-badge', text: cat }));
         });
 
-        // Docs link
-        if (info.link) {
-            const link = document.createElement('a');
-            link.href = info.link;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            link.className = 'permission-link';
-            link.setAttribute('aria-label', `View ${permission} documentation`);
-            
-            const svgImg = document.createElement('img');
-            svgImg.src = '../../public/icons/svg/link.svg'; // 
-            svgImg.alt = ''; // decorative, already described by aria-label
-            svgImg.width = 14;
-            svgImg.height = 14;
-            svgImg.style.marginRight = '4px'; // optional spacing
+        setText(els.permPopupShortDesc, info.shortDescription || info.description);
+        setText(els.permPopupDetailedDesc, info.detailedDescription || info.description);
 
-            link.appendChild(svgImg);
-            link.appendChild(document.createTextNode('Docs'));
-            
+        clearEl(els.permPopupUseCases);
+        const useCases = info.commonUseCases.length ? info.commonUseCases : ['General extension functionality'];
+        useCases.forEach(uc => els.permPopupUseCases.appendChild(createEl('li', { text: uc })));
+
+        clearEl(els.permPopupMitigation);
+        const tips = info.mitigationTips.length ? info.mitigationTips : ['Review permission carefully before granting'];
+        tips.forEach(tip => els.permPopupMitigation.appendChild(createEl('li', { text: tip })));
+
+        if (info.link) {
+            els.permPopupLink.href = info.link;
+            els.permPopupLink.hidden = false;
+        } else {
+            els.permPopupLink.hidden = true;
+        }
+
+        els.permPopupOverlay.classList.add('visible');
+        els.permPopupOverlay.setAttribute('aria-hidden', 'false');
+        els.permPopup.classList.add('visible');
+        document.body.style.overflow = 'hidden';
+        els.permPopupClose.focus();
+    }
+
+    function closePermPopup() {
+        els.permPopupOverlay.classList.remove('visible');
+        els.permPopupOverlay.setAttribute('aria-hidden', 'true');
+        els.permPopup.classList.remove('visible');
+        document.body.style.overflow = '';
+    }
+
+    // ─── UI: Score Display ─────────────────────────────────────────────────────
+    function updateScoreDisplays(scores) {
+        const lvl = RISK_LEVELS[scores.category];
+
+        setText(els.overallScoreValue, scores.overallScore);
+        els.overallScoreCategory.className = `score-label ${lvl.class}`;
+        setText(els.overallScoreCategory, lvl.label);
+        setText(els.scoreExplanation, lvl.description);
+
+        setText(els.securityScoreValue, scores.securityScore);
+        els.securityScoreGraph.style.setProperty('--score-value', scores.securityScore);
+        applyScoreColor(els.securityScoreGraph, scores.securityScore);
+
+        setText(els.privacyScoreValue, scores.privacyScore);
+        els.privacyScoreGraph.style.setProperty('--score-value', scores.privacyScore);
+        applyScoreColor(els.privacyScoreGraph, scores.privacyScore);
+    }
+
+    function applyScoreColor(circle, score) {
+        const varName = score >= 85 ? '--color-score-excellent' :
+                        score >= 70 ? '--color-score-good'      :
+                        score >= 50 ? '--color-score-moderate'  :
+                        score >= 30 ? '--color-score-concerning': '--color-score-high-risk';
+        const color = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+        circle.style.background = `conic-gradient(${color || 'var(--color-primary)'} calc(${score} * 1%), var(--color-border-strong) calc(${score} * 1%))`;
+    }
+
+    // ─── UI: Permission List (Single View) ───────────────────────────────────
+    function renderPermissionsList(apiPerms, hostPerms) {
+        clearEl(els.allPermissionsList);
+
+        const all = [
+            ...(apiPerms || []).map(p => ({ name: p, isHost: false })),
+            ...(hostPerms || []).map(p => ({ name: p, isHost: true }))
+        ];
+
+        if (all.length === 0) {
+            els.allPermissionsList.appendChild(createEl('p', {
+                className: 'no-permissions-message',
+                text: 'This extension does not request any special permissions.'
+            }));
+            return;
+        }
+
+        const grouped = { critical: [], high: [], moderate: [], low: [] };
+        all.forEach(perm => {
+            const info = getPermInfo(perm.name, perm.isHost);
+            (grouped[info.level] || grouped.moderate).push(perm);
+        });
+
+        LEVEL_ORDER.forEach(level => {
+            if (!grouped[level].length) return;
+
+            const section = createEl('details', { className: `permission-category permission-category-${level}` });
+            if (level === 'critical' || level === 'high') section.setAttribute('open', 'true');
+
+            const summary = createEl('summary', { className: 'permission-category-summary' });
+            const label = createEl('span', { className: 'permission-category-label', text: `${LEVEL_LABELS[level]} Permissions` });
+            const count = createEl('span', { className: 'permission-category-count', text: String(grouped[level].length) });
+            summary.appendChild(label);
+            summary.appendChild(count);
+            section.appendChild(summary);
+
+            const list = createEl('ul', { className: 'permission-list' });
+            grouped[level].forEach(perm => list.appendChild(createPermItem(perm.name, perm.isHost)));
+            section.appendChild(list);
+            els.allPermissionsList.appendChild(section);
+        });
+
+        applyPermFilters();
+    }
+
+    function createPermItem(name, isHost) {
+        const info = getPermInfo(name, isHost);
+
+        const item = createEl('li', { className: `permission-item permission-${info.level}` });
+
+        const iconContainer = createEl('div', {
+            className: `permission-icon ${LEVEL_PILL_MAP[info.level] || 'risk-moderate'}`
+        });
+        iconContainer.setAttribute('aria-label', `${info.level} risk`);
+        iconContainer.textContent = { critical: '!', high: '!', moderate: '~', low: '✓' }[info.level] || '?';
+        item.appendChild(iconContainer);
+
+        const content = createEl('div', { className: 'permission-content' });
+
+        const header = createEl('div', { className: 'permission-header' });
+        const titleRow = createEl('div', { className: 'permission-title-row' });
+
+        const title = createEl('h5', { className: 'permission-title', text: info.displayName || name });
+        titleRow.appendChild(title);
+
+        const flags = createEl('div', { className: 'permission-flags' });
+        if (info.requiresHost) {
+            flags.appendChild(createEl('span', {
+                className: 'permission-flag permission-flag-host',
+                text: 'Needs host access',
+                attrs: { title: 'This permission requires host/URL permissions to be effective' }
+            }));
+        }
+        if (!info.mv3Compatible) {
+            flags.appendChild(createEl('span', {
+                className: 'permission-flag permission-flag-mv2',
+                text: 'MV2 only',
+                attrs: { title: 'This permission is not compatible with Manifest V3' }
+            }));
+        }
+        if (isHost) {
+            flags.appendChild(createEl('span', {
+                className: 'permission-flag permission-flag-host',
+                text: 'Host',
+                attrs: { title: 'Host permission allowing access to websites' }
+            }));
+        }
+        if (flags.children.length) titleRow.appendChild(flags);
+
+        const rightSide = createEl('div', { className: 'permission-right' });
+
+        const badges = createEl('div', { className: 'permission-badges' });
+        info.categories.forEach(cat => {
+            badges.appendChild(createEl('span', { className: 'permission-badge', text: cat }));
+        });
+        rightSide.appendChild(badges);
+
+        if (info.link) {
+            const link = createEl('a', {
+                className: 'permission-link',
+                attrs: { href: info.link, target: '_blank', rel: 'noopener noreferrer', 'aria-label': `View ${name} documentation` }
+            });
+            link.textContent = 'Docs';
             rightSide.appendChild(link);
-}
+        }
+
+        const moreBtn = createEl('button', {
+            className: 'btn secondary btn-sm',
+            attrs: { type: 'button', 'aria-label': `More details about ${name}` }
+        });
+        moreBtn.textContent = 'More info';
+        moreBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showPermPopup(name, isHost, info);
+        });
+        rightSide.appendChild(moreBtn);
 
         header.appendChild(titleRow);
-        rightSide.insertBefore(badges, rightSide.firstChild);
         header.appendChild(rightSide);
         content.appendChild(header);
 
-        // Description
-        const desc = document.createElement('p');
-        desc.className = 'permission-description';
-        desc.textContent = info.description;
+        const desc = createEl('p', { className: 'permission-description', text: info.description });
         content.appendChild(desc);
 
-        // Common use-cases (collapsible extras)
         if (info.commonUseCases.length || info.mitigationTips.length) {
-            const extras = document.createElement('details');
-            extras.className = 'permission-extras';
+            const extras = createEl('details', { className: 'permission-extras' });
+            extras.appendChild(createEl('summary', { text: 'Details & tips' }));
 
-            const extSummary = document.createElement('summary');
-            extSummary.textContent = 'Details & tips';
-            extras.appendChild(extSummary);
-
-            const extBody = document.createElement('div');
-            extBody.className = 'permission-extras-body';
+            const extBody = createEl('div', { className: 'permission-extras-body' });
 
             if (info.commonUseCases.length) {
-                const useCasesLabel = document.createElement('p');
-                useCasesLabel.className = 'permission-extras-label';
-                useCasesLabel.textContent = 'Common use cases';
-                extBody.appendChild(useCasesLabel);
-                const ucList = document.createElement('ul');
-                ucList.className = 'permission-extras-list';
-                info.commonUseCases.forEach(uc => {
-                    const li = document.createElement('li');
-                    li.textContent = uc;
-                    ucList.appendChild(li);
-                });
+                extBody.appendChild(createEl('p', { className: 'permission-extras-label', text: 'Common use cases' }));
+                const ucList = createEl('ul', { className: 'permission-extras-list' });
+                info.commonUseCases.forEach(uc => ucList.appendChild(createEl('li', { text: uc })));
                 extBody.appendChild(ucList);
             }
 
             if (info.mitigationTips.length) {
-                const tipsLabel = document.createElement('p');
-                tipsLabel.className = 'permission-extras-label';
-                tipsLabel.textContent = 'What to watch for';
-                extBody.appendChild(tipsLabel);
-                const tList = document.createElement('ul');
-                tList.className = 'permission-extras-list permission-extras-list-tips';
-                info.mitigationTips.forEach(tip => {
-                    const li = document.createElement('li');
-                    li.textContent = tip;
-                    tList.appendChild(li);
-                });
+                extBody.appendChild(createEl('p', { className: 'permission-extras-label', text: 'What to watch for' }));
+                const tList = createEl('ul', { className: 'permission-extras-list permission-extras-list-tips' });
+                info.mitigationTips.forEach(tip => tList.appendChild(createEl('li', { text: tip })));
                 extBody.appendChild(tList);
             }
 
@@ -431,131 +562,187 @@
         item.appendChild(iconContainer);
         item.appendChild(content);
 
+        item.dataset.permName = name.toLowerCase();
+        item.dataset.permRisk = info.level;
+        item.dataset.permType = isHost ? 'host' : 'api';
+        item.dataset.permText = `${name} ${info.description} ${info.categories.join(' ')}`.toLowerCase();
+
         return item;
     }
 
-    function renderPermissionsList(permissions) {
-        while (allPermissionsList.firstChild) allPermissionsList.removeChild(allPermissionsList.firstChild);
+    // ─── Permission Filtering ──────────────────────────────────────────────────
+    function setupPermFilters() {
+        if (!els.permSearchInput) return;
 
-        if (!permissions || permissions.length === 0) {
-            const msg = document.createElement('p');
-            msg.className = 'no-permissions-message';
-            msg.textContent = 'This extension does not request any special permissions.';
-            allPermissionsList.appendChild(msg);
-            return;
-        }
+        const debounced = debounce(() => {
+            permFilterState.search = els.permSearchInput.value.trim().toLowerCase();
+            applyPermFilters();
+        }, 150);
 
-        // Group by internal level
-        const grouped = { critical: [], high: [], moderate: [], low: [] };
-        permissions.forEach(perm => {
-            const info = getPermInfo(perm);
-            (grouped[info.level] || grouped.moderate).push(perm);
+        els.permSearchInput.addEventListener('input', debounced);
+
+        els.permFilterBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = !els.permFilterDropdown.hidden;
+            closeAllDropdowns();
+            if (!isOpen) {
+                els.permFilterDropdown.hidden = false;
+                els.permFilterBtn.setAttribute('aria-expanded', 'true');
+            } else {
+                els.permFilterBtn.setAttribute('aria-expanded', 'false');
+            }
         });
 
-        const order  = ['critical', 'high', 'moderate', 'low'];
-        const labels = { critical: 'Critical Risk', high: 'High Risk', moderate: 'Moderate Risk', low: 'Standard' };
+        els.permFilterDropdown.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', () => {
+                updatePermFilterState();
+                applyPermFilters();
+            });
+        });
 
-        order.forEach(level => {
-            if (!grouped[level].length) return;
+        document.addEventListener('click', (e) => {
+            if (!els.permFilterDropdown.hidden) {
+                const wrapper = els.permFilterBtn?.closest('.permissions-filters');
+                if (wrapper && !wrapper.contains(e.target)) {
+                    closeAllDropdowns();
+                }
+            }
+        });
 
-            const section = document.createElement('details');
-            section.className = `permission-category permission-category-${level}`;
-            if (level === 'critical' || level === 'high') section.open = true;
-
-            const summary = document.createElement('summary');
-            summary.className = 'permission-category-summary';
-
-            const summaryLeft = document.createElement('span');
-            summaryLeft.className = 'permission-category-label';
-            summaryLeft.textContent = `${labels[level]} Permissions`;
-
-            const summaryCount = document.createElement('span');
-            summaryCount.className = 'permission-category-count';
-            summaryCount.textContent = grouped[level].length;
-
-            summary.appendChild(summaryLeft);
-            summary.appendChild(summaryCount);
-            section.appendChild(summary);
-
-            const list = document.createElement('ul');
-            list.className = 'permission-list';
-            grouped[level].forEach(perm => list.appendChild(createPermissionListItem(perm)));
-            section.appendChild(list);
-            allPermissionsList.appendChild(section);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeAllDropdowns();
         });
     }
 
-    // ─── Extension card ───────────────────────────────────────────────────────
-    function createExtensionCard(extension) {
-        const scores = calculateSecurityScores(extension.permissions || []);
-        const lvl    = RISK_LEVELS[scores.category];
+    function updatePermFilterState() {
+        permFilterState.risk.clear();
+        permFilterState.type.clear();
 
-        const card = document.createElement('li');
-        card.className = 'extension-card';
-        card.setAttribute('tabindex', '0');
-        card.setAttribute('role', 'button');
-        card.setAttribute('aria-label', `View ${extension.name} details`);
+        els.permFilterDropdown.querySelectorAll('input[name="risk-filter"]:checked').forEach(cb => permFilterState.risk.add(cb.value));
+        els.permFilterDropdown.querySelectorAll('input[name="type-filter"]:checked').forEach(cb => permFilterState.type.add(cb.value));
+    }
+
+    function applyPermFilters() {
+        const { search, risk, type } = permFilterState;
+        const items = els.allPermissionsList.querySelectorAll('.permission-item');
+        let visible = 0;
+
+        items.forEach(item => {
+            const matchesSearch = !search ||
+                item.dataset.permName.includes(search) ||
+                item.dataset.permText.includes(search);
+            const matchesRisk = risk.has(item.dataset.permRisk);
+            const matchesType = type.has(item.dataset.permType);
+
+            const show = matchesSearch && matchesRisk && matchesType;
+            item.style.display = show ? '' : 'none';
+            if (show) visible++;
+        });
+
+        els.allPermissionsList.querySelectorAll('.permission-category').forEach(cat => {
+            const list = cat.querySelector('.permission-list');
+            const hasVisible = Array.from(list.children).some(li => li.style.display !== 'none');
+            cat.style.display = hasVisible ? '' : 'none';
+        });
+
+        let emptyMsg = els.allPermissionsList.querySelector('.no-permissions-message');
+        if (visible === 0 && items.length > 0) {
+            if (!emptyMsg) {
+                emptyMsg = createEl('p', { className: 'no-permissions-message', text: 'No permissions match your filters.' });
+                els.allPermissionsList.insertBefore(emptyMsg, els.allPermissionsList.firstChild);
+            }
+        } else if (emptyMsg) {
+            emptyMsg.remove();
+        }
+    }
+
+    function closeAllDropdowns() {
+        if (els.permFilterDropdown) {
+            els.permFilterDropdown.hidden = true;
+            els.permFilterBtn.setAttribute('aria-expanded', 'false');
+        }
+    }
+
+    // ─── UI: Score Breakdown ───────────────────────────────────────────────────
+    function renderScoreBreakdown(scores) {
+        clearEl(els.scoreBreakdown);
+
+        if (!scores.breakdown || scores.breakdown.length === 0) {
+            els.scoreBreakdown.appendChild(createEl('p', { className: 'score-breakdown-empty', text: 'No permissions to analyse.' }));
+            return;
+        }
+
+        const top = [...scores.breakdown]
+            .sort((a, b) => (b.secContrib + b.privContrib) - (a.secContrib + a.privContrib))
+            .slice(0, 6);
+
+        top.forEach(({ permission, info }) => {
+            const row = createEl('div', { className: `score-breakdown-row score-breakdown-${info.level}` });
+            row.appendChild(createEl('span', { className: 'score-breakdown-label', text: permission }));
+            row.appendChild(createEl('span', {
+                className: `score-breakdown-pill ${LEVEL_PILL_MAP[info.level] || 'risk-moderate'}`,
+                text: info.level
+            }));
+            els.scoreBreakdown.appendChild(row);
+        });
+    }
+
+    // ─── UI: Extension Card ────────────────────────────────────────────────────
+    function createExtensionCard(ext) {
+        const scores = calculateScores(ext.permissions, ext.hostPermissions);
+        const lvl = RISK_LEVELS[scores.category];
+
+        const card = createEl('li', {
+            className: 'extension-card',
+            attrs: { tabindex: '0', role: 'button', 'aria-label': `View ${ext.name} details` }
+        });
+
         card.addEventListener('click', () => {
-            window.location.href = `safety-center.html?id=${extension.id}`;
+            window.location.href = `safety-center.html?id=${ext.id}`;
         });
         card.addEventListener('keydown', e => {
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                window.location.href = `safety-center.html?id=${extension.id}`;
+                window.location.href = `safety-center.html?id=${ext.id}`;
             }
         });
 
-        // Icon
-        const iconWrapper = document.createElement('div');
-        iconWrapper.className = 'extension-card-icon-wrapper';
-        const icon = document.createElement('img');
-        icon.className = 'extension-card-icon';
-        icon.src = extension.icons?.[0]?.url || '../../public/icons/svg/code.svg';
-        icon.alt = '';
-        icon.loading = 'lazy';
+        const iconWrapper = createEl('div', { className: 'extension-card-icon-wrapper' });
+        const icon = createEl('img', {
+            className: 'extension-card-icon',
+            attrs: {
+                src: ext.icons?.[0]?.url || '../../public/icons/svg/code.svg',
+                alt: '',
+                loading: 'lazy'
+            }
+        });
         icon.onerror = () => { icon.src = '../../public/icons/svg/code.svg'; };
         iconWrapper.appendChild(icon);
 
-        // Content
-        const content = document.createElement('div');
-        content.className = 'extension-card-content';
+        const content = createEl('div', { className: 'extension-card-content' });
+        const name = createEl('h3', { className: 'extension-card-name', text: ext.name });
+        const meta = createEl('div', { className: 'extension-card-meta' });
 
-        const name = document.createElement('h3');
-        name.className = 'extension-card-name';
-        name.textContent = extension.name;
+        const count = (ext.permissions?.length || 0) + (ext.hostPermissions?.length || 0);
+        meta.appendChild(createEl('span', {
+            className: 'extension-card-permissions',
+            text: `${count} permission${count !== 1 ? 's' : ''}`
+        }));
 
-        const meta = document.createElement('div');
-        meta.className = 'extension-card-meta';
-
-        const count = extension.permissions?.length || 0;
-        const permCount = document.createElement('span');
-        permCount.className = 'extension-card-permissions';
-        permCount.textContent = `${count} permission${count !== 1 ? 's' : ''}`;
-        meta.appendChild(permCount);
-
-        // Disabled badge
-        if (!extension.enabled) {
-            const disabledBadge = document.createElement('span');
-            disabledBadge.className = 'extension-card-disabled-badge';
-            disabledBadge.textContent = 'Disabled';
-            meta.appendChild(disabledBadge);
+        if (!ext.enabled) {
+            meta.appendChild(createEl('span', { className: 'extension-card-disabled-badge', text: 'Disabled' }));
         }
 
         content.appendChild(name);
         content.appendChild(meta);
 
-        // Score
-        const scoreDisplay = document.createElement('div');
-        scoreDisplay.className = 'extension-card-score';
-
-        const scoreValue = document.createElement('div');
-        scoreValue.className = `extension-card-score-value ${lvl.class}`;
-        scoreValue.textContent = scores.overallScore;
-        scoreValue.setAttribute('aria-label', `Score: ${scores.overallScore}`);
-
-        const scoreLabel = document.createElement('div');
-        scoreLabel.className = 'extension-card-score-label';
-        scoreLabel.textContent = lvl.label;
+        const scoreDisplay = createEl('div', { className: 'extension-card-score' });
+        const scoreValue = createEl('div', {
+            className: `extension-card-score-value ${lvl.class}`,
+            text: String(scores.overallScore),
+            attrs: { 'aria-label': `Score: ${scores.overallScore}` }
+        });
+        const scoreLabel = createEl('div', { className: 'extension-card-score-label', text: lvl.label });
 
         scoreDisplay.appendChild(scoreValue);
         scoreDisplay.appendChild(scoreLabel);
@@ -564,56 +751,22 @@
         card.appendChild(content);
         card.appendChild(scoreDisplay);
 
-        // Data attributes for search/filter
-        card.dataset.name       = extension.name.toLowerCase();
-        card.dataset.category   = scores.category;
-        card.dataset.permissions= (extension.permissions || []).join(',').toLowerCase();
+        card.dataset.name = ext.name.toLowerCase();
+        card.dataset.category = scores.category;
+        card.dataset.permissions = [
+            ...(ext.permissions || []),
+            ...(ext.hostPermissions || [])
+        ].join(',').toLowerCase();
 
         return card;
     }
 
-    // ─── Score info tooltip ───────────────────────────────────────────────────
-    function setupScoreInfoTooltip() {
-        const infoBtn = $('score-info-btn');
-        const tooltip = $('score-info-tooltip');
-        if (!infoBtn || !tooltip) return;
-
-        let open = false;
-
-        function toggleTooltip(show) {
-            open = show;
-            tooltip.hidden = !show;
-            infoBtn.setAttribute('aria-expanded', String(show));
-        }
-
-        infoBtn.addEventListener('click', e => {
-            e.stopPropagation();
-            toggleTooltip(!open);
-        });
-
-        infoBtn.addEventListener('keydown', e => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleTooltip(!open); }
-            if (e.key === 'Escape') toggleTooltip(false);
-        });
-
-        document.addEventListener('click', e => {
-            if (open && !tooltip.contains(e.target) && e.target !== infoBtn) toggleTooltip(false);
-        });
-
-        document.addEventListener('keydown', e => {
-            if (e.key === 'Escape' && open) toggleTooltip(false);
-        });
-    }
-
-    // ─── Dashboard rendering ──────────────────────────────────────────────────
+    // ─── UI: Dashboard ─────────────────────────────────────────────────────────
     function renderDashboard(extensions) {
-        singleExtensionView.style.display  = 'none';
-        filteredExtensionsView.style.display= 'none';
-        allExtensionsView.style.display    = 'block';
+        showView('dashboard');
+        clearEl(els.allExtensionsList);
 
-        while (allExtensionsList.firstChild) allExtensionsList.removeChild(allExtensionsList.firstChild);
-
-        const enabled = extensions.filter(ext => ext.enabled);
+        const enabled = extensions.filter(e => e.enabled);
         const stats = {
             total: extensions.length,
             enabled: enabled.length,
@@ -621,11 +774,10 @@
             permissions: {}
         };
 
-        // Sort enabled by risk (worst first), then name
         const categoryOrder = ['high-risk', 'concerning', 'moderate', 'good', 'excellent'];
         const sorted = [...enabled].sort((a, b) => {
-            const sa = calculateSecurityScores(a.permissions || []);
-            const sb = calculateSecurityScores(b.permissions || []);
+            const sa = calculateScores(a.permissions, a.hostPermissions);
+            const sb = calculateScores(b.permissions, b.hostPermissions);
             const oi = categoryOrder.indexOf(sa.category);
             const oj = categoryOrder.indexOf(sb.category);
             if (oi !== oj) return oi - oj;
@@ -633,45 +785,41 @@
         });
 
         sorted.forEach(ext => {
-            const scores = calculateSecurityScores(ext.permissions || []);
+            const scores = calculateScores(ext.permissions, ext.hostPermissions);
             stats.categories[scores.category]++;
-            (ext.permissions || []).forEach(p => {
+            [...(ext.permissions || []), ...(ext.hostPermissions || [])].forEach(p => {
                 stats.permissions[p] = (stats.permissions[p] || 0) + 1;
             });
-            allExtensionsList.appendChild(createExtensionCard(ext));
+            els.allExtensionsList.appendChild(createExtensionCard(ext));
         });
 
-        // Also show disabled extensions (at the end, sorted alphabetically)
         extensions.filter(e => !e.enabled)
             .sort((a, b) => a.name.localeCompare(b.name))
-            .forEach(ext => allExtensionsList.appendChild(createExtensionCard(ext)));
+            .forEach(ext => els.allExtensionsList.appendChild(createExtensionCard(ext)));
 
-        // Stats
-        $('total-extensions-count').textContent   = stats.total;
-        $('enabled-extensions-count').textContent = stats.enabled;
-        $('high-risk-count').textContent          = stats.categories['high-risk'];
-        $('concerning-count').textContent         = stats.categories.concerning;
-        $('moderate-risk-count').textContent      = stats.categories.moderate;
+        setText(els.totalCount, stats.total);
+        setText(els.enabledCount, stats.enabled);
+        setText(els.highRiskCount, stats.categories['high-risk']);
+        setText(els.concerningCount, stats.categories.concerning);
+        setText(els.moderateCount, stats.categories.moderate);
 
         renderPermissionCounts(stats.permissions, extensions);
         renderRiskDistribution(stats.categories, extensions);
-        setupDashboardAnalytics(extensions);
+        renderAnalytics(extensions);
     }
 
-    // ─── Analytics bar (new feature) ─────────────────────────────────────────
-    function setupDashboardAnalytics(extensions) {
-        const container = $('analytics-summary');
-        if (!container) return;
+    function renderAnalytics(extensions) {
+        if (!els.analyticsSummary) return;
 
         const enabled = extensions.filter(e => e.enabled);
-        const allPerms = enabled.flatMap(e => e.permissions || []);
-        const criticalCount = allPerms.filter(p => getPermInfo(p).level === 'critical').length;
-        const uniquePerms   = new Set(allPerms).size;
-        const avgScore      = enabled.length
-            ? Math.round(enabled.reduce((s, e) => s + calculateSecurityScores(e.permissions || []).overallScore, 0) / enabled.length)
+        const allPerms = enabled.flatMap(e => [...(e.permissions || []), ...(e.hostPermissions || [])]);
+        const criticalCount = allPerms.filter(p => getPermInfo(p, false).level === 'critical' || getPermInfo(p, true).level === 'critical').length;
+        const uniquePerms = new Set(allPerms).size;
+        const avgScore = enabled.length
+            ? Math.round(enabled.reduce((s, e) => s + calculateScores(e.permissions, e.hostPermissions).overallScore, 0) / enabled.length)
             : 100;
 
-        container.innerHTML = '';
+        clearEl(els.analyticsSummary);
 
         const items = [
             { label: 'Avg. Safety Score', value: avgScore, suffix: '/100' },
@@ -680,72 +828,63 @@
         ];
 
         items.forEach(({ label, value, suffix = '', warn = false }) => {
-            const el = document.createElement('div');
-            el.className = 'analytics-item';
-            el.innerHTML = `
-                <span class="analytics-value${warn ? ' analytics-value-warn' : ''}">${value}${suffix}</span>
-                <span class="analytics-label">${label}</span>
-            `;
-            container.appendChild(el);
+            const el = createEl('div', { className: 'analytics-item' });
+            el.appendChild(createEl('span', {
+                className: `analytics-value${warn ? ' analytics-value-warn' : ''}`,
+                text: `${value}${suffix}`
+            }));
+            el.appendChild(createEl('span', { className: 'analytics-label', text: label }));
+            els.analyticsSummary.appendChild(el);
         });
     }
 
-    // ─── Permission frequency list ────────────────────────────────────────────
     function renderPermissionCounts(permissions, extensions) {
-        while (permissionCountList.firstChild) permissionCountList.removeChild(permissionCountList.firstChild);
+        clearEl(els.permissionCountList);
 
-        const sorted = Object.entries(permissions)
-            .sort(([, a], [, b]) => b - a)
-            .slice(0, 12);
+        const sorted = Object.entries(permissions).sort(([, a], [, b]) => b - a).slice(0, 12);
 
         if (sorted.length === 0) {
-            const empty = document.createElement('li');
-            empty.className = 'stat-item stat-item-empty';
-            empty.textContent = 'No permissions found.';
-            permissionCountList.appendChild(empty);
+            els.permissionCountList.appendChild(createEl('li', { className: 'stat-item stat-item-empty', text: 'No permissions found.' }));
             return;
         }
 
         sorted.forEach(([permission, count]) => {
-            const info = getPermInfo(permission);
-            const item = document.createElement('li');
-            item.className = 'stat-item stat-item-clickable';
-            item.setAttribute('tabindex', '0');
-            item.setAttribute('role', 'button');
-            item.setAttribute('aria-label', `Filter by ${permission}`);
-            item.addEventListener('click', () => filterExtensionsByPermission(extensions, permission));
-            item.addEventListener('keydown', e => {
-                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filterExtensionsByPermission(extensions, permission); }
+            const isHost = permission.includes('://') || permission === '<all_urls>';
+            const info = getPermInfo(permission, isHost);
+
+            const item = createEl('li', {
+                className: 'stat-item stat-item-clickable',
+                attrs: { tabindex: '0', role: 'button', 'aria-label': `Filter by ${permission}` }
             });
 
-            const nameWrapper = document.createElement('div');
-            nameWrapper.className = 'stat-item-name-wrapper';
+            item.addEventListener('click', () => filterByPermission(extensions, permission));
+            item.addEventListener('keydown', e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    filterByPermission(extensions, permission);
+                }
+            });
 
-            const name = document.createElement('span');
-            name.className = 'stat-item-name';
-            name.textContent = permission;
-
-            const badge = document.createElement('span');
+            const nameWrapper = createEl('div', { className: 'stat-item-name-wrapper' });
+            const name = createEl('span', { className: 'stat-item-name', text: permission });
             const badgeLevel = info.level === 'low' ? 'good' : info.level;
-            badge.className = `stat-item-badge ${RISK_LEVELS[badgeLevel]?.class || 'risk-moderate'}`;
-            badge.textContent = info.level;
-
+            const badge = createEl('span', {
+                className: `stat-item-badge ${RISK_LEVELS[badgeLevel]?.class || 'risk-moderate'}`,
+                text: info.level
+            });
             nameWrapper.appendChild(name);
             nameWrapper.appendChild(badge);
 
-            const value = document.createElement('span');
-            value.className = 'stat-item-value';
-            value.textContent = `${count} ext${count !== 1 ? 's' : ''}`;
+            const value = createEl('span', { className: 'stat-item-value', text: `${count} ext${count !== 1 ? 's' : ''}` });
 
             item.appendChild(nameWrapper);
             item.appendChild(value);
-            permissionCountList.appendChild(item);
+            els.permissionCountList.appendChild(item);
         });
     }
 
-    // ─── Risk distribution ────────────────────────────────────────────────────
     function renderRiskDistribution(categories, extensions) {
-        while (riskRatingList.firstChild) riskRatingList.removeChild(riskRatingList.firstChild);
+        clearEl(els.riskRatingList);
 
         const order = ['high-risk', 'concerning', 'moderate', 'good', 'excellent'];
         let hasAny = false;
@@ -755,233 +894,206 @@
             if (!count) return;
             hasAny = true;
 
-            const item = document.createElement('li');
-            item.className = 'stat-item stat-item-clickable';
-            item.setAttribute('tabindex', '0');
-            item.setAttribute('role', 'button');
-            item.setAttribute('aria-label', `Filter ${RISK_LEVELS[category].label} extensions`);
-            item.addEventListener('click', () => filterExtensionsByCategory(extensions, category));
-            item.addEventListener('keydown', e => {
-                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filterExtensionsByCategory(extensions, category); }
+            const item = createEl('li', {
+                className: 'stat-item stat-item-clickable',
+                attrs: { tabindex: '0', role: 'button', 'aria-label': `Filter ${RISK_LEVELS[category].label} extensions` }
             });
 
-            const nameWrapper = document.createElement('div');
-            nameWrapper.className = 'stat-item-name-wrapper';
+            item.addEventListener('click', () => filterByCategory(extensions, category));
+            item.addEventListener('keydown', e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    filterByCategory(extensions, category);
+                }
+            });
 
-            const dot = document.createElement('span');
-            dot.className = `risk-dot risk-dot-${category.replace('-', '')}`;
-
-            const name = document.createElement('span');
-            name.className = `stat-item-name ${RISK_LEVELS[category].class}`;
-            name.textContent = RISK_LEVELS[category].label;
-
+            const nameWrapper = createEl('div', { className: 'stat-item-name-wrapper' });
+            const dot = createEl('span', { className: `risk-dot risk-dot-${category.replace('-', '')}` });
+            const name = createEl('span', { className: `stat-item-name ${RISK_LEVELS[category].class}`, text: RISK_LEVELS[category].label });
             nameWrapper.appendChild(dot);
             nameWrapper.appendChild(name);
 
-            const value = document.createElement('span');
-            value.className = 'stat-item-value';
-            value.textContent = `${count} extension${count !== 1 ? 's' : ''}`;
+            const value = createEl('span', { className: 'stat-item-value', text: `${count} extension${count !== 1 ? 's' : ''}` });
 
             item.appendChild(nameWrapper);
             item.appendChild(value);
-            riskRatingList.appendChild(item);
+            els.riskRatingList.appendChild(item);
         });
 
         if (!hasAny) {
-            const empty = document.createElement('li');
-            empty.className = 'stat-item stat-item-empty';
-            empty.textContent = 'No extensions to categorise.';
-            riskRatingList.appendChild(empty);
+            els.riskRatingList.appendChild(createEl('li', { className: 'stat-item stat-item-empty', text: 'No extensions to categorise.' }));
         }
     }
 
-    // ─── Single extension view ────────────────────────────────────────────────
-    function renderExtensionDetails(extension) {
-        singleExtensionView.style.display  = 'block';
-        allExtensionsView.style.display    = 'none';
-        filteredExtensionsView.style.display= 'none';
-
-        extensionIcon.src = extension.icons?.[0]?.url || '../../public/icons/svg/code.svg';
-        extensionIcon.alt = '';
-        extensionIcon.onerror = () => { extensionIcon.src = '../../public/icons/svg/code.svg'; };
-        extensionName.textContent = extension.name;
-
-        const scores = calculateSecurityScores(extension.permissions || []);
-        updateScoreDisplays(scores);
-        renderPermissionsList(extension.permissions || []);
-        renderScoreBreakdown(scores);
-        setupScoreInfoTooltip();
-    }
-
-    // ─── Score breakdown (new feature) ───────────────────────────────────────
-    function renderScoreBreakdown(scores) {
-        const container = $('score-breakdown');
-        if (!container) return;
-        container.innerHTML = '';
-
-        if (!scores.breakdown || scores.breakdown.length === 0) {
-            container.innerHTML = '<p class="score-breakdown-empty">No permissions to analyse.</p>';
-            return;
-        }
-
-        // Top contributors
-        const top = [...scores.breakdown]
-            .sort((a, b) => (b.secContrib + b.privContrib) - (a.secContrib + a.privContrib))
-            .slice(0, 6);
-
-        top.forEach(({ permission, info }) => {
-            const row = document.createElement('div');
-            row.className = `score-breakdown-row score-breakdown-${info.level}`;
-
-            const label = document.createElement('span');
-            label.className = 'score-breakdown-label';
-            label.textContent = permission;
-
-            const pill = document.createElement('span');
-            pill.className = `score-breakdown-pill ${RISK_LEVELS[info.level]?.class || 'risk-moderate'}`;
-            pill.textContent = info.level;
-
-            row.appendChild(label);
-            row.appendChild(pill);
-            container.appendChild(row);
-        });
-    }
-
-    // ─── Filter views ─────────────────────────────────────────────────────────
-    function filterExtensionsByPermission(extensions, permission) {
-        const filtered = extensions.filter(ext =>
-            ext.enabled && (ext.permissions || []).includes(permission)
-        );
-        renderFilteredView(
-            filtered,
-            `Extensions Using "${permission}"`,
-            `${filtered.length} extension${filtered.length !== 1 ? 's' : ''} request this permission`
-        );
-    }
-
-    function filterExtensionsByCategory(extensions, category) {
+    // ─── Filtered Views ────────────────────────────────────────────────────────
+    function filterByPermission(extensions, permission) {
+        const isHost = permission.includes('://') || permission === '<all_urls>';
         const filtered = extensions.filter(ext => {
             if (!ext.enabled) return false;
-            return calculateSecurityScores(ext.permissions || []).category === category;
+            return (ext.permissions || []).includes(permission) || (ext.hostPermissions || []).includes(permission);
         });
-        renderFilteredView(
-            filtered,
-            `${RISK_LEVELS[category].label} Extensions`,
-            `${filtered.length} extension${filtered.length !== 1 ? 's' : ''} in this category`
-        );
+        renderFilteredView(filtered, `Extensions Using "${permission}"`, `${filtered.length} extension${filtered.length !== 1 ? 's' : ''} request this permission`);
+    }
+
+    function filterByCategory(extensions, category) {
+        const filtered = extensions.filter(ext => {
+            if (!ext.enabled) return false;
+            return calculateScores(ext.permissions, ext.hostPermissions).category === category;
+        });
+        renderFilteredView(filtered, `${RISK_LEVELS[category].label} Extensions`, `${filtered.length} extension${filtered.length !== 1 ? 's' : ''} in this category`);
     }
 
     function renderFilteredView(extensions, title, subtitle) {
-        allExtensionsView.style.display    = 'none';
-        singleExtensionView.style.display  = 'none';
-        filteredExtensionsView.style.display= 'block';
-
-        filteredViewHeader.textContent = title;
-        const sub = $('filtered-view-subtitle');
-        if (sub) sub.textContent = subtitle;
-
-        while (filteredExtensionsList.firstChild) filteredExtensionsList.removeChild(filteredExtensionsList.firstChild);
+        showView('filtered');
+        setText(els.filteredHeader, title);
+        setText(els.filteredSubtitle, subtitle);
+        clearEl(els.filteredList);
 
         if (extensions.length === 0) {
-            const empty = document.createElement('p');
-            empty.className = 'no-permissions-message';
-            empty.textContent = 'No extensions match this filter.';
-            filteredExtensionsList.appendChild(empty);
+            els.filteredList.appendChild(createEl('p', { className: 'no-permissions-message', text: 'No extensions match this filter.' }));
             return;
         }
 
-        extensions.forEach(ext => filteredExtensionsList.appendChild(createExtensionCard(ext)));
+        extensions.forEach(ext => els.filteredList.appendChild(createExtensionCard(ext)));
     }
 
-    // ─── Search ───────────────────────────────────────────────────────────────
-    if (permissionSearchInput) {
-        let debounceTimer;
-        permissionSearchInput.addEventListener('input', e => {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                const query = e.target.value.toLowerCase().trim();
-                const cards = allExtensionsList.querySelectorAll('.extension-card');
-                let visible = 0;
-                cards.forEach(card => {
-                    const matches = !query ||
-                        (card.dataset.name        || '').includes(query) ||
-                        (card.dataset.permissions || '').includes(query) ||
-                        (card.dataset.category    || '').includes(query);
-                    card.style.display = matches ? '' : 'none';
-                    if (matches) visible++;
-                });
+    // ─── Single Extension View ───────────────────────────────────────────────────
+    function renderExtensionDetails(ext) {
+        showView('single');
 
-                // Show empty state
-                let emptyMsg = allExtensionsList.querySelector('.search-empty-state');
-                if (visible === 0 && query) {
-                    if (!emptyMsg) {
-                        emptyMsg = document.createElement('li');
-                        emptyMsg.className = 'search-empty-state';
-                        emptyMsg.textContent = `No extensions match "${query}"`;
-                        allExtensionsList.appendChild(emptyMsg);
-                    }
-                } else if (emptyMsg) {
-                    emptyMsg.remove();
-                }
-            }, 120);
+        els.extensionIcon.src = ext.icons?.[0]?.url || '../../public/icons/svg/code.svg';
+        els.extensionIcon.alt = '';
+        els.extensionIcon.onerror = () => { els.extensionIcon.src = '../../public/icons/svg/code.svg'; };
+        setText(els.extensionName, ext.name);
+
+        const scores = calculateScores(ext.permissions, ext.hostPermissions);
+        updateScoreDisplays(scores);
+        renderPermissionsList(ext.permissions, ext.hostPermissions);
+        renderScoreBreakdown(scores);
+    }
+
+    function setupScoreInfoTooltip() {
+        if (!els.scoreInfoBtn || !els.scoreInfoTooltip) return;
+
+        let open = false;
+
+        function toggle(show) {
+            open = show;
+            els.scoreInfoTooltip.hidden = !show;
+            els.scoreInfoBtn.setAttribute('aria-expanded', String(show));
+        }
+
+        els.scoreInfoBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            toggle(!open);
         });
 
-        // Keyboard shortcut: Ctrl/Cmd+K or '/'
+        els.scoreInfoBtn.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(!open); }
+            if (e.key === 'Escape') toggle(false);
+        });
+
+        document.addEventListener('click', e => {
+            if (open && !els.scoreInfoTooltip.contains(e.target) && e.target !== els.scoreInfoBtn) toggle(false);
+        });
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && open) toggle(false);
+        });
+    }
+
+    // ─── View Switching ────────────────────────────────────────────────────────
+    function showView(view) {
+        els.allView.style.display = view === 'dashboard' ? 'block' : 'none';
+        els.singleView.style.display = view === 'single' ? 'block' : 'none';
+        els.filteredView.style.display = view === 'filtered' ? 'block' : 'none';
+    }
+
+    // ─── Search ─────────────────────────────────────────────────────────────────
+    function setupSearch() {
+        if (!els.searchInput) return;
+
+        const debounced = debounce(() => {
+            const query = els.searchInput.value.toLowerCase().trim();
+            const cards = els.allExtensionsList.querySelectorAll('.extension-card');
+            let visible = 0;
+
+            cards.forEach(card => {
+                const matches = !query ||
+                    (card.dataset.name || '').includes(query) ||
+                    (card.dataset.permissions || '').includes(query) ||
+                    (card.dataset.category || '').includes(query);
+                card.style.display = matches ? '' : 'none';
+                if (matches) visible++;
+            });
+
+            let emptyMsg = els.allExtensionsList.querySelector('.search-empty-state');
+            if (visible === 0 && query) {
+                if (!emptyMsg) {
+                    emptyMsg = createEl('li', { className: 'search-empty-state', text: `No extensions match "${query}"` });
+                    els.allExtensionsList.appendChild(emptyMsg);
+                }
+            } else if (emptyMsg) {
+                emptyMsg.remove();
+            }
+        }, 120);
+
+        els.searchInput.addEventListener('input', debounced);
+
         document.addEventListener('keydown', e => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
                 e.preventDefault();
-                permissionSearchInput.focus();
-                permissionSearchInput.select();
+                els.searchInput.focus();
+                els.searchInput.select();
             }
             if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
                 e.preventDefault();
-                permissionSearchInput.focus();
+                els.searchInput.focus();
             }
         });
     }
 
-    // ─── Back buttons ─────────────────────────────────────────────────────────
-    const backToDash = $('back-to-dashboard-btn');
-    if (backToDash) {
-        backToDash.addEventListener('click', () => { window.location.href = 'safety-center.html'; });
-    }
+    // ─── Back Buttons ──────────────────────────────────────────────────────────
+    function setupBackButtons() {
+        els.backToDash?.addEventListener('click', () => {
+            window.location.href = 'safety-center.html';
+        });
 
-    const backFromFiltered = $('back-from-filtered-btn');
-    if (backFromFiltered) {
-        backFromFiltered.addEventListener('click', () => {
-            allExtensionsView.style.display    = 'block';
-            filteredExtensionsView.style.display= 'none';
+        els.backFromFiltered?.addEventListener('click', () => {
+            showView('dashboard');
         });
     }
 
-    // ─── Toast ────────────────────────────────────────────────────────────────
-    function showToast(message, type = 'info', duration = 3500) {
-        const toast = document.createElement('div');
-        toast.className = `toast toast-${type}`;
-        toast.setAttribute('role', 'alert');
-        toast.textContent = message;
-        toastContainer.appendChild(toast);
-        requestAnimationFrame(() => toast.classList.add('toast-show'));
-        setTimeout(() => {
-            toast.classList.remove('toast-show');
-            setTimeout(() => toast.parentNode && toastContainer.removeChild(toast), 300);
-        }, duration);
+    // ─── Popup Listeners ─────────────────────────────────────────────────────────
+    function setupPopupListeners() {
+        els.permPopupClose?.addEventListener('click', closePermPopup);
+        els.permPopupOverlay?.addEventListener('click', closePermPopup);
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closePermPopup();
+        });
     }
 
-    // ─── Initialise ───────────────────────────────────────────────────────────
-    async function initialize() {
+    // ─── Init ──────────────────────────────────────────────────────────────────
+    async function init() {
         try {
-            // Load permissions.json first - all scoring depends on it
+            cacheElements();
             await loadPermissionsDB();
 
-            const params      = new URLSearchParams(window.location.search);
+            const params = new URLSearchParams(window.location.search);
             const extensionId = params.get('id');
-            const extensions  = await chrome.management.getAll();
+            const extensions = await chrome.management.getAll();
+
+            setupSearch();
+            setupBackButtons();
+            setupPopupListeners();
+            setupPermFilters();
+            setupScoreInfoTooltip();
 
             if (extensionId) {
-                const extension = extensions.find(ext => ext.id === extensionId);
-                if (extension) {
-                    renderExtensionDetails(extension);
+                const ext = extensions.find(e => e.id === extensionId);
+                if (ext) {
+                    renderExtensionDetails(ext);
                 } else {
                     showToast('Extension not found', 'error');
                     renderDashboard(extensions);
@@ -990,15 +1102,14 @@
                 renderDashboard(extensions);
             }
         } catch (err) {
-            console.error('[SafetyCenter] Initialization error:', err);
+            console.error('[SafetyCenter] Init error:', err);
             showToast('Failed to load extension data', 'error');
         }
     }
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initialize);
+        document.addEventListener('DOMContentLoaded', init);
     } else {
-        initialize();
+        init();
     }
-
 })();

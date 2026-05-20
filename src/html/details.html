@@ -29,10 +29,10 @@
                         <span class="icon icon-code" aria-hidden="true"></span>
                         <span class="nav-label">Overview</span>
                     </button>
-                    <button class="nav-item" data-panel-target="panel-permissions">
+                    <a class="nav-item" id="safety-center-link" href="#" target="_self">
                         <span class="icon icon-shield" aria-hidden="true"></span>
                         <span class="nav-label">Permissions</span>
-                    </button>
+                    </a>
                     <button class="nav-item" data-panel-target="panel-support">
                         <span class="icon icon-support" aria-hidden="true"></span>
                         <span class="nav-label">Support Developer</span>
@@ -223,106 +223,6 @@
                 </div>
             </section>
 
-            <!-- Permissions Panel -->
-               <section id="panel-permissions" class="content-panel" aria-labelledby="permissions-panel-title" tabindex="-1">
-                <header class="panel-header">
-                    <h2 id="permissions-panel-title"><span class="icon icon-shield" aria-hidden="true"></span> Permissions &amp; Site Access</h2>
-                    <p>Review what this extension can access. Understanding permissions is essential for your privacy and security.</p>
-                </header>
-                <div class="panel-content">
-                    <div class="permissions-controls">
-                        <div class="permissions-search">
-                            <label for="permission-search-input" class="visually-hidden">Search permissions</label>
-                            <span class="icon icon-search" aria-hidden="true"></span>
-                            <input type="search" id="permission-search-input" placeholder="Search permissions..." autocomplete="off" aria-controls="api-permissions-list host-permissions-list">
-                        </div>
-                        <div class="permissions-filters">
-                            <div class="filter-dropdown-wrapper">
-                                <button id="filter-btn" class="btn secondary" aria-haspopup="true" aria-expanded="false" aria-controls="filter-dropdown-panel">
-                                    <span class="icon icon-filter" aria-hidden="true"></span>
-                                    <span>Filter</span>
-                                </button>
-                                <div id="filter-dropdown-panel" class="filter-dropdown" role="dialog" aria-labelledby="filter-btn" aria-modal="false">
-                                    <div class="filter-group">
-                                        <h4 id="risk-filter-label">Risk Level</h4>
-                                        <label class="filter-option">
-                                            <input type="checkbox" name="risk-filter" value="high" checked aria-describedby="risk-filter-label">
-                                            <span class="risk-dot high" aria-hidden="true"></span>
-                                            <span>High Risk</span>
-                                        </label>
-                                        <label class="filter-option">
-                                            <input type="checkbox" name="risk-filter" value="medium" checked aria-describedby="risk-filter-label">
-                                            <span class="risk-dot medium" aria-hidden="true"></span>
-                                            <span>Medium Risk</span>
-                                        </label>
-                                        <label class="filter-option">
-                                            <input type="checkbox" name="risk-filter" value="low" checked aria-describedby="risk-filter-label">
-                                            <span class="risk-dot low" aria-hidden="true"></span>
-                                            <span>Low Risk</span>
-                                        </label>
-                                        <label class="filter-option">
-                                            <input type="checkbox" name="risk-filter" value="varies" checked aria-describedby="risk-filter-label">
-                                            <span class="risk-dot varies" aria-hidden="true"></span>
-                                            <span>Varies</span>
-                                        </label>
-                                    </div>
-                                    <div class="filter-group">
-                                        <h4 id="type-filter-label">Type</h4>
-                                        <label class="filter-option">
-                                            <input type="checkbox" name="type-filter" value="api" checked aria-describedby="type-filter-label">
-                                            <span>API Permissions</span>
-                                        </label>
-                                        <label class="filter-option">
-                                            <input type="checkbox" name="type-filter" value="host" checked aria-describedby="type-filter-label">
-                                            <span>Host Permissions</span>
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="permissions-content-wrapper" aria-live="polite" aria-busy="true">
-                        <div id="permissions-actual-content">
-                            <div class="content-section permissions-section">
-                                <h3 id="api-permissions-heading" class="section-title small-title">API Permissions (<span id="api-perm-count">0</span>)</h3>
-                                <div class="permissions-table">
-                                    <div class="permissions-table-header" aria-hidden="true">
-                                        <span>Permission</span>
-                                        <span>Type</span>
-                                        <span>Risk</span>
-                                        <span>Description</span>
-                                        <span>Actions</span>
-                                    </div>
-                                    <div id="api-permissions-list" class="permissions-table-body" role="list" aria-labelledby="api-permissions-heading"></div>
-                                </div>
-                            </div>
-                            <div class="content-section permissions-section">
-                                <h3 id="host-permissions-heading" class="section-title small-title">Host Permissions (<span id="host-perm-count">0</span>)</h3>
-                                <div class="permissions-table">
-                                    <div class="permissions-table-header" aria-hidden="true">
-                                        <span>Permission</span>
-                                        <span>Type</span>
-                                        <span>Risk</span>
-                                        <span>Description</span>
-                                        <span>Actions</span>
-                                    </div>
-                                    <div id="host-permissions-list" class="permissions-table-body" role="list" aria-labelledby="host-permissions-heading"></div>
-                                </div>
-                            </div>
-                            <div class="content-section permissions-section risk-legend">
-                                <h3 class="section-title small-title">Risk Level Guide</h3>
-                                <ul class="risk-definitions">
-                                    <li><span class="risk-indicator low">Low Risk</span> Minimal access to non-sensitive features.</li>
-                                    <li><span class="risk-indicator medium">Medium Risk</span> May access sensitive data or browser functions.</li>
-                                    <li><span class="risk-indicator high">High Risk</span> Grants extensive access to data and browser behavior.</li>
-                                    <li><span class="risk-indicator varies">Varies</span> Risk depends on the specific websites it can access.</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
             <!-- Support Panel -->
             <section id="panel-support" class="content-panel" aria-labelledby="support-panel-title" tabindex="-1">
                 <header class="panel-header">
@@ -362,50 +262,6 @@
                 </div>
             </section>
         </main>
-    </div>
-
-    <!-- Permission Detail Popup -->
-    <div id="permission-popup-overlay" class="permission-popup-overlay" aria-hidden="true"></div>
-    <div id="permission-popup" class="permission-popup" role="dialog" aria-modal="true" aria-labelledby="permission-popup-title">
-        <div class="permission-popup-header">
-            <h3 id="permission-popup-title" class="permission-popup-title">Permission Name</h3>
-            <button id="permission-popup-close" class="btn-icon permission-popup-close" aria-label="Close details">
-                <span class="icon icon-close" aria-hidden="true"></span>
-            </button>
-        </div>
-        <div class="permission-popup-content">
-            <div class="permission-popup-meta">
-                <span id="permission-popup-risk" class="permission-popup-risk">Risk Level</span>
-                <div id="permission-popup-category" class="permission-popup-categories" aria-label="Categories"></div>
-            </div>
-
-            <div class="permission-popup-section">
-                <h4>Short Description</h4>
-                <p id="permission-popup-short-desc" class="permission-popup-description"></p>
-            </div>
-
-            <div class="permission-popup-section">
-                <h4>Detailed Information</h4>
-                <p id="permission-popup-detailed-desc" class="permission-popup-description detailed"></p>
-            </div>
-
-            <div class="permission-popup-section">
-                <h4>Common Use Cases</h4>
-                <ul id="permission-popup-use-cases" class="permission-popup-list" aria-label="Common use cases"></ul>
-            </div>
-
-            <div class="permission-popup-section">
-                <h4>Security Tips</h4>
-                <ul id="permission-popup-mitigation" class="permission-popup-list mitigation" aria-label="Security tips"></ul>
-            </div>
-
-            <div class="permission-popup-footer">
-                <a id="permission-popup-link" href="#" target="_blank" rel="noopener noreferrer" class="btn secondary">
-                    <span class="icon icon-link" aria-hidden="true"></span>
-                    View Documentation
-                </a>
-            </div>
-        </div>
     </div>
 
     <!-- Confirmation Modal -->
