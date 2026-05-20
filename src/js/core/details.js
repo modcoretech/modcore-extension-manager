@@ -11,7 +11,7 @@
     const SEARCH_DEBOUNCE_MS = 150;
     const TOAST_DEFAULT_DURATION = 3500;
     const SUPPORT_DATA_URL = 'https://raw.githubusercontent.com/modcoretech/api/main/modcoreEM/support-data.json';
-    const PERMISSIONS_JSON_URL = '../js/features/permissions.json';
+    const PERMISSIONS_JSON_URL = '../js/data/permissions.json';
     const STORAGE_KEY_SUPPORT_CACHE  = 'details_support';
     const SUPPORT_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 

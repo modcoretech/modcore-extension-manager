@@ -100,8 +100,8 @@
         let base = scriptSrc ? scriptSrc.replace(/\/js\/.*$/, '') : '';
         const candidates = [
             base ? `${base}/data/permissions.json` : null,
-            '../js/features/permissions.json',
-            '../js/features/permissions.json',
+            '../js/data/permissions.json',
+            '../js/data/permissions.json',
             'permissions.json'
         ].filter(Boolean);
 
