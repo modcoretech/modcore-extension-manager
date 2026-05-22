@@ -4,16 +4,35 @@
 
 'use strict';
 
-// ─── Constants ───────────────────────────────────────────────────────────────
-const EXTENSIONS_PER_PAGE          = 12;
-const PROFILES_STORAGE_KEY         = 'em_profiles';
-const SETTINGS_STORAGE_KEY         = 'em_settings';
-const DEFAULT_ICON_PLACEHOLDER     = '../../public/icons/svg/updatelogo.svg';
-const SHORTCUT_MODIFIER_KEYS       = ['Ctrl', 'Alt', 'Shift'];
-const VALID_SHORTCUT_KEYS          = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-const DEFAULT_SETTINGS             = { itemsPerPage: 12, compactMode: false, showExtensionIds: false };
+// ─── Profile Module Imports ─────────────────────────────────────────────────
+import {
+    initProfiles,
+    openProfilesModal,
+    closeProfilesModal,
+    applyProfile,
+    populateBulkAssignMenu,
+    registerKeyboardShortcuts,
+    cleanupOrphanedProfileEntries,
+    addExtensionToProfile,
+    removeExtensionFromAllProfiles,
+    refreshProfileViews,
+    currentShortcuts,
+    normalizeShortcut,
+    switchToProfileListView,
+    setupBulkAssignDropdown,
+    loadProfileStore,
+    getOrderedProfileIds
+} from './profiles.js';
 
-const ICON = {
+// ─── Constants ───────────────────────────────────────────────────────────────
+export const PROFILES_STORAGE_KEY         = 'em_profiles';
+export const SETTINGS_STORAGE_KEY         = 'em_settings';
+export const DEFAULT_ICON_PLACEHOLDER     = '../../public/icons/svg/updatelogo.svg';
+export const SHORTCUT_MODIFIER_KEYS       = ['Ctrl', 'Alt', 'Shift'];
+export const VALID_SHORTCUT_KEYS          = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+export const DEFAULT_SETTINGS             = { compactMode: false, showExtensionIds: false, extensionOrder: [] };
+
+export const ICON = {
     toggle:    '../../public/icons/svg/power.svg',
     details:   '../../public/icons/svg/info.svg',
     delete:    '../../public/icons/svg/trash.svg',
@@ -28,7 +47,7 @@ const ICON = {
 };
 
 // ─── DOM cache ────────────────────────────────────────────────────────────────
-const el = {
+export const el = {
     loadingIndicator:               document.getElementById('loading-indicator'),
     extensionList:                  document.getElementById('extension-list'),
     extensionListHeader:            document.getElementById('extension-list-header'),
@@ -37,10 +56,6 @@ const el = {
     typeFilter:                     document.getElementById('type-filter'),
     statusFilter:                   document.getElementById('status-filter'),
     filtersRow:                     document.getElementById('filters'),
-    currentPageSpan:                document.getElementById('current-page'),
-    totalPagesSpan:                 document.getElementById('total-pages'),
-    prevPageButton:                 document.getElementById('prev-page'),
-    nextPageButton:                 document.getElementById('next-page'),
     bulkActionsContainer:           document.getElementById('bulk-actions-container'),
     selectedCountSpan:              document.getElementById('selected-count'),
     bulkAssignActionButton:         document.getElementById('bulk-assign-action-btn'),
@@ -71,7 +86,6 @@ const el = {
     settingsModal:                  document.getElementById('settings-modal'),
     settingsModalTrigger:           document.getElementById('settings-modal-trigger'),
     settingsModalCloseButton:       document.querySelector('#settings-modal .modal-close-button'),
-    settingsItemsPerPageInput:      document.getElementById('settings-items-per-page'),
     settingsCompactModeCheckbox:    document.getElementById('settings-compact-mode'),
     settingsShowIdsCheckbox:        document.getElementById('settings-show-ids'),
     settingsSaveButton:             document.getElementById('settings-save-btn'),
@@ -79,28 +93,29 @@ const el = {
 };
 
 // ─── Session state ────────────────────────────────────────────────────────────
-let searchDebounceTimer       = null;
-let allFetchedExtensions      = [];
-let selectedExtensionIds      = new Set();
-let selectedProfileIds        = new Set();
-let currentConfiguringId      = null;
-let contextMenuEl             = null;
-let activeContextExtId        = null;
-let appSettings               = { ...DEFAULT_SETTINGS };
-let currentShortcuts          = new Map();
-let dialogResolve             = null;
-let dialogType                = null;
+export let searchDebounceTimer       = null;
+export let allFetchedExtensions      = [];
+export let selectedExtensionIds      = new Set();
+export let appSettings               = { ...DEFAULT_SETTINGS };
+export let contextMenuEl             = null;
+export let activeContextExtId        = null;
+export let dialogResolve             = null;
+export let dialogType                = null;
+export let fuse                      = null;
+export let clusterize                = null;
+export let extensionSortable         = null;
+export let clearFiltersFn            = null;
 
 // ═════════════════════════════════════════════════════════════════════════════
-// UTILITIES
+// UTILITIES  (exported for profiles.js)
 // ═════════════════════════════════════════════════════════════════════════════
 
-function sanitizeText(str) {
+export function sanitizeText(str) {
     if (str === null || str === undefined) return '';
     return String(str);
 }
 
-function makeImg(src, alt = '', extraClass = '') {
+export function makeImg(src, alt = '', extraClass = '') {
     const img = document.createElement('img');
     img.src = src;
     img.alt = alt;
@@ -109,7 +124,7 @@ function makeImg(src, alt = '', extraClass = '') {
     return img;
 }
 
-function makeButton({ className = '', title = '', icon = null, text = null, ariaLabel = null } = {}) {
+export function makeButton({ className = '', title = '', icon = null, text = null, ariaLabel = null } = {}) {
     const btn = document.createElement('button');
     btn.className = className;
     if (title)     btn.title = title;
@@ -120,10 +135,10 @@ function makeButton({ className = '', title = '', icon = null, text = null, aria
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// CUSTOM DIALOGS (replaces native confirm/prompt)
+// CUSTOM DIALOGS
 // ═════════════════════════════════════════════════════════════════════════════
 
-function initCustomDialogs() {
+export function initCustomDialogs() {
     document.getElementById('custom-confirm-yes')?.addEventListener('click', () => closeCustomDialog(true));
     document.getElementById('custom-confirm-no')?.addEventListener('click', () => closeCustomDialog(false));
     document.getElementById('custom-confirm-modal')?.addEventListener('click', e => {
@@ -144,7 +159,7 @@ function initCustomDialogs() {
     });
 }
 
-function openCustomDialog(type, message, title, defaultValue = '') {
+export function openCustomDialog(type, message, title, defaultValue = '') {
     dialogType = type;
     const modal = document.getElementById(type === 'confirm' ? 'custom-confirm-modal' : 'custom-prompt-modal');
     const msgEl = document.getElementById(type === 'confirm' ? 'custom-confirm-message' : 'custom-prompt-message');
@@ -170,7 +185,7 @@ function openCustomDialog(type, message, title, defaultValue = '') {
     return new Promise(resolve => { dialogResolve = resolve; });
 }
 
-function closeCustomDialog(value) {
+export function closeCustomDialog(value) {
     const modal = document.getElementById(dialogType === 'confirm' ? 'custom-confirm-modal' : 'custom-prompt-modal');
     if (modal) {
         modal.classList.remove('visible');
@@ -186,11 +201,11 @@ function closeCustomDialog(value) {
     dialogType = null;
 }
 
-function showCustomConfirm(message, title = 'Confirm') {
+export function showCustomConfirm(message, title = 'Confirm') {
     return openCustomDialog('confirm', message, title);
 }
 
-function showCustomPrompt(message, defaultValue = '', title = 'Input Required') {
+export function showCustomPrompt(message, defaultValue = '', title = 'Input Required') {
     return openCustomDialog('prompt', message, title, defaultValue);
 }
 
@@ -211,7 +226,7 @@ function getToastContainer() {
     return toastContainer;
 }
 
-function showToast(message, type = 'info', duration = 3000) {
+export function showToast(message, type = 'info', duration = 3000) {
     const container = getToastContainer();
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
@@ -243,13 +258,13 @@ function dismissToast(toast) {
 // LOADING
 // ═════════════════════════════════════════════════════════════════════════════
 
-function showLoading() {
+export function showLoading() {
     if (el.loadingIndicator) {
         el.loadingIndicator.style.display = 'flex';
         el.loadingIndicator.setAttribute('aria-hidden', 'false');
     }
 }
-function hideLoading() {
+export function hideLoading() {
     if (el.loadingIndicator) {
         el.loadingIndicator.style.display = 'none';
         el.loadingIndicator.setAttribute('aria-hidden', 'true');
@@ -260,14 +275,12 @@ function hideLoading() {
 // SETTINGS
 // ═════════════════════════════════════════════════════════════════════════════
 
-async function loadSettings() {
+export async function loadSettings() {
     try {
         const data = await chrome.storage.local.get(SETTINGS_STORAGE_KEY);
         const raw = data[SETTINGS_STORAGE_KEY];
         if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
             appSettings = { ...DEFAULT_SETTINGS, ...raw };
-            const ipp = parseInt(appSettings.itemsPerPage, 10);
-            appSettings.itemsPerPage = isNaN(ipp) ? DEFAULT_SETTINGS.itemsPerPage : Math.max(5, Math.min(50, ipp));
         } else {
             appSettings = { ...DEFAULT_SETTINGS };
         }
@@ -277,7 +290,7 @@ async function loadSettings() {
     applySettingsToUI();
 }
 
-async function saveSettingsToStore(newSettings) {
+export async function saveSettingsToStore(newSettings) {
     try {
         await chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: newSettings });
         appSettings = { ...newSettings };
@@ -289,11 +302,11 @@ async function saveSettingsToStore(newSettings) {
     }
 }
 
-function applySettingsToUI() {
+export function applySettingsToUI() {
     document.body.classList.toggle('compact-mode', !!appSettings.compactMode);
 }
 
-function openSettingsModal() {
+export function openSettingsModal() {
     if (!el.settingsModal) return;
     closeHelpModal();
     el.settingsModal.style.display = 'flex';
@@ -305,7 +318,7 @@ function openSettingsModal() {
     });
 }
 
-function closeSettingsModal() {
+export function closeSettingsModal() {
     if (!el.settingsModal) return;
     el.settingsModal.classList.remove('visible');
     el.settingsModal.setAttribute('aria-hidden', 'true');
@@ -315,646 +328,34 @@ function closeSettingsModal() {
     }, 350);
 }
 
-function populateSettingsForm() {
-    if (el.settingsItemsPerPageInput) el.settingsItemsPerPageInput.value = appSettings.itemsPerPage;
+export function populateSettingsForm() {
     if (el.settingsCompactModeCheckbox) el.settingsCompactModeCheckbox.checked = !!appSettings.compactMode;
     if (el.settingsShowIdsCheckbox) el.settingsShowIdsCheckbox.checked = !!appSettings.showExtensionIds;
 }
 
-async function handleSettingsSave() {
-    const rawValue = el.settingsItemsPerPageInput?.value ?? '';
-    const itemsPerPage = parseInt(rawValue, 10);
-    if (isNaN(itemsPerPage) || itemsPerPage < 5 || itemsPerPage > 50) {
-        showToast('Extensions per page must be a number between 5 and 50.', 'error');
-        el.settingsItemsPerPageInput?.focus();
-        return;
-    }
+export async function handleSettingsSave() {
     const newSettings = {
-        itemsPerPage,
         compactMode: !!el.settingsCompactModeCheckbox?.checked,
         showExtensionIds: !!el.settingsShowIdsCheckbox?.checked,
+        extensionOrder: appSettings.extensionOrder || [],
     };
     const saved = await saveSettingsToStore(newSettings);
     if (!saved) return;
     showToast('Settings saved.', 'success');
-    await refreshExtensionDataAndRender(1);
+    await refreshExtensionDataAndRender();
     closeSettingsModal();
 }
 
-function handleSettingsReset() {
+export function handleSettingsReset() {
     populateSettingsForm();
     showToast('Form reset to saved values.', 'info');
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// PROFILE STORAGE
-// ═════════════════════════════════════════════════════════════════════════════
-
-async function loadProfileStore() {
-    try {
-        const data = await chrome.storage.local.get(PROFILES_STORAGE_KEY);
-        const raw = data[PROFILES_STORAGE_KEY];
-
-        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-            return { profiles: {}, order: [] };
-        }
-
-        const profiles = raw.profiles && typeof raw.profiles === 'object' && !Array.isArray(raw.profiles)
-            ? raw.profiles : {};
-        const order = Array.isArray(raw.order) ? raw.order.filter(id => typeof id === 'string') : [];
-
-        for (const [id, p] of Object.entries(profiles)) {
-            if (!p || typeof p !== 'object') { delete profiles[id]; continue; }
-            p.id = String(id);
-            p.name = typeof p.name === 'string' && p.name.trim() ? p.name.trim() : 'Unnamed';
-            const states = p.extensionStates;
-            p.extensionStates = (states && typeof states === 'object' && !Array.isArray(states))
-                ? states : {};
-            p.shortcut = typeof p.shortcut === 'string' && p.shortcut.trim() ? p.shortcut.trim() : null;
-        }
-
-        const validOrder = order.filter(id => profiles[id]);
-        return { profiles, order: validOrder };
-    } catch (e) {
-        console.error('loadProfileStore error:', e);
-        return { profiles: {}, order: [] };
-    }
-}
-
-async function saveProfileStore(store) {
-    try {
-        if (!store || typeof store !== 'object' || Array.isArray(store)) {
-            throw new Error('Invalid store object');
-        }
-        store.profiles = store.profiles || {};
-        store.order = Array.isArray(store.order) ? store.order : [];
-        await chrome.storage.local.set({ [PROFILES_STORAGE_KEY]: store });
-    } catch (e) {
-        console.error('saveProfileStore error:', e);
-        showToast('Could not save profiles.', 'error');
-    }
-}
-
-async function getOrderedProfileIds() {
-    const { profiles, order } = await loadProfileStore();
-    const inOrder = order.filter(id => profiles[id]);
-    const notInOrder = Object.keys(profiles)
-        .filter(id => !inOrder.includes(id))
-        .sort((a, b) => (profiles[a].name || '').localeCompare(profiles[b].name || '', undefined, { sensitivity: 'base' }));
-    return [...inOrder, ...notInOrder];
-}
-
-function generateProfileId() {
-    return `profile_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// PROFILE CLEANUP (runs every popup start)
-// ═════════════════════════════════════════════════════════════════════════════
-
-async function cleanupOrphanedProfileEntries() {
-    if (!allFetchedExtensions?.length) return;
-    const validIds = new Set(allFetchedExtensions.map(e => e.id));
-    const store = await loadProfileStore();
-    let changed = false;
-
-    for (const profile of Object.values(store.profiles)) {
-        if (!profile?.extensionStates) continue;
-        for (const extId of Object.keys(profile.extensionStates)) {
-            if (!validIds.has(extId)) {
-                delete profile.extensionStates[extId];
-                changed = true;
-            }
-        }
-    }
-
-    if (changed) await saveProfileStore(store);
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// PROFILES MODAL – open / close
-// ═════════════════════════════════════════════════════════════════════════════
-
-async function openProfilesModal() {
-    if (!el.profilesModal) return;
-    selectedProfileIds.clear();
-    currentConfiguringId = null;
-    el.profilesModal.style.display = 'flex';
-    el.profileConfigView.style.display = 'none';
-    el.profilesModal.setAttribute('aria-hidden', 'false');
-    await switchToProfileListView();
-    requestAnimationFrame(() => {
-        el.profilesModal.classList.add('visible');
-        el.modalNewProfileNameInput?.focus();
-    });
-}
-
-function closeProfilesModal() {
-    if (!el.profilesModal) return;
-    currentConfiguringId = null;
-    el.profilesModal.classList.remove('visible');
-    el.profilesModal.setAttribute('aria-hidden', 'true');
-    setTimeout(() => {
-        if (!el.profilesModal.classList.contains('visible')) el.profilesModal.style.display = 'none';
-        el.profilesModalTrigger?.focus();
-    }, 350);
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// PROFILES MODAL – list view
-// ═════════════════════════════════════════════════════════════════════════════
-
-async function switchToProfileListView() {
-    currentConfiguringId = null;
-    el.profileConfigView.style.display = 'none';
-    el.modalProfileCreationSection.style.display = 'block';
-    el.modalProfileListSection.style.display = 'block';
-    await renderProfileList();
-    el.modalNewProfileNameInput?.focus();
-}
-
-async function renderProfileList() {
-    const listEl = el.modalProfileList;
-    if (!listEl) return;
-
-    const oldHeader = el.modalProfileListSection?.querySelector('.modal-list-header');
-    if (oldHeader) oldHeader.remove();
-
-    listEl.replaceChildren();
-
-    const { profiles } = await loadProfileStore();
-    const orderedIds = await getOrderedProfileIds();
-
-    if (orderedIds.length === 0) {
-        const li = document.createElement('li');
-        li.className = 'no-profiles-message';
-        li.setAttribute('role', 'status');
-        li.textContent = 'No profiles yet. Use the input above to create one.';
-        listEl.appendChild(li);
-        updateProfileBulkUI();
-        return;
-    }
-
-    const header = document.createElement('div');
-    header.className = 'modal-list-header';
-
-    const selAll = document.createElement('input');
-    selAll.type = 'checkbox';
-    selAll.id = 'select-all-profiles-checkbox';
-    selAll.title = 'Select / deselect all profiles';
-
-    const selLabel = document.createElement('label');
-    selLabel.htmlFor = selAll.id;
-    selLabel.textContent = 'Select All';
-
-    const bulkDelBtn = document.createElement('button');
-    bulkDelBtn.id = 'modal-bulk-delete-profiles-btn';
-    bulkDelBtn.className = 'button-small button-danger';
-    bulkDelBtn.style.display = 'none';
-    bulkDelBtn.textContent = 'Delete Selected';
-
-    header.appendChild(selAll);
-    header.appendChild(selLabel);
-    header.appendChild(bulkDelBtn);
-    listEl.before(header);
-
-    selAll.addEventListener('change', handleSelectAllProfiles);
-    bulkDelBtn.addEventListener('click', () => deleteProfiles(selectedProfileIds));
-
-    const frag = document.createDocumentFragment();
-    orderedIds.forEach(profileId => {
-        const profile = profiles[profileId];
-        if (!profile) return;
-
-        const li = document.createElement('li');
-        li.dataset.profileid = profileId;
-        li.setAttribute('role', 'listitem');
-        if (selectedProfileIds.has(profileId)) li.classList.add('selected');
-
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.className = 'profile-select-checkbox';
-        cb.dataset.profileid = profileId;
-        cb.checked = selectedProfileIds.has(profileId);
-        cb.setAttribute('aria-label', `Select profile ${sanitizeText(profile.name)}`);
-
-        const details = document.createElement('div');
-        details.className = 'profile-item-details';
-        details.title = sanitizeText(profile.name);
-
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'profile-item-name';
-        nameSpan.textContent = sanitizeText(profile.name);
-        details.appendChild(nameSpan);
-
-        if (profile.shortcut) {
-            const scSpan = document.createElement('span');
-            scSpan.className = 'profile-item-shortcut';
-            scSpan.appendChild(makeImg(ICON.shortcut, 'Shortcut'));
-            scSpan.appendChild(document.createTextNode(` ${sanitizeText(profile.shortcut)}`));
-            details.appendChild(scSpan);
-        }
-
-        const actions = document.createElement('div');
-        actions.className = 'profile-item-actions';
-
-        const mkBtn = (cls, title, text, icon) => {
-            const btn = makeButton({ className: `button-small ${cls}`, title, text, icon });
-            btn.dataset.profileid = profileId;
-            return btn;
-        };
-
-        actions.appendChild(mkBtn('button-success apply-profile-btn', 'Apply Profile', 'Apply', null));
-        actions.appendChild(mkBtn('configure-profile-btn', 'Configure Profile', null, ICON.configure));
-        actions.appendChild(mkBtn('icon-only duplicate-profile-btn', 'Duplicate Profile', null, ICON.duplicate));
-        actions.appendChild(mkBtn('button-danger icon-only delete-profile-btn', 'Delete Profile', null, ICON.delete));
-
-        li.appendChild(cb);
-        li.appendChild(details);
-        li.appendChild(actions);
-        frag.appendChild(li);
-    });
-
-    listEl.appendChild(frag);
-    updateProfileBulkUI();
-}
-
-function updateProfileBulkUI() {
-    const bulkBtn = document.getElementById('modal-bulk-delete-profiles-btn');
-    const selAll = document.getElementById('select-all-profiles-checkbox');
-    if (!bulkBtn || !selAll) return;
-
-    const count = selectedProfileIds.size;
-    bulkBtn.style.display = count > 0 ? 'inline-flex' : 'none';
-    if (count > 0) bulkBtn.textContent = `Delete Selected (${count})`;
-
-    const total = el.modalProfileList?.querySelectorAll('.profile-select-checkbox').length ?? 0;
-    selAll.checked = total > 0 && count === total;
-    selAll.indeterminate = count > 0 && count < total;
-}
-
-function handleSelectAllProfiles(event) {
-    const checked = event.target.checked;
-    el.modalProfileList?.querySelectorAll('.profile-select-checkbox').forEach(cb => {
-        const id = cb.dataset.profileid;
-        cb.checked = checked;
-        const li = cb.closest('li');
-        if (checked) { selectedProfileIds.add(id); li?.classList.add('selected'); }
-        else { selectedProfileIds.delete(id); li?.classList.remove('selected'); }
-    });
-    updateProfileBulkUI();
-}
-
-async function handleProfileListClick(event) {
-    if (event.target.matches('.profile-select-checkbox')) {
-        const id = event.target.dataset.profileid;
-        const li = event.target.closest('li');
-        if (event.target.checked) { selectedProfileIds.add(id); li?.classList.add('selected'); }
-        else { selectedProfileIds.delete(id); li?.classList.remove('selected'); }
-        updateProfileBulkUI();
-        return;
-    }
-
-    const btn = event.target.closest('button[data-profileid]');
-    if (!btn) return;
-    const id = btn.dataset.profileid;
-    if (!id) return;
-
-    if (btn.classList.contains('delete-profile-btn')) await deleteProfiles(new Set([id]));
-    else if (btn.classList.contains('apply-profile-btn')) await applyProfile(id);
-    else if (btn.classList.contains('configure-profile-btn')) await switchToProfileConfigView(id);
-    else if (btn.classList.contains('duplicate-profile-btn')) await duplicateProfile(id);
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// PROFILES – CRUD
-// ═════════════════════════════════════════════════════════════════════════════
-
-async function addProfile(profileName) {
-    const name = profileName.trim();
-    if (!name) { showToast('Profile name cannot be empty.', 'error'); return false; }
-
-    const store = await loadProfileStore();
-    if (Object.values(store.profiles).some(p => p.name.toLowerCase() === name.toLowerCase())) {
-        showToast(`Profile "${sanitizeText(name)}" already exists.`, 'error');
-        return false;
-    }
-
-    const id = generateProfileId();
-    store.profiles[id] = { id, name, extensionStates: {}, shortcut: null };
-    store.order.push(id);
-    await saveProfileStore(store);
-
-    await renderProfileList();
-    await populateBulkAssignMenu();
-    showToast(`Profile "${sanitizeText(name)}" added.`, 'success');
-    await registerKeyboardShortcuts();
-    return true;
-}
-
-async function deleteProfiles(idsSet) {
-    if (idsSet.size === 0) return false;
-
-    const store = await loadProfileStore();
-    const profileNames = Array.from(idsSet)
-        .map(id => `"${sanitizeText(store.profiles[id]?.name)}"`)
-        .join(', ');
-
-    const confirmed = await showCustomConfirm(
-        `Delete ${idsSet.size} profile(s)?\n\n${profileNames}\n\nThis cannot be undone.`,
-        'Delete Profiles'
-    );
-    if (!confirmed) {
-        showToast('Deletion cancelled.', 'info');
-        return false;
-    }
-
-    let deleted = 0;
-    idsSet.forEach(id => {
-        if (store.profiles[id]) { delete store.profiles[id]; deleted++; }
-    });
-    store.order = store.order.filter(id => !idsSet.has(id));
-
-    if (deleted > 0) {
-        await saveProfileStore(store);
-        selectedProfileIds.clear();
-        await renderProfileList();
-        await populateBulkAssignMenu();
-        showToast(`${deleted} profile(s) deleted.`, 'success');
-        await registerKeyboardShortcuts();
-    }
-    return true;
-}
-
-async function duplicateProfile(sourceId) {
-    const store = await loadProfileStore();
-    const source = store.profiles[sourceId];
-    if (!source) { showToast('Source profile not found.', 'error'); return false; }
-
-    let newName = `${source.name} (Copy)`;
-    let counter = 1;
-    while (Object.values(store.profiles).some(p => p.name.toLowerCase() === newName.toLowerCase())) {
-        counter++;
-        newName = `${source.name} (Copy ${counter})`;
-    }
-
-    const id = generateProfileId();
-    store.profiles[id] = {
-        id,
-        name: newName,
-        extensionStates: structuredClone(source.extensionStates ?? {}),
-        shortcut: null,
-    };
-    store.order.push(id);
-    await saveProfileStore(store);
-
-    await renderProfileList();
-    showToast(`Profile duplicated as "${sanitizeText(newName)}".`, 'success');
-    await registerKeyboardShortcuts();
-    return true;
-}
-
-async function createProfileFromCurrentState() {
-    showLoading();
-    const profileName = await showCustomPrompt(
-        'Enter a name for the new profile:',
-        'Current State Profile',
-        'Create Profile from Current State'
-    );
-    if (profileName === null) { hideLoading(); return; }
-
-    const name = profileName.trim();
-    if (!name) { hideLoading(); showToast('Profile name cannot be empty.', 'error'); return; }
-
-    const store = await loadProfileStore();
-    if (Object.values(store.profiles).some(p => p.name.toLowerCase() === name.toLowerCase())) {
-        hideLoading();
-        showToast(`Profile "${sanitizeText(name)}" already exists.`, 'error');
-        return;
-    }
-
-    const extensionStates = {};
-    allFetchedExtensions.forEach(ext => { if (ext.mayDisable) extensionStates[ext.id] = ext.enabled; });
-
-    const id = generateProfileId();
-    store.profiles[id] = { id, name, extensionStates, shortcut: null };
-    store.order.push(id);
-    await saveProfileStore(store);
-
-    hideLoading();
-    await renderProfileList();
-    await populateBulkAssignMenu();
-    showToast(`Profile "${sanitizeText(name)}" created from current state.`, 'success');
-    await registerKeyboardShortcuts();
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// PROFILES – APPLY
-// ═════════════════════════════════════════════════════════════════════════════
-
-async function applyProfile(profileId) {
-    showLoading();
-    try {
-        const { profiles } = await loadProfileStore();
-        const profile = profiles[profileId];
-
-        if (!profile?.extensionStates || typeof profile.extensionStates !== 'object') {
-            hideLoading();
-            showToast('Profile not found or is empty.', 'error');
-            return;
-        }
-
-        const entries = Object.entries(profile.extensionStates);
-        if (entries.length === 0) {
-            hideLoading();
-            showToast(`Profile "${sanitizeText(profile.name)}" has no extensions configured.`, 'info');
-            return;
-        }
-
-        const extMap = new Map(allFetchedExtensions.map(e => [e.id, e]));
-        let success = 0, errors = 0, noChange = 0;
-
-        const ops = entries.map(([extId, shouldEnable]) => new Promise(resolve => {
-            const cur = extMap.get(extId);
-            if (!cur || !cur.mayDisable) return resolve({ status: 'skipped' });
-            if (cur.enabled === shouldEnable) return resolve({ status: 'nochange' });
-            chrome.management.setEnabled(extId, shouldEnable, () => {
-                if (chrome.runtime.lastError) resolve({ status: 'error', id: extId, error: chrome.runtime.lastError.message });
-                else resolve({ status: 'success', id: extId });
-            });
-        }));
-
-        const results = await Promise.all(ops);
-        results.forEach(r => {
-            if (r.status === 'success') { success++; const ext = extMap.get(r.id); if (ext) ext.enabled = !ext.enabled; }
-            else if (r.status === 'nochange') noChange++;
-            else if (r.status === 'error') { errors++; console.error('Apply profile error:', r.id, r.error); }
-        });
-
-        hideLoading();
-
-        if (errors > 0) showToast(`"${sanitizeText(profile.name)}" applied with ${errors} error(s).`, 'error', 5000);
-        else if (success > 0) showToast(`"${sanitizeText(profile.name)}" applied – ${success} changed, ${noChange} unchanged.`, 'success');
-        else showToast(`All extensions in "${sanitizeText(profile.name)}" were already in the desired state.`, 'info');
-
-        await refreshExtensionDataAndRender(getCurrentPage());
-    } catch (e) {
-        hideLoading();
-        console.error('applyProfile error:', e);
-        showToast('Failed to apply profile.', 'error');
-    }
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// PROFILE CONFIGURATION VIEW
-// ═════════════════════════════════════════════════════════════════════════════
-
-async function switchToProfileConfigView(profileId) {
-    currentConfiguringId = profileId;
-    const { profiles } = await loadProfileStore();
-    const profile = profiles[profileId];
-    if (!profile) { await switchToProfileListView(); return; }
-
-    el.modalProfileCreationSection.style.display = 'none';
-    el.modalProfileListSection.style.display = 'none';
-    el.profileConfigView.style.display = 'block';
-
-    if (el.profileConfigTitle) el.profileConfigTitle.textContent = `Configure: ${sanitizeText(profile.name)}`;
-    if (el.profileConfigNameInput) el.profileConfigNameInput.value = profile.name;
-    if (el.profileConfigShortcutInput) {
-        el.profileConfigShortcutInput.disabled = false;
-        el.profileConfigShortcutInput.value = profile.shortcut ? (normalizeShortcut(profile.shortcut) ?? '') : '';
-        el.profileConfigShortcutInput.placeholder = 'e.g., Ctrl+Shift+P';
-    }
-    hideShortcutMessage();
-
-    await renderProfileConfigExtensions(profileId);
-    el.saveProfileConfigBtn?.focus();
-}
-
-function hideShortcutMessage() {
-    const m = el.profileConfigShortcutMessage;
-    if (!m) return;
-    m.textContent = '';
-    m.style.display = 'none';
-}
-
-async function renderProfileConfigExtensions(profileId) {
-    const listEl = el.profileConfigExtList;
-    if (!listEl) return;
-    listEl.replaceChildren();
-
-    const controllable = allFetchedExtensions
-        .filter(ext => ext.mayDisable)
-        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-
-    if (controllable.length === 0) {
-        const p = document.createElement('p');
-        p.textContent = 'No user-controllable extensions available.';
-        listEl.appendChild(p);
-        return;
-    }
-
-    const { profiles } = await loadProfileStore();
-    const states = profiles[profileId]?.extensionStates ?? {};
-    const frag = document.createDocumentFragment();
-
-    controllable.forEach(ext => {
-        const checked = states[ext.id] ?? ext.enabled;
-        const cbId = `profile-cfg-ext-${ext.id}`;
-
-        const item = document.createElement('div');
-        item.className = 'profile-config-extension-item';
-
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.id = cbId;
-        cb.className = 'profile-config-ext-checkbox';
-        cb.dataset.extensionId = ext.id;
-        cb.checked = checked;
-
-        const icon = makeImg(
-            ext.icons?.find(i => i.size >= 16)?.url || DEFAULT_ICON_PLACEHOLDER,
-            '',
-            'extension-icon-small'
-        );
-        icon.loading = 'lazy';
-
-        const label = document.createElement('label');
-        label.htmlFor = cbId;
-        label.textContent = sanitizeText(ext.name);
-
-        item.appendChild(cb);
-        item.appendChild(icon);
-        item.appendChild(label);
-        frag.appendChild(item);
-    });
-
-    listEl.appendChild(frag);
-}
-
-async function saveProfileConfig() {
-    if (!currentConfiguringId) return;
-
-    const store = await loadProfileStore();
-    const profile = store.profiles[currentConfiguringId];
-    if (!profile) return;
-
-    const newName = el.profileConfigNameInput?.value.trim() ?? '';
-    if (!newName) { showToast('Profile name cannot be empty.', 'error'); return; }
-
-    const nameTaken = Object.values(store.profiles).some(
-        p => p.name.toLowerCase() === newName.toLowerCase() && p.id !== currentConfiguringId
-    );
-    if (nameTaken) { showToast(`Name "${sanitizeText(newName)}" already in use.`, 'error'); return; }
-
-    const rawShortcut = el.profileConfigShortcutInput?.value.trim() || null;
-    let validatedShortcut = null;
-    if (rawShortcut) {
-        const existing = await getExistingShortcuts(currentConfiguringId);
-        const result = validateShortcut(rawShortcut, existing);
-        if (!result.isValid) {
-            showShortcutMessage(result.message, 'error');
-            return;
-        }
-        validatedShortcut = result.normalizedShortcut;
-    }
-
-    const newStates = {};
-    el.profileConfigExtList?.querySelectorAll('.profile-config-ext-checkbox').forEach(cb => {
-        newStates[cb.dataset.extensionId] = cb.checked;
-    });
-
-    profile.name = newName;
-    profile.extensionStates = newStates;
-    profile.shortcut = validatedShortcut;
-
-    await saveProfileStore(store);
-    showToast(`Saved "${sanitizeText(profile.name)}".`, 'success');
-    await registerKeyboardShortcuts();
-}
-
-function showShortcutMessage(msg, type) {
-    const m = el.profileConfigShortcutMessage;
-    if (!m) return;
-    m.className = `feedback-message modal-feedback ${type === 'success' ? 'success-message' : type === 'error' ? 'error-message' : 'info-message'}`;
-    m.textContent = sanitizeText(msg);
-    m.style.display = 'block';
-}
-
-async function handleShortcutInputChange(event) {
-    const val = event.target.value.trim();
-    if (!val) { hideShortcutMessage(); return; }
-    const existing = await getExistingShortcuts(currentConfiguringId);
-    const result = validateShortcut(val, existing);
-    showShortcutMessage(result.message, result.isValid ? 'success' : 'error');
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
 // EXTENSION DATA
 // ═════════════════════════════════════════════════════════════════════════════
 
-function fetchAllExtensions() {
+export function fetchAllExtensions() {
     return new Promise((resolve, reject) => {
         if (!chrome?.management?.getAll) {
             reject(new Error('Extension management API unavailable'));
@@ -967,13 +368,20 @@ function fetchAllExtensions() {
     });
 }
 
-async function filterAndSortExtensions(extensions) {
+function rebuildFuse(extensions) {
+    fuse = new Fuse(extensions, {
+        keys: ['_searchName', '_searchDesc', '_searchId'],
+        threshold: 0.3,
+        includeScore: false
+    });
+}
+
+export async function filterAndSortExtensions(extensions) {
     const search = (el.searchInput?.value ?? '').toLowerCase().trim();
-    const terms = search.split(/\s+/).filter(Boolean);
     const typeVal = el.typeFilter?.value ?? 'all';
     const statusVal = el.statusFilter?.value ?? 'all';
 
-    const filtered = [];
+    let filtered = [];
     for (const ext of extensions) {
         if (typeVal !== 'all') {
             const extType = ext.isApp ? 'app' : (ext.type || 'extension');
@@ -982,129 +390,200 @@ async function filterAndSortExtensions(extensions) {
         }
         if (statusVal === 'enabled' && !ext.enabled) continue;
         if (statusVal === 'disabled' && ext.enabled) continue;
-
-        if (terms.length > 0) {
-            let match = true;
-            for (const t of terms) {
-                if (!ext._searchName.includes(t) && !ext._searchDesc.includes(t) && !ext._searchId.includes(t)) {
-                    match = false;
-                    break;
-                }
-            }
-            if (!match) continue;
-        }
         filtered.push(ext);
     }
 
-    filtered.sort((a, b) => a._searchName.localeCompare(b._searchName, undefined, { sensitivity: 'base' }));
+    if (search.length > 0 && fuse) {
+        const results = fuse.search(search);
+        filtered = results.map(r => r.item);
+    }
+
+    const orderMap = new Map((appSettings.extensionOrder || []).map((id, idx) => [id, idx]));
+    filtered.sort((a, b) => {
+        const oa = orderMap.get(a.id);
+        const ob = orderMap.get(b.id);
+        if (oa !== undefined && ob !== undefined) return oa - ob;
+        if (oa !== undefined) return -1;
+        if (ob !== undefined) return 1;
+        return a._searchName.localeCompare(b._searchName, undefined, { sensitivity: 'base' });
+    });
+
     return filtered;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// EXTENSION LIST RENDERING
+// EXTENSION LIST RENDERING  (Clusterize + real-DOM bulk mode)
 // ═════════════════════════════════════════════════════════════════════════════
 
-async function renderExtensionList(page = 1) {
+function getExtensionRowHTML(ext) {
+    const isSelected = selectedExtensionIds.has(ext.id);
+    const bestIcon = ext.icons?.sort((a, b) => b.size - a.size)[0];
+    const iconUrl = bestIcon?.url ?? DEFAULT_ICON_PLACEHOLDER;
+    const dragDisplay = selectedExtensionIds.size > 0 ? 'inline-flex' : 'none';
+    const idHtml = (appSettings.showExtensionIds && ext.id) ? `<span class="extension-id-display">${ext.id}</span>` : '';
+
+    return `
+    <div class="extension-item ${isSelected ? 'selected' : ''}" data-extension-id="${ext.id}" role="listitem" aria-selected="${isSelected}">
+        <button class="drag-handle" data-extension-id="${ext.id}" title="Drag to reorder" aria-label="Drag to reorder" style="display:${dragDisplay}">⋮⋮</button>
+        <input type="checkbox" class="extension-select-checkbox" data-extension-id="${ext.id}" ${isSelected ? 'checked' : ''} aria-label="Select ${sanitizeText(ext.name)}">
+        <img src="${iconUrl}" alt="" class="extension-icon" loading="lazy" onerror="if(this.src!=='${DEFAULT_ICON_PLACEHOLDER}'){this.src='${DEFAULT_ICON_PLACEHOLDER}';this.onerror=null;}">
+        <div class="extension-details">
+            <span class="extension-name" title="${sanitizeText(ext.name)}">${sanitizeText(ext.name)}</span>
+            ${idHtml}
+        </div>
+        <div class="extension-actions">
+            <button class="toggle-button button-small ${ext.enabled ? 'button-danger' : 'button-success'}" data-action="toggle" data-extension-id="${ext.id}" data-current-state="${ext.enabled ? 'enabled' : 'disabled'}" aria-pressed="${ext.enabled}" title="${ext.enabled ? 'Disable' : 'Enable'} ${sanitizeText(ext.name)}">
+                <img src="${ICON.toggle}" alt="" aria-hidden="true"> ${ext.enabled ? 'Disable' : 'Enable'}
+            </button>
+            <button class="details-button button-small icon-only" data-action="details" data-extension-id="${ext.id}" title="View details for ${sanitizeText(ext.name)}">
+                <img src="${ICON.details}" alt="" aria-hidden="true">
+            </button>
+            <button class="delete-button button-small button-danger icon-only" data-action="delete" data-extension-id="${ext.id}" data-extension-name="${sanitizeText(ext.name)}" title="Uninstall ${sanitizeText(ext.name)}">
+                <img src="${ICON.delete}" alt="" aria-hidden="true">
+            </button>
+        </div>
+    </div>`;
+}
+
+function buildExtensionRow(ext) {
+    const item = document.createElement('div');
+    item.className = 'extension-item';
+    if (selectedExtensionIds.has(ext.id)) item.classList.add('selected');
+    item.dataset.extensionId = ext.id;
+    item.setAttribute('role', 'listitem');
+    item.setAttribute('aria-selected', String(selectedExtensionIds.has(ext.id)));
+
+    const dragHandle = document.createElement('button');
+    dragHandle.className = 'drag-handle';
+    dragHandle.dataset.extensionId = ext.id;
+    dragHandle.title = 'Drag to reorder';
+    dragHandle.setAttribute('aria-label', 'Drag to reorder');
+    dragHandle.textContent = '⋮⋮';
+    dragHandle.style.display = selectedExtensionIds.size > 0 ? 'inline-flex' : 'none';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'extension-select-checkbox';
+    cb.dataset.extensionId = ext.id;
+    cb.checked = selectedExtensionIds.has(ext.id);
+    cb.setAttribute('aria-label', `Select ${sanitizeText(ext.name)}`);
+
+    const bestIcon = ext.icons?.sort((a, b) => b.size - a.size)[0];
+    const iconImg = makeImg(bestIcon?.url ?? DEFAULT_ICON_PLACEHOLDER, '', 'extension-icon');
+    iconImg.loading = 'lazy';
+    iconImg.onerror = () => { if (iconImg.src !== DEFAULT_ICON_PLACEHOLDER) iconImg.src = DEFAULT_ICON_PLACEHOLDER; iconImg.onerror = null; };
+
+    const details = document.createElement('div');
+    details.className = 'extension-details';
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'extension-name';
+    nameSpan.title = sanitizeText(ext.name);
+    nameSpan.textContent = sanitizeText(ext.name);
+    details.appendChild(nameSpan);
+
+    if (appSettings.showExtensionIds && ext.id) {
+        const idSpan = document.createElement('span');
+        idSpan.className = 'extension-id-display';
+        idSpan.textContent = ext.id;
+        details.appendChild(idSpan);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'extension-actions';
+
+    const toggleBtn = makeButton({
+        className: `toggle-button button-small ${ext.enabled ? 'button-danger' : 'button-success'}`,
+        title: `${ext.enabled ? 'Disable' : 'Enable'} ${sanitizeText(ext.name)}`,
+        icon: ICON.toggle,
+        text: ext.enabled ? 'Disable' : 'Enable',
+    });
+    toggleBtn.dataset.action = 'toggle';
+    toggleBtn.dataset.extensionId = ext.id;
+    toggleBtn.dataset.currentState = ext.enabled ? 'enabled' : 'disabled';
+    toggleBtn.setAttribute('aria-pressed', String(ext.enabled));
+
+    const detailsBtn = makeButton({
+        className: 'details-button button-small icon-only',
+        title: `View details for ${sanitizeText(ext.name)}`,
+        icon: ICON.details,
+    });
+    detailsBtn.dataset.action = 'details';
+    detailsBtn.dataset.extensionId = ext.id;
+
+    const deleteBtn = makeButton({
+        className: 'delete-button button-small button-danger icon-only',
+        title: `Uninstall ${sanitizeText(ext.name)}`,
+        icon: ICON.delete,
+    });
+    deleteBtn.dataset.action = 'delete';
+    deleteBtn.dataset.extensionId = ext.id;
+    deleteBtn.dataset.extensionName = sanitizeText(ext.name);
+
+    actions.appendChild(toggleBtn);
+    actions.appendChild(detailsBtn);
+    actions.appendChild(deleteBtn);
+
+    item.appendChild(dragHandle);
+    item.appendChild(cb);
+    item.appendChild(iconImg);
+    item.appendChild(details);
+    item.appendChild(actions);
+
+    return item;
+}
+
+function initExtensionSortable() {
+    if (extensionSortable) {
+        extensionSortable.destroy();
+        extensionSortable = null;
+    }
+    if (selectedExtensionIds.size === 0) return;
+
+    extensionSortable = new Sortable(el.extensionList, {
+        handle: '.drag-handle',
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        dragClass: 'sortable-drag',
+        forceFallback: true,
+        onEnd: async (evt) => {
+            const items = el.extensionList.querySelectorAll('.extension-item');
+            const visibleOrder = Array.from(items).map(item => item.dataset.extensionId);
+
+            const fullOrder = appSettings.extensionOrder || [];
+            const visibleSet = new Set(visibleOrder);
+            const remaining = fullOrder.filter(id => !visibleSet.has(id));
+
+            const knownSet = new Set([...fullOrder, ...visibleOrder]);
+            const extra = allFetchedExtensions.map(e => e.id).filter(id => !knownSet.has(id));
+
+            const newOrder = [...visibleOrder, ...remaining, ...extra];
+            appSettings.extensionOrder = newOrder;
+            await saveSettingsToStore(appSettings);
+            showToast('Extension order saved.', 'success');
+
+            const orderMap = new Map(newOrder.map((id, idx) => [id, idx]));
+            allFetchedExtensions.sort((a, b) => {
+                const oa = orderMap.get(a.id);
+                const ob = orderMap.get(b.id);
+                if (oa !== undefined && ob !== undefined) return oa - ob;
+                if (oa !== undefined) return -1;
+                if (ob !== undefined) return 1;
+                return 0;
+            });
+        }
+    });
+}
+
+export async function renderExtensionList() {
     try {
         if (!el.extensionList) { hideLoading(); return; }
 
         const filteredExtensions = await filterAndSortExtensions(allFetchedExtensions);
         const total = filteredExtensions.length;
-        const perPage = appSettings.itemsPerPage || EXTENSIONS_PER_PAGE;
-        const totalPages = Math.ceil(total / perPage) || 1;
-        const curPage = Math.min(Math.max(page, 1), totalPages);
-        const start = (curPage - 1) * perPage;
-        const pageItems = filteredExtensions.slice(start, start + perPage);
+        const bulkMode = selectedExtensionIds.size > 0;
 
-        if (el.currentPageSpan) el.currentPageSpan.textContent = String(curPage);
-        if (el.totalPagesSpan) el.totalPagesSpan.textContent = String(totalPages);
-        if (el.prevPageButton) el.prevPageButton.disabled = curPage === 1;
-        if (el.nextPageButton) el.nextPageButton.disabled = curPage === totalPages;
-
-        const frag = document.createDocumentFragment();
-
-        if (pageItems.length > 0) {
-            if (el.extensionListHeader) el.extensionListHeader.style.display = 'flex';
-
-            for (const ext of pageItems) {
-                const item = document.createElement('div');
-                item.className = 'extension-item';
-                item.dataset.extensionId = ext.id;
-                item.setAttribute('role', 'listitem');
-
-                const isSelected = selectedExtensionIds.has(ext.id);
-                item.classList.toggle('selected', isSelected);
-                item.setAttribute('aria-selected', String(isSelected));
-
-                const cb = document.createElement('input');
-                cb.type = 'checkbox';
-                cb.className = 'extension-select-checkbox';
-                cb.dataset.extensionId = ext.id;
-                cb.checked = isSelected;
-                cb.setAttribute('aria-label', `Select ${sanitizeText(ext.name)}`);
-
-                const bestIcon = ext.icons?.sort((a, b) => b.size - a.size)[0];
-                const iconImg = makeImg(bestIcon?.url ?? DEFAULT_ICON_PLACEHOLDER, '', 'extension-icon');
-                iconImg.loading = 'lazy';
-                iconImg.onerror = () => { if (iconImg.src !== DEFAULT_ICON_PLACEHOLDER) iconImg.src = DEFAULT_ICON_PLACEHOLDER; iconImg.onerror = null; };
-
-                const details = document.createElement('div');
-                details.className = 'extension-details';
-                const nameSpan = document.createElement('span');
-                nameSpan.className = 'extension-name';
-                nameSpan.title = sanitizeText(ext.name);
-                nameSpan.textContent = sanitizeText(ext.name);
-                details.appendChild(nameSpan);
-
-                if (appSettings.showExtensionIds && ext.id) {
-                    const idSpan = document.createElement('span');
-                    idSpan.className = 'extension-id-display';
-                    idSpan.textContent = ext.id;
-                    details.appendChild(idSpan);
-                }
-
-                const actions = document.createElement('div');
-                actions.className = 'extension-actions';
-
-                const toggleBtn = makeButton({
-                    className: `toggle-button button-small ${ext.enabled ? 'button-danger' : 'button-success'}`,
-                    title: `${ext.enabled ? 'Disable' : 'Enable'} ${sanitizeText(ext.name)}`,
-                    icon: ICON.toggle,
-                    text: ext.enabled ? 'Disable' : 'Enable',
-                });
-                toggleBtn.dataset.action = 'toggle';
-                toggleBtn.dataset.extensionId = ext.id;
-                toggleBtn.dataset.currentState = ext.enabled ? 'enabled' : 'disabled';
-                toggleBtn.setAttribute('aria-pressed', String(ext.enabled));
-
-                const detailsBtn = makeButton({
-                    className: 'details-button button-small icon-only',
-                    title: `View details for ${sanitizeText(ext.name)}`,
-                    icon: ICON.details,
-                });
-                detailsBtn.dataset.action = 'details';
-                detailsBtn.dataset.extensionId = ext.id;
-
-                const deleteBtn = makeButton({
-                    className: 'delete-button button-small button-danger icon-only',
-                    title: `Uninstall ${sanitizeText(ext.name)}`,
-                    icon: ICON.delete,
-                });
-                deleteBtn.dataset.action = 'delete';
-                deleteBtn.dataset.extensionId = ext.id;
-                deleteBtn.dataset.extensionName = sanitizeText(ext.name);
-
-                actions.appendChild(toggleBtn);
-                actions.appendChild(detailsBtn);
-                actions.appendChild(deleteBtn);
-
-                item.appendChild(cb);
-                item.appendChild(iconImg);
-                item.appendChild(details);
-                item.appendChild(actions);
-                frag.appendChild(item);
-            }
-        } else {
+        if (total === 0) {
             if (el.extensionListHeader) el.extensionListHeader.style.display = 'none';
             if (el.emptyState) {
                 el.emptyState.style.display = 'block';
@@ -1117,9 +596,57 @@ async function renderExtensionList(page = 1) {
                     el.emptyState.appendChild(p2);
                 }
             }
+            if (clusterize) {
+                clusterize.destroy();
+                clusterize = null;
+            }
+            el.extensionList.replaceChildren();
+            el.extensionList.style.display = 'none';
+            hideLoading();
+            updateSelectAllCheckboxState();
+            updateBulkActionsUI();
+            return;
         }
 
-        el.extensionList.replaceChildren(frag);
+        if (el.extensionListHeader) el.extensionListHeader.style.display = 'flex';
+        el.emptyState.style.display = 'none';
+        el.extensionList.style.display = '';
+
+        if (bulkMode) {
+            if (clusterize) {
+                clusterize.destroy();
+                clusterize = null;
+            }
+            if (extensionSortable) {
+                extensionSortable.destroy();
+                extensionSortable = null;
+            }
+            const frag = document.createDocumentFragment();
+            for (const ext of filteredExtensions) {
+                frag.appendChild(buildExtensionRow(ext));
+            }
+            el.extensionList.replaceChildren(frag);
+            initExtensionSortable();
+        } else {
+            if (extensionSortable) {
+                extensionSortable.destroy();
+                extensionSortable = null;
+            }
+            const rows = filteredExtensions.map(ext => getExtensionRowHTML(ext));
+            if (!clusterize) {
+                clusterize = new Clusterize({
+                    rows,
+                    scrollElem: document.querySelector('.popup-container'),
+                    contentElem: el.extensionList,
+                    rows_in_block: 16,
+                    blocks_in_cluster: 4,
+                    show_no_data_row: false
+                });
+            } else {
+                clusterize.update(rows);
+            }
+        }
+
         hideLoading();
         updateSelectAllCheckboxState();
         updateBulkActionsUI();
@@ -1130,7 +657,7 @@ async function renderExtensionList(page = 1) {
     }
 }
 
-async function refreshExtensionDataAndRender(page = 1) {
+export async function refreshExtensionDataAndRender() {
     showLoading();
     try {
         allFetchedExtensions = await fetchAllExtensions();
@@ -1139,8 +666,9 @@ async function refreshExtensionDataAndRender(page = 1) {
             ext._searchDesc = (ext.description ?? '').toLowerCase();
             ext._searchId = (ext.id ?? '').toLowerCase();
         }
+        rebuildFuse(allFetchedExtensions);
         await cleanupOrphanedProfileEntries();
-        await renderExtensionList(page);
+        await renderExtensionList();
     } catch (e) {
         hideLoading();
         showToast(`Error fetching extensions: ${e?.message ?? 'Unknown error'}`, 'error');
@@ -1152,7 +680,7 @@ async function refreshExtensionDataAndRender(page = 1) {
 // EXTENSION ACTION DELEGATION
 // ═════════════════════════════════════════════════════════════════════════════
 
-function handleExtensionListClick(event) {
+export function handleExtensionListClick(event) {
     if (event.button === 2) return;
     const target = event.target;
 
@@ -1163,6 +691,7 @@ function handleExtensionListClick(event) {
         else { selectedExtensionIds.delete(id); item?.classList.remove('selected'); }
         updateBulkActionsUI();
         updateSelectAllCheckboxState();
+        renderExtensionList();
         return;
     }
 
@@ -1178,7 +707,7 @@ function handleExtensionListClick(event) {
     }
 }
 
-function toggleExtension(extensionId, enable, buttonElement) {
+export function toggleExtension(extensionId, enable, buttonElement) {
     showLoading();
     chrome.management.setEnabled(extensionId, enable, async () => {
         hideLoading();
@@ -1192,7 +721,7 @@ function toggleExtension(extensionId, enable, buttonElement) {
         if (cached) cached.enabled = enable;
 
         if (el.statusFilter?.value !== 'all') {
-            await refreshExtensionDataAndRender(getCurrentPage());
+            await refreshExtensionDataAndRender();
         } else {
             const item = el.extensionList?.querySelector(`.extension-item[data-extension-id="${extensionId}"]`);
             const btn = buttonElement || item?.querySelector('.toggle-button');
@@ -1204,17 +733,17 @@ function toggleExtension(extensionId, enable, buttonElement) {
                 btn.classList.toggle('button-danger', enable);
                 btn.classList.toggle('button-success', !enable);
             } else {
-                await renderExtensionList(getCurrentPage());
+                await renderExtensionList();
             }
         }
     });
 }
 
-function openDetailsPage(extensionId) {
+export function openDetailsPage(extensionId) {
     chrome.tabs.create({ url: `src/html/details.html?id=${extensionId}` });
 }
 
-async function confirmAndDeleteExtension(extensionId, extensionName) {
+export async function confirmAndDeleteExtension(extensionId, extensionName) {
     const confirmed = await showCustomConfirm(
         `Uninstall "${sanitizeText(extensionName)}"?\n\nThis cannot be undone.`,
         'Uninstall Extension'
@@ -1224,7 +753,7 @@ async function confirmAndDeleteExtension(extensionId, extensionName) {
     }
 }
 
-function uninstallExtension(extensionId, safeName) {
+export function uninstallExtension(extensionId, safeName) {
     showLoading();
     chrome.management.uninstall(extensionId, { showConfirmDialog: false }, async () => {
         hideLoading();
@@ -1233,11 +762,8 @@ function uninstallExtension(extensionId, safeName) {
         } else {
             showToast(`"${safeName}" uninstalled.`, 'success');
             selectedExtensionIds.delete(extensionId);
-            await refreshExtensionDataAndRender(getCurrentPage());
-            if (el.profilesModal?.style.display === 'flex') {
-                await renderProfileList();
-                if (currentConfiguringId) await renderProfileConfigExtensions(currentConfiguringId);
-            }
+            await refreshExtensionDataAndRender();
+            await refreshProfileViews();
             await registerKeyboardShortcuts();
         }
     });
@@ -1247,7 +773,7 @@ function uninstallExtension(extensionId, safeName) {
 // BULK ACTIONS
 // ═════════════════════════════════════════════════════════════════════════════
 
-function updateBulkActionsUI() {
+export function updateBulkActionsUI() {
     const count = selectedExtensionIds.size;
     if (!el.bulkActionsContainer) return;
     if (count > 0) {
@@ -1260,7 +786,7 @@ function updateBulkActionsUI() {
     }
 }
 
-function updateSelectAllCheckboxState() {
+export function updateSelectAllCheckboxState() {
     if (!el.selectAllCheckbox) return;
     const cbs = [...(el.extensionList?.querySelectorAll('.extension-select-checkbox') ?? [])];
     if (!cbs.length) {
@@ -1276,7 +802,7 @@ function updateSelectAllCheckboxState() {
     el.selectAllCheckbox.indeterminate = !allSel && someSel;
 }
 
-function handleSelectAllChange(event) {
+export function handleSelectAllChange(event) {
     const checked = event.target.checked;
     el.extensionList?.querySelectorAll('.extension-select-checkbox').forEach(cb => {
         cb.checked = checked;
@@ -1286,9 +812,11 @@ function handleSelectAllChange(event) {
         else { selectedExtensionIds.delete(id); item?.classList.remove('selected'); }
     });
     updateBulkActionsUI();
+    updateSelectAllCheckboxState();
+    renderExtensionList();
 }
 
-function clearSelection() {
+export function clearSelection() {
     selectedExtensionIds.clear();
     el.extensionList?.querySelectorAll('.extension-item.selected').forEach(item => {
         item.classList.remove('selected');
@@ -1298,9 +826,10 @@ function clearSelection() {
     updateBulkActionsUI();
     updateSelectAllCheckboxState();
     toggleBulkAssignMenu(false);
+    renderExtensionList();
 }
 
-async function performBulkAction(action) {
+export async function performBulkAction(action) {
     const ids = new Set(selectedExtensionIds);
     if (ids.size === 0) return;
 
@@ -1334,12 +863,12 @@ async function performBulkAction(action) {
     else if (success) showToast(`${success} extension(s) ${action}d.`, 'success');
 
     clearSelection();
-    await refreshExtensionDataAndRender(getCurrentPage());
+    await refreshExtensionDataAndRender();
 }
 
-// ─── Bulk assign dropdown ─────────────────────────────────────────────────────
+// ─── Bulk assign dropdown toggle ─────────────────────────────────────────────
 
-function toggleBulkAssignMenu(show) {
+export function toggleBulkAssignMenu(show) {
     const menu = el.bulkAssignDropdownMenu;
     const btn = el.bulkAssignActionButton;
     if (!menu || !btn) return;
@@ -1352,175 +881,11 @@ function toggleBulkAssignMenu(show) {
     }
 }
 
-async function populateBulkAssignMenu() {
-    const menu = el.bulkAssignDropdownMenu;
-    if (!menu) return;
-    menu.replaceChildren();
-
-    const { profiles } = await loadProfileStore();
-    const orderedIds = await getOrderedProfileIds();
-
-    const header = document.createElement('div');
-    header.className = 'submenu-header';
-
-    const titleSpan = document.createElement('span');
-    titleSpan.className = 'submenu-title';
-    titleSpan.textContent = 'Profiles';
-    header.appendChild(titleSpan);
-
-    const tools = document.createElement('div');
-    tools.className = 'submenu-tools';
-    header.appendChild(tools);
-    menu.appendChild(header);
-
-    const list = document.createElement('div');
-    list.className = 'submenu';
-    menu.appendChild(list);
-
-    if (orderedIds.length > 0) {
-        const searchInput = document.createElement('input');
-        searchInput.type = 'search';
-        searchInput.className = 'submenu-search';
-        searchInput.placeholder = 'Search profiles…';
-        searchInput.setAttribute('aria-label', 'Search profiles');
-        tools.appendChild(searchInput);
-
-        const noResults = document.createElement('div');
-        noResults.className = 'context-menu-placeholder';
-        noResults.setAttribute('role', 'status');
-        noResults.textContent = 'No profiles match your search.';
-        noResults.style.display = 'none';
-
-        orderedIds.forEach(profileId => {
-            const profile = profiles[profileId];
-            if (!profile) return;
-            const displayName = sanitizeText(profile.name);
-
-            const btn = document.createElement('button');
-            btn.className = 'menu-item';
-            btn.dataset.action = 'assign-profile';
-            btn.dataset.value = profileId;
-            btn.dataset.name = displayName.toLowerCase();
-            btn.setAttribute('role', 'menuitem');
-            btn.appendChild(makeImg(ICON.profiles, ''));
-            const span = document.createElement('span');
-            span.textContent = displayName;
-            btn.appendChild(span);
-            list.appendChild(btn);
-        });
-
-        const removeBtn = document.createElement('button');
-        removeBtn.className = 'menu-item danger';
-        removeBtn.dataset.action = 'remove-profile';
-        removeBtn.setAttribute('role', 'menuitem');
-        removeBtn.appendChild(makeImg(ICON.delete, ''));
-        const removeSpan = document.createElement('span');
-        removeSpan.textContent = 'Remove from all Profiles';
-        removeBtn.appendChild(removeSpan);
-        list.appendChild(removeBtn);
-        list.appendChild(noResults);
-
-        searchInput.addEventListener('input', () => {
-            const q = searchInput.value.trim().toLowerCase();
-            let anyVis = false;
-            list.querySelectorAll('.menu-item[data-name]').forEach(item => {
-                const visible = !q || item.dataset.name.includes(q);
-                item.style.display = visible ? '' : 'none';
-                if (visible) anyVis = true;
-            });
-            noResults.style.display = anyVis ? 'none' : 'block';
-        });
-    } else {
-        const placeholder = document.createElement('div');
-        placeholder.className = 'context-menu-placeholder';
-        placeholder.setAttribute('role', 'status');
-        placeholder.textContent = 'No profiles created yet.';
-        list.appendChild(placeholder);
-
-        const createBtn = document.createElement('button');
-        createBtn.className = 'menu-item create-from-submenu';
-        createBtn.appendChild(makeImg(ICON.add, ''));
-        const sp = document.createElement('span');
-        sp.textContent = 'Create Profile…';
-        createBtn.appendChild(sp);
-        createBtn.addEventListener('click', () => { toggleBulkAssignMenu(false); openProfilesModal(); });
-        list.appendChild(createBtn);
-    }
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// ASSIGN / REMOVE EXTENSIONS FROM PROFILES
-// ═════════════════════════════════════════════════════════════════════════════
-
-async function assignExtensionsToProfile(extensionIds, profileId) {
-    if (!extensionIds?.size || !profileId) return;
-    const store = await loadProfileStore();
-    const profile = store.profiles[profileId];
-    if (!profile) { showToast('Profile not found.', 'error'); return; }
-
-    let changed = false;
-    extensionIds.forEach(extId => {
-        if (profile.extensionStates[extId] !== true) { profile.extensionStates[extId] = true; changed = true; }
-    });
-
-    if (changed) {
-        await saveProfileStore(store);
-        showToast(`${extensionIds.size} extension(s) added to "${sanitizeText(profile.name)}".`, 'success');
-    } else {
-        showToast(`All selected extensions were already in "${sanitizeText(profile.name)}".`, 'info');
-    }
-    clearSelection();
-}
-
-async function removeExtensionsFromAllProfiles(extensionIds) {
-    if (!extensionIds?.size) return;
-    const store = await loadProfileStore();
-    let changed = false;
-    Object.values(store.profiles).forEach(profile => {
-        extensionIds.forEach(extId => {
-            if (Object.prototype.hasOwnProperty.call(profile.extensionStates, extId)) {
-                delete profile.extensionStates[extId];
-                changed = true;
-            }
-        });
-    });
-    if (changed) {
-        await saveProfileStore(store);
-        showToast(`${extensionIds.size} extension(s) removed from all profiles.`, 'success');
-    } else {
-        showToast('Selected extensions were not in any profiles.', 'info');
-    }
-    clearSelection();
-}
-
-async function addExtensionToProfile(extensionId, profileId) {
-    const store = await loadProfileStore();
-    const profile = store.profiles[profileId];
-    if (!profile) return;
-    const ext = allFetchedExtensions.find(e => e.id === extensionId);
-    if (!ext) return;
-    profile.extensionStates[extensionId] = ext.enabled;
-    await saveProfileStore(store);
-    showToast(`Added to "${sanitizeText(profile.name)}".`, 'success', 2000);
-}
-
-async function removeExtensionFromAllProfiles(extensionId) {
-    const store = await loadProfileStore();
-    let changed = false;
-    Object.values(store.profiles).forEach(profile => {
-        if (Object.prototype.hasOwnProperty.call(profile.extensionStates, extensionId)) {
-            delete profile.extensionStates[extensionId];
-            changed = true;
-        }
-    });
-    if (changed) { await saveProfileStore(store); showToast('Removed from all profiles.', 'success', 2000); }
-}
-
 // ═════════════════════════════════════════════════════════════════════════════
 // CONTEXT MENU
 // ═════════════════════════════════════════════════════════════════════════════
 
-function createContextMenu() {
+export function createContextMenu() {
     if (document.getElementById('custom-context-menu')) {
         contextMenuEl = document.getElementById('custom-context-menu');
         return;
@@ -1531,13 +896,13 @@ function createContextMenu() {
     document.body.appendChild(contextMenuEl);
 }
 
-function hideContextMenu() {
+export function hideContextMenu() {
     contextMenuEl?.classList.remove('visible');
     contextMenuEl?.removeEventListener('keydown', handleContextMenuKeyDown);
     activeContextExtId = null;
 }
 
-function handleContextMenuKeyDown(event) {
+export function handleContextMenuKeyDown(event) {
     const items = [...contextMenuEl.querySelectorAll('.context-menu-item:not([style*="display: none"]):not(.context-menu-separator)')];
     if (!items.length) return;
     const focused = document.activeElement;
@@ -1561,7 +926,7 @@ function handleContextMenuKeyDown(event) {
     if (newIdx !== -1) items[newIdx].focus();
 }
 
-async function showContextMenu(extensionId, event) {
+export async function showContextMenu(extensionId, event) {
     event.preventDefault();
     event.stopPropagation();
     activeContextExtId = extensionId;
@@ -1672,37 +1037,33 @@ async function showContextMenu(extensionId, event) {
 // FILTERS & SEARCH
 // ═════════════════════════════════════════════════════════════════════════════
 
-async function setupFiltersAndSearch() {
-    let clearFiltersBtn = null;
-
+export async function setupFiltersAndSearch() {
     async function handleFilterChange() {
         clearSelection();
-        await renderExtensionList(1);
+        await renderExtensionList();
         updateClearFiltersVisibility();
     }
 
     function createClearFiltersButton() {
-        if (document.getElementById('clear-filters-btn')) {
-            clearFiltersBtn = document.getElementById('clear-filters-btn');
-            return;
-        }
-        clearFiltersBtn = document.createElement('button');
+        if (document.getElementById('clear-filters-btn')) return;
+        const clearFiltersBtn = document.createElement('button');
         clearFiltersBtn.id = 'clear-filters-btn';
         clearFiltersBtn.className = 'button-small';
         clearFiltersBtn.textContent = 'Clear Filters';
         clearFiltersBtn.title = 'Reset all search and filter options (Ctrl+Shift+F)';
         clearFiltersBtn.style.display = 'none';
         el.filtersRow?.appendChild(clearFiltersBtn);
-        clearFiltersBtn.addEventListener('click', clearAllFilters);
+        clearFiltersBtn.addEventListener('click', clearAllFiltersLocal);
     }
 
     function updateClearFiltersVisibility() {
-        if (!clearFiltersBtn) return;
+        const btn = document.getElementById('clear-filters-btn');
+        if (!btn) return;
         const active = el.searchInput?.value.trim() || el.typeFilter?.value !== 'all' || el.statusFilter?.value !== 'all';
-        clearFiltersBtn.style.display = active ? 'inline-flex' : 'none';
+        btn.style.display = active ? 'inline-flex' : 'none';
     }
 
-    async function clearAllFilters() {
+    async function clearAllFiltersLocal() {
         if (el.searchInput) el.searchInput.value = '';
         if (el.typeFilter) el.typeFilter.value = 'all';
         if (el.statusFilter) el.statusFilter.value = 'all';
@@ -1711,6 +1072,7 @@ async function setupFiltersAndSearch() {
 
     createClearFiltersButton();
     updateClearFiltersVisibility();
+    clearFiltersFn = clearAllFiltersLocal;
 
     el.typeFilter?.addEventListener('change', handleFilterChange);
     el.statusFilter?.addEventListener('change', handleFilterChange);
@@ -1719,33 +1081,18 @@ async function setupFiltersAndSearch() {
         searchDebounceTimer = setTimeout(handleFilterChange, 150);
     });
 
-    await populateBulkAssignMenu();
-
-    return { clearAllFilters };
+    return { clearAllFilters: clearAllFiltersLocal };
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// PAGINATION
-// ═════════════════════════════════════════════════════════════════════════════
-
-function getCurrentPage() {
-    return parseInt(el.currentPageSpan?.textContent || '1', 10);
-}
-
-function setupPagination() {
-    el.prevPageButton?.addEventListener('click', async () => {
-        if (!el.prevPageButton.disabled) await renderExtensionList(getCurrentPage() - 1);
-    });
-    el.nextPageButton?.addEventListener('click', async () => {
-        if (!el.nextPageButton.disabled) await renderExtensionList(getCurrentPage() + 1);
-    });
+export function clearAllFilters() {
+    if (clearFiltersFn) clearFiltersFn();
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
 // HELP MODAL
 // ═════════════════════════════════════════════════════════════════════════════
 
-function openHelpModal() {
+export function openHelpModal() {
     if (!el.helpModal) return;
     el.helpModal.style.display = 'flex';
     el.helpModal.setAttribute('aria-hidden', 'false');
@@ -1755,7 +1102,7 @@ function openHelpModal() {
     });
 }
 
-function closeHelpModal() {
+export function closeHelpModal() {
     if (!el.helpModal) return;
     el.helpModal.classList.remove('visible');
     el.helpModal.setAttribute('aria-hidden', 'true');
@@ -1769,25 +1116,8 @@ function closeHelpModal() {
 // EVENT LISTENER WIRING
 // ═════════════════════════════════════════════════════════════════════════════
 
-function setupModalListeners() {
+export function setupModalListeners() {
     el.profilesModalTrigger?.addEventListener('click', openProfilesModal);
-    el.profilesModalCloseButton?.addEventListener('click', closeProfilesModal);
-    el.profilesModal?.addEventListener('click', e => { if (e.target === el.profilesModal) closeProfilesModal(); });
-
-    el.modalAddProfileButton?.addEventListener('click', async () => {
-        const input = el.modalNewProfileNameInput;
-        if (input?.value.trim()) {
-            if (await addProfile(input.value.trim())) input.value = '';
-            input.focus();
-        }
-    });
-    el.modalNewProfileNameInput?.addEventListener('keypress', e => { if (e.key === 'Enter') el.modalAddProfileButton?.click(); });
-    el.modalProfileList?.addEventListener('click', handleProfileListClick);
-    el.createFromCurrentStateButton?.addEventListener('click', createProfileFromCurrentState);
-
-    el.saveProfileConfigBtn?.addEventListener('click', saveProfileConfig);
-    el.backToProfilesBtn?.addEventListener('click', switchToProfileListView);
-    el.profileConfigShortcutInput?.addEventListener('input', handleShortcutInputChange);
 
     el.helpModalTrigger?.addEventListener('click', openHelpModal);
     el.helpModalCloseButton?.addEventListener('click', closeHelpModal);
@@ -1800,42 +1130,14 @@ function setupModalListeners() {
     el.settingsResetButton?.addEventListener('click', handleSettingsReset);
 }
 
-function setupBulkActionListeners() {
+export function setupBulkActionListeners() {
     el.selectAllCheckbox?.addEventListener('change', handleSelectAllChange);
     el.bulkEnableButton?.addEventListener('click', () => performBulkAction('enable'));
     el.bulkDisableButton?.addEventListener('click', () => performBulkAction('disable'));
 
-    const menu = el.bulkAssignDropdownMenu;
-    const btn = el.bulkAssignActionButton;
-
-    btn?.addEventListener('click', event => {
-        event.stopPropagation();
-        if (menu.classList.contains('visible')) {
-            toggleBulkAssignMenu(false);
-        } else {
-            const btnRect = btn.getBoundingClientRect();
-            const bodyRect = document.body.getBoundingClientRect();
-            const spaceAbove = btnRect.top;
-            const spaceBelow = bodyRect.height - btnRect.bottom;
-            menu.classList.toggle('position-below', spaceAbove < 220 && spaceBelow > spaceAbove);
-            toggleBulkAssignMenu(true);
-            menu.querySelector('.submenu-search')?.focus();
-        }
-    });
-
-    menu?.addEventListener('click', async event => {
-        const target = event.target.closest('button[data-action]');
-        if (!target) return;
-        const { action, value } = target.dataset;
-        const ids = selectedExtensionIds;
-
-        switch (action) {
-            case 'assign-profile': if (ids.size > 0) await assignExtensionsToProfile(ids, value); toggleBulkAssignMenu(false); break;
-            case 'remove-profile': if (ids.size > 0) await removeExtensionsFromAllProfiles(ids); toggleBulkAssignMenu(false); break;
-        }
-    });
-
     document.addEventListener('click', event => {
+        const menu = el.bulkAssignDropdownMenu;
+        const btn = el.bulkAssignActionButton;
         if (!menu?.contains(event.target) && !btn?.contains(event.target)) {
             if (menu?.classList.contains('visible')) toggleBulkAssignMenu(false);
         }
@@ -1843,74 +1145,10 @@ function setupBulkActionListeners() {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// KEYBOARD SHORTCUTS (single global handler)
+// KEYBOARD SHORTCUTS
 // ═════════════════════════════════════════════════════════════════════════════
 
-function normalizeShortcut(shortcut) {
-    if (!shortcut) return null;
-    const parts = shortcut.toLowerCase().split('+').map(p => p.trim());
-    const modifiers = [];
-    let key = '';
-    const lowerModifiers = SHORTCUT_MODIFIER_KEYS.map(m => m.toLowerCase());
-
-    parts.forEach(part => {
-        if (lowerModifiers.includes(part)) {
-            modifiers.push(part.charAt(0).toUpperCase() + part.slice(1));
-        } else if (VALID_SHORTCUT_KEYS.toLowerCase().includes(part)) {
-            key = part.toUpperCase();
-        }
-    });
-
-    if (!key || modifiers.length > 2 || (!modifiers.includes('Ctrl') && !modifiers.includes('Alt'))) return null;
-
-    modifiers.sort((a, b) => {
-        if (a === 'Ctrl') return -1; if (b === 'Ctrl') return 1;
-        if (a === 'Alt') return -1; if (b === 'Alt') return 1;
-        return 0;
-    });
-
-    return [...modifiers, key].join('+');
-}
-
-async function getExistingShortcuts(excludeProfileId = null) {
-    const { profiles } = await loadProfileStore();
-    const existing = new Map();
-    Object.entries(profiles).forEach(([id, data]) => {
-        if (id !== excludeProfileId && data.shortcut) {
-            existing.set(normalizeShortcut(data.shortcut), `Profile: "${data.name}"`);
-        }
-    });
-    return existing;
-}
-
-function validateShortcut(shortcut, existingShortcuts) {
-    const normalized = normalizeShortcut(shortcut);
-    if (!normalized) return { isValid: false, message: 'Invalid format. Use Ctrl+Shift+<Key> or Alt+Shift+<Key>.', normalizedShortcut: null };
-
-    const parts = normalized.split('+');
-    const key = parts[parts.length - 1];
-    const modifiers = parts.slice(0, -1);
-
-    if (!modifiers.some(m => ['Ctrl', 'Alt'].includes(m)))
-        return { isValid: false, message: "Must include 'Ctrl' or 'Alt' modifier.", normalizedShortcut: null };
-    if (existingShortcuts.has(normalized))
-        return { isValid: false, message: `Shortcut already used by ${existingShortcuts.get(normalized)}.`, normalizedShortcut: null };
-
-    return { isValid: true, message: 'Shortcut is valid.', normalizedShortcut: normalized };
-}
-
-async function registerKeyboardShortcuts() {
-    const { profiles } = await loadProfileStore();
-    currentShortcuts.clear();
-    Object.entries(profiles).forEach(([id, p]) => {
-        if (p?.shortcut) {
-            const normalized = normalizeShortcut(p.shortcut);
-            if (normalized) currentShortcuts.set(normalized, id);
-        }
-    });
-}
-
-function handleGlobalKeydown(event) {
+export function handleGlobalKeydown(event) {
     const active = document.activeElement;
     const isInput = active && ['INPUT', 'SELECT', 'TEXTAREA'].includes(active.tagName);
     const profilesOpen = el.profilesModal?.classList.contains('visible');
@@ -1955,13 +1193,8 @@ function handleGlobalKeydown(event) {
             case 'A': event.preventDefault(); if (el.selectAllCheckbox && !el.selectAllCheckbox.disabled) el.selectAllCheckbox.click(); break;
             case 'F': event.preventDefault(); clearAllFilters(); el.searchInput?.focus(); break;
             case 'H': event.preventDefault(); openHelpModal(); break;
-            case 'R': event.preventDefault(); refreshExtensionDataAndRender(getCurrentPage()); break;
+            case 'R': event.preventDefault(); refreshExtensionDataAndRender(); break;
         }
-    }
-
-    if (event.altKey) {
-        if (event.key === 'ArrowRight' && !el.nextPageButton?.disabled) { event.preventDefault(); el.nextPageButton.click(); }
-        if (event.key === 'ArrowLeft' && !el.prevPageButton?.disabled) { event.preventDefault(); el.prevPageButton.click(); }
     }
 }
 
@@ -1969,13 +1202,12 @@ function handleGlobalKeydown(event) {
 // INITIALIZATION
 // ═════════════════════════════════════════════════════════════════════════════
 
-async function initializePopup() {
+export async function initializePopup() {
     try {
         createContextMenu();
         initCustomDialogs();
-        setupPagination();
         await loadSettings();
-        const { clearAllFilters } = await setupFiltersAndSearch();
+        await setupFiltersAndSearch();
         setupModalListeners();
         setupBulkActionListeners();
 
@@ -1991,7 +1223,7 @@ async function initializePopup() {
 
         document.addEventListener('keydown', handleGlobalKeydown);
 
-        await refreshExtensionDataAndRender(1);
+        await refreshExtensionDataAndRender();
         el.searchInput?.focus({ preventScroll: true });
 
         setTimeout(() => registerKeyboardShortcuts().catch(console.error), 0);
@@ -2005,6 +1237,9 @@ async function initializePopup() {
                 footerEl.textContent = `© ${new Date().getFullYear()} modcore. Made in Germany.`;
             }
         }
+
+        await initProfiles();
+        await populateBulkAssignMenu();
     } catch (e) {
         console.error('Initialization error:', e);
         showToast('Failed to initialize popup. Please reload.', 'error', 10000);

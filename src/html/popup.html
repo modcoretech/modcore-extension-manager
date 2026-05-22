@@ -12,7 +12,7 @@
     <base target="_blank">
 </head>
 <body>
-    <div class="popup-container">
+    <div id="popup-container" class="popup-container">
         <div class="popup-header">
             <h1>modcore Extension Manager</h1>
             <div class="header-icons">
@@ -34,7 +34,7 @@
         <div class="search-filters-row">
             <input type="text" id="search-input" placeholder="Search name, description, ID..." aria-label="Search extensions by name, description, or ID">
             <div id="filters" class="filters-row">
-                <select id="type-filter" aria-label="Filter by Type" title="Filter extensions by type (e.g., standard extension, theme, or app).">
+                <select id="type-filter" aria-label="Filter by Type" title="Filter extensions by type (e.g., standard extension or theme).">
                     <option value="all">All Types</option>
                     <option value="extension">Extensions</option>
                     <option value="theme">Themes</option>
@@ -70,25 +70,15 @@
         </div>
 
         <div id="extension-list-header" class="extension-list-header">
-             <input type="checkbox" id="select-all-checkbox" title="Select or deselect all extensions currently visible on this page." aria-label="Select/Deselect All Visible Extensions">
+             <input type="checkbox" id="select-all-checkbox" title="Select or deselect all extensions currently visible." aria-label="Select/Deselect All Visible Extensions">
              <span>Extension</span>
              <span class="header-actions-label">Actions</span>
         </div>
-        <div id="extension-list" aria-live="polite">
+        <div id="extension-list" class="clusterize-content" aria-live="polite">
         </div>
         <div id="empty-state-message" class="no-extensions-message" style="display: none;">
         </div>
 
-        <div id="pagination-container">
-            <button id="prev-page" disabled aria-label="Previous page" title="Go to previous page of extensions.">
-                 <img src="../../public/icons/svg/arrow-left.svg" alt="" aria-hidden="true"> <span>Previous</span>
-            </button>
-            <span aria-live="polite">Page <span id="current-page">1</span> of <span id="total-pages">1</span></span>
-            <button id="next-page" disabled aria-label="Next page" title="Go to next page of extensions.">
-                 <span>Next</span>
-                 <img src="../../public/icons/svg/arrow-right.svg" alt="" aria-hidden="true">
-            </button>
-        </div>
     </div>
 
     <div id="profiles-modal" class="modal-overlay" style="display: none;" aria-hidden="true">
@@ -205,10 +195,6 @@
             <form id="settings-form" onsubmit="return false;">
                 <div class="modal-section">
                     <h3>Display Preferences</h3>
-                    <div class="modal-input-group settings-row">
-                        <label for="settings-items-per-page" class="label-inline">Extensions per page:</label>
-                        <input type="number" id="settings-items-per-page" min="5" max="50" step="1" aria-label="Extensions per page">
-                    </div>
                     <div class="settings-row checkbox-row">
                         <input type="checkbox" id="settings-compact-mode" aria-label="Enable compact mode">
                         <label for="settings-compact-mode">Compact Mode</label>
@@ -257,6 +243,9 @@
         </div>
     </div>
 
+    <script src="../js/libraries/fuze.js"></script>
+    <script src="../js/libraries/sortable-js.js"></script>
+    <script src="../js/libraries/clusterize.js"></script>
     <script type="module" src="../js/core/popup.js"></script>
     <script src="../js/features/report.js"></script>
 </body>
