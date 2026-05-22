@@ -158,11 +158,6 @@ select:disabled, input[type="text"]:disabled {
 .modal-input-group select {
   flex-grow: 1;
 }
-.search-highlight {
-  background-color: var(--color-highlight-bg); color: var(--color-highlight-text);
-  border-radius: var(--radius-sm); padding: 0 2px; font-weight: 600;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
-}
 
 /* Buttons */
 .button-small, #pagination-container button {
@@ -544,7 +539,7 @@ select:disabled, input[type="text"]:disabled {
 .success-message {
   color: var(--color-success);
   background-color: color-mix(in srgb, var(--color-success) 10%, transparent);
-  border-color: color-mix(in srgb, var(--color-success) 30%, transparent);
+  border-color: color-mix(in srgb, var(--color-success) 35%, transparent);
 }
 .info-message {
   color: var(--color-text-secondary);
@@ -877,7 +872,6 @@ select:disabled, input[type="text"]:disabled {
     will-change: background-color, transform, box-shadow;
 }
 
-
 .help-links-list li:hover {
     background-color: var(--color-surface-hover);
     border-color: var(--color-border-strong);
@@ -1025,6 +1019,37 @@ select:disabled, input[type="text"]:disabled {
 }
 .compact-mode .extension-list-header {
     padding: var(--space-1) var(--space-2);
+}
+
+/* Custom Context Menu - Compact Style Modifications */
+.compact-mode .custom-context-menu {
+    min-width: 220px;
+}
+.compact-mode .context-menu-info {
+    padding: var(--space-1) var(--space-3);
+}
+.compact-mode .context-menu-info strong {
+    font-size: 1em;
+}
+.compact-mode .context-menu-item {
+    padding: var(--space-1) var(--space-3);
+    font-size: 0.85em;
+    gap: var(--space-2);
+}
+.compact-mode .context-menu-item img {
+    width: 14px;
+    height: 14px;
+}
+.compact-mode .context-menu-separator {
+    margin: 2px 0;
+}
+.compact-mode .context-menu-submenu {
+    min-width: 180px;
+    top: -3px;
+}
+.compact-mode .context-menu-membership {
+    padding: var(--space-1) var(--space-3);
+    font-size: 0.8em;
 }
 
 /* ==========================================================================

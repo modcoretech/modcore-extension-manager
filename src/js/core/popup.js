@@ -106,41 +106,6 @@ function sanitizeText(str) {
     return String(str);
 }
 
-/**
- * Build a DocumentFragment with search terms highlighted.
- * Every string used here is set via textContent
- */
-function highlightSearchTerms(text, searchTerms) {
-    const safe = sanitizeText(text);
-    if (!searchTerms?.length || !safe) return document.createTextNode(safe);
-
-    const escaped = searchTerms
-        .map(t => t.trim())
-        .filter(Boolean)
-        .map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-
-    if (!escaped.length) return document.createTextNode(safe);
-
-    try {
-        const regex  = new RegExp(`(${escaped.join('|')})`, 'gi');
-        const parts  = safe.split(regex);
-        const frag   = document.createDocumentFragment();
-        parts.forEach(part => {
-            if (regex.test(part) && escaped.some(t => part.toLowerCase() === t.toLowerCase())) {
-                const span = document.createElement('span');
-                span.className = 'search-highlight';
-                span.textContent = part;
-                frag.appendChild(span);
-            } else if (part) {
-                frag.appendChild(document.createTextNode(part));
-            }
-        });
-        return frag;
-    } catch {
-        return document.createTextNode(safe);
-    }
-}
-
 /** Create an <img> element */
 function makeImg(src, alt = '', extraClass = '') {
     const img = document.createElement('img');
@@ -985,7 +950,6 @@ async function renderExtensionList(page = 1) {
         if (el.prevPageButton)   el.prevPageButton.disabled       = curPage === 1;
         if (el.nextPageButton)   el.nextPageButton.disabled       = curPage === totalPages;
 
-        const searchTerms = (el.searchInput?.value ?? '').toLowerCase().trim().split(/\s+/).filter(Boolean);
         const frag        = document.createDocumentFragment();
 
         if (pageItems.length > 0) {
@@ -1020,8 +984,8 @@ async function renderExtensionList(page = 1) {
                 details.className = 'extension-details';
                 const nameSpan = document.createElement('span');
                 nameSpan.className = 'extension-name';
-                nameSpan.title     = sanitizeText(ext.name);
-                nameSpan.appendChild(highlightSearchTerms(ext.name, searchTerms));
+                nameSpan.title = sanitizeText(ext.name);
+                nameSpan.textContent = sanitizeText(ext.name);
                 details.appendChild(nameSpan);
 
                 if (appSettings.showExtensionIds && ext.id) {
@@ -1566,12 +1530,8 @@ async function showContextMenu(extensionId, event) {
     strong.textContent = sanitizeText(extension.name);
     const verSpan = document.createElement('span');
     verSpan.textContent = `Version: ${sanitizeText(extension.version)}`;
-    const idSpan = document.createElement('span');
-    idSpan.textContent = `ID: ${sanitizeText(extension.id)}`;
-    idSpan.title = sanitizeText(extension.id);
     info.appendChild(strong);
     info.appendChild(verSpan);
-    info.appendChild(idSpan);
     frag.appendChild(info);
     frag.appendChild(Object.assign(document.createElement('hr'), { className: 'context-menu-separator' }));
 
