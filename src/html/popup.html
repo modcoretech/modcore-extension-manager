@@ -9,11 +9,10 @@
     <link rel="stylesheet" href="../css/popup.css">
     <link rel="stylesheet" href="../css/variables.css">
     <link rel="stylesheet" href="../../public/fonts/fonts.css">
-<base target="_blank">
+    <base target="_blank">
 </head>
 <body>
     <div class="popup-container">
-
         <div class="popup-header">
             <h1>modcore Extension Manager</h1>
             <div class="header-icons">
@@ -49,22 +48,21 @@
         </div>
 
         <div id="bulk-actions-container" class="bulk-actions-container" style="display: none;">
-    <span id="selected-count" aria-live="polite">0 selected</span>
-    <div class="bulk-actions-dropdown">
-        <button id="bulk-assign-action-btn" class="button-small" aria-haspopup="true" aria-expanded="false">
-            Assign To...
-        </button>
-        <div id="bulk-assign-dropdown-menu" class="bulk-actions-dropdown-menu" role="menu">
+            <span id="selected-count" aria-live="polite">0 selected</span>
+            <div class="bulk-actions-dropdown">
+                <button id="bulk-assign-action-btn" class="button-small" aria-haspopup="true" aria-expanded="false">
+                    Assign To...
+                </button>
+                <div id="bulk-assign-dropdown-menu" class="bulk-actions-dropdown-menu" role="menu">
+                </div>
             </div>
-    </div>
-    <button id="bulk-enable-button" class="button-small button-success" title="Enable all selected extensions.">
-        <img src="../../public/icons/svg/power.svg" alt="" aria-hidden="true"> Enable
-    </button>
-    <button id="bulk-disable-button" class="button-small button-danger" title="Disable all selected extensions.">
-        <img src="../../public/icons/svg/power.svg" alt="" aria-hidden="true"> Disable
-    </button>
-</div>
-
+            <button id="bulk-enable-button" class="button-small button-success" title="Enable all selected extensions.">
+                <img src="../../public/icons/svg/power.svg" alt="" aria-hidden="true"> Enable
+            </button>
+            <button id="bulk-disable-button" class="button-small button-danger" title="Disable all selected extensions.">
+                <img src="../../public/icons/svg/power.svg" alt="" aria-hidden="true"> Disable
+            </button>
+        </div>
 
         <div id="loading-indicator" class="loading-indicator" style="display: none;" aria-label="Loading extensions" role="status">
              <div class="spinner"></div>
@@ -77,10 +75,9 @@
              <span class="header-actions-label">Actions</span>
         </div>
         <div id="extension-list" aria-live="polite">
-            </div>
+        </div>
         <div id="empty-state-message" class="no-extensions-message" style="display: none;">
-            </div>
-
+        </div>
 
         <div id="pagination-container">
             <button id="prev-page" disabled aria-label="Previous page" title="Go to previous page of extensions.">
@@ -92,7 +89,6 @@
                  <img src="../../public/icons/svg/arrow-right.svg" alt="" aria-hidden="true">
             </button>
         </div>
-
     </div>
 
     <div id="profiles-modal" class="modal-overlay" style="display: none;" aria-hidden="true">
@@ -121,7 +117,7 @@
             <div id="modal-profile-list-section" class="modal-section">
                 <h3>Existing Profiles</h3>
                  <ul id="modal-profile-management-list" aria-live="polite">
-                    </ul>
+                 </ul>
             </div>
 
             <div id="modal-profile-configuration-view" class="modal-section" style="display: none;">
@@ -151,7 +147,7 @@
                 <div class="modal-section">
                     <h4>Profile Extensions</h4>
                     <div id="profile-config-extension-list" class="profile-config-extensions">
-                        </div>
+                    </div>
                 </div>
                 <p class="subtle-hint modal-hint">
                     Sync this profile to the cloud now, so you can access it from any of your devices.
@@ -166,84 +162,38 @@
                     </button>
                 </div>
             </div>
-
         </div>
     </div>
 
-
-    <!-- Help Modal Structure -->
     <div id="help-modal" class="modal-overlay" style="display: none;" aria-hidden="true">
-    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="help-modal-title">
-        <div class="modal-header-actions">
-            <button id="settings-modal-trigger" class="modal-settings-button" aria-label="Open Settings" title="Open Settings">
-                <img src="../../public/icons/svg/settings.svg" alt="" aria-hidden="true">
-            </button>
-            <button class="modal-close-button" aria-label="Close Help and Information" title="Close Help Modal">
-                <img src="../../public/icons/svg/close.svg" alt="" aria-hidden="true">
-            </button>
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="help-modal-title">
+            <div class="modal-header-actions">
+                <button id="settings-modal-trigger" class="modal-settings-button" aria-label="Open Settings" title="Open Settings">
+                    <img src="../../public/icons/svg/settings.svg" alt="" aria-hidden="true">
+                </button>
+                <button class="modal-close-button" aria-label="Close Help and Information" title="Close Help Modal">
+                    <img src="../../public/icons/svg/close.svg" alt="" aria-hidden="true">
+                </button>
+            </div>
+            <h2 id="help-modal-title">Help & Quick Links</h2>
+            <div class="modal-section">
+                <p class="modal-hint">Thank you for using modcore Extension Manager! Here are some resources to help you.</p>
+                <ul class="help-links-list">
+                    <li><a href="automations.html" target="_blank" rel="noopener noreferrer"><img src="../../public/icons/svg/rules.svg" alt="" aria-hidden="true"><span>modcore Automations</span></a></li>
+                    <li><a href="cloud.html" target="_blank" rel="noopener noreferrer"><img src="../../public/icons/svg/cloud.svg" alt="" aria-hidden="true"><span>modcore Cloud</span></a></li>
+                    <li><a href="inspect.html" target="_blank" rel="noopener noreferrer"><img src="../../public/icons/svg/shield.svg" alt="" aria-hidden="true"><span>modcore Inspect</span></a></li>
+                    <li><a href="safety-center.html" target="_blank" rel="noopener noreferrer"><img src="../../public/icons/svg/shield.svg" alt="" aria-hidden="true"><span>Safety Center</span></a></li>
+                    <li><a href="notes.html" target="_blank" rel="noopener noreferrer"><img src="../../public/icons/svg/edit.svg" alt="" aria-hidden="true"><span>Extension Notes</span></a></li>
+                    <li><a href="timeline.html" target="_blank" rel="noopener noreferrer"><img src="../../public/icons/svg/calendar.svg" alt="" aria-hidden="true"><span>modcore Timeline</span></a></li>
+                    <li><a href="snapshot.html" target="_blank" rel="noopener noreferrer"><img src="../../public/icons/svg/groups.svg" alt="" aria-hidden="true"><span>modcore Snapshot</span></a></li>
+                    <li><a href="https://sites.google.com/view/modcore-em-help/help" target="_blank" rel="noopener noreferrer"><img src="../../public/icons/svg/support.svg" alt="" aria-hidden="true"><span>View Documentation</span></a></li>
+                </ul>
+            </div>
+            <p class="subtle-hint modal-hint text-center" id="footer-info"></p>
+            <p class="subtle-hint modal-hint text-center">Need more help? <a href="https://sites.google.com/view/modcore-em-help" target="_blank" rel="noopener noreferrer">Visit our help center</a>.</p>
         </div>
-        <h2 id="help-modal-title">Help & Quick Links</h2>
-
-        <div class="modal-section">
-            <p class="modal-hint">Thank you for using modcore Extension Manager! Here are some resources to help you.</p>
-            <ul class="help-links-list">
-                <li>
-                    <a href="automations.html" target="_blank" rel="noopener noreferrer">
-                        <img src="../../public/icons/svg/rules.svg" alt="" aria-hidden="true">
-                        <span>modcore Automations</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="cloud.html" target="_blank" rel="noopener noreferrer">
-                        <img src="../../public/icons/svg/cloud.svg" alt="" aria-hidden="true">
-                        <span>modcore Cloud</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="inspect.html" target="_blank" rel="noopener noreferrer">
-                        <img src="../../public/icons/svg/shield.svg" alt="" aria-hidden="true">
-                        <span>modcore Inspect</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="safety-center.html" target="_blank" rel="noopener noreferrer">
-                        <img src="../../public/icons/svg/shield.svg" alt="" aria-hidden="true">
-                        <span>Safety Center</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="notes.html" target="_blank" rel="noopener noreferrer">
-                        <img src="../../public/icons/svg/edit.svg" alt="" aria-hidden="true">
-                        <span>Extension Notes</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="timeline.html" target="_blank" rel="noopener noreferrer">
-                        <img src="../../public/icons/svg/calendar.svg" alt="" aria-hidden="true">
-                        <span>modcore Timeline</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="snapshot.html" target="_blank" rel="noopener noreferrer">
-                        <img src="../../public/icons/svg/groups.svg" alt="" aria-hidden="true">
-                        <span>modcore Snapshot</span>
-                    </a>
-                </li>
-                    <li>
-                        <a href="https://sites.google.com/view/modcore-em-help/help" target="_blank" rel="noopener noreferrer">
-                            <img src="../../public/icons/svg/support.svg" alt="" aria-hidden="true">
-                            <span>View Documentation</span>
-                        </a>
-                    </li>
-            </ul>
-        </div>
-
-        <p class="subtle-hint modal-hint text-center" id="footer-info"></p>
-        <p class="subtle-hint modal-hint text-center">Need more help? <a href="https://sites.google.com/view/modcore-em-help" target="_blank" rel="noopener noreferrer">Visit our help center</a>.</p>
     </div>
-</div>
 
-    <!-- Settings Modal -->
     <div id="settings-modal" class="modal-overlay" style="display: none;" aria-hidden="true">
         <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
             <div class="modal-header-actions">
@@ -282,8 +232,32 @@
         </div>
     </div>
 
-<script type="module" src="../js/core/popup.js"></script>
-<script src="../js/features/report.js"></script>
+    <!-- Custom Confirm Dialog -->
+    <div id="custom-confirm-modal" class="modal-overlay" style="display: none;" aria-hidden="true">
+        <div class="modal-content" role="alertdialog" aria-modal="true" aria-labelledby="custom-confirm-title" style="max-width: 400px;">
+            <h3 id="custom-confirm-title" style="margin-bottom: var(--space-3); font-size: 1.1em;">Confirm</h3>
+            <p id="custom-confirm-message" style="margin-bottom: var(--space-4); line-height: 1.5; white-space: pre-line;">Are you sure?</p>
+            <div class="profile-config-actions-bar modal-input-group" style="margin-top: 0; padding-top: 0; justify-content: flex-end;">
+                <button id="custom-confirm-no" class="button-small">Cancel</button>
+                <button id="custom-confirm-yes" class="button-small button-danger">Confirm</button>
+            </div>
+        </div>
+    </div>
 
+    <!-- Custom Prompt Dialog -->
+    <div id="custom-prompt-modal" class="modal-overlay" style="display: none;" aria-hidden="true">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="custom-prompt-title" style="max-width: 400px;">
+            <h3 id="custom-prompt-title" style="margin-bottom: var(--space-3); font-size: 1.1em;">Input Required</h3>
+            <p id="custom-prompt-message" style="margin-bottom: var(--space-3); line-height: 1.5;">Please enter a value:</p>
+            <input type="text" id="custom-prompt-input" placeholder="Type here…" style="width: 100%; margin-bottom: var(--space-4);">
+            <div class="profile-config-actions-bar modal-input-group" style="margin-top: 0; padding-top: 0; justify-content: flex-end;">
+                <button id="custom-prompt-cancel" class="button-small">Cancel</button>
+                <button id="custom-prompt-ok" class="button-small button-primary">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="../js/core/popup.js"></script>
+    <script src="../js/features/report.js"></script>
 </body>
 </html>

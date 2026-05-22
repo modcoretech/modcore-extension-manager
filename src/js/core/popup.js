@@ -6,13 +6,11 @@
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const EXTENSIONS_PER_PAGE          = 12;
-const PROFILES_STORAGE_KEY         = 'em_profiles';        // { profiles:{}, order:[] }
+const PROFILES_STORAGE_KEY         = 'em_profiles';
+const SETTINGS_STORAGE_KEY         = 'em_settings';
 const DEFAULT_ICON_PLACEHOLDER     = '../../public/icons/svg/updatelogo.svg';
-const ITEM_FEEDBACK_HIGHLIGHT_MS   = 800;
 const SHORTCUT_MODIFIER_KEYS       = ['Ctrl', 'Alt', 'Shift'];
 const VALID_SHORTCUT_KEYS          = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-
-const SETTINGS_STORAGE_KEY         = 'em_settings';
 const DEFAULT_SETTINGS             = { itemsPerPage: 12, compactMode: false, showExtensionIds: false };
 
 const ICON = {
@@ -43,7 +41,6 @@ const el = {
     totalPagesSpan:                 document.getElementById('total-pages'),
     prevPageButton:                 document.getElementById('prev-page'),
     nextPageButton:                 document.getElementById('next-page'),
-    // Bulk actions
     bulkActionsContainer:           document.getElementById('bulk-actions-container'),
     selectedCountSpan:              document.getElementById('selected-count'),
     bulkAssignActionButton:         document.getElementById('bulk-assign-action-btn'),
@@ -51,7 +48,6 @@ const el = {
     bulkEnableButton:               document.getElementById('bulk-enable-button'),
     bulkDisableButton:              document.getElementById('bulk-disable-button'),
     selectAllCheckbox:              document.getElementById('select-all-checkbox'),
-    // Profiles modal
     profilesModal:                  document.getElementById('profiles-modal'),
     profilesModalTrigger:           document.getElementById('profiles-modal-trigger'),
     profilesModalCloseButton:       document.querySelector('#profiles-modal .modal-close-button'),
@@ -61,7 +57,6 @@ const el = {
     modalProfileListSection:        document.getElementById('modal-profile-list-section'),
     modalProfileList:               document.getElementById('modal-profile-management-list'),
     modalProfileCreationSection:    document.getElementById('modal-profile-creation'),
-    // Profile config view
     profileConfigView:              document.getElementById('modal-profile-configuration-view'),
     profileConfigTitle:             document.getElementById('profile-config-title'),
     profileConfigNameInput:         document.getElementById('profile-config-name-input'),
@@ -70,11 +65,9 @@ const el = {
     profileConfigExtList:           document.getElementById('profile-config-extension-list'),
     saveProfileConfigBtn:           document.getElementById('save-profile-config-btn'),
     backToProfilesBtn:              document.getElementById('back-to-profiles-btn'),
-    // Help modal
     helpModal:                      document.getElementById('help-modal'),
     helpModalTrigger:               document.getElementById('help-modal-trigger'),
     helpModalCloseButton:           document.querySelector('#help-modal .modal-close-button'),
-    // Settings modal
     settingsModal:                  document.getElementById('settings-modal'),
     settingsModalTrigger:           document.getElementById('settings-modal-trigger'),
     settingsModalCloseButton:       document.querySelector('#settings-modal .modal-close-button'),
@@ -90,23 +83,23 @@ let searchDebounceTimer       = null;
 let allFetchedExtensions      = [];
 let selectedExtensionIds      = new Set();
 let selectedProfileIds        = new Set();
-let currentConfiguringId      = null;   // profile id being configured, or null
+let currentConfiguringId      = null;
 let contextMenuEl             = null;
 let activeContextExtId        = null;
-const activeShortcutHandlers  = new Map();
 let appSettings               = { ...DEFAULT_SETTINGS };
+let currentShortcuts          = new Map();
+let dialogResolve             = null;
+let dialogType                = null;
 
 // ═════════════════════════════════════════════════════════════════════════════
 // UTILITIES
 // ═════════════════════════════════════════════════════════════════════════════
 
-/** Safely coerce any value to a plain text string. */
 function sanitizeText(str) {
     if (str === null || str === undefined) return '';
     return String(str);
 }
 
-/** Create an <img> element */
 function makeImg(src, alt = '', extraClass = '') {
     const img = document.createElement('img');
     img.src = src;
@@ -116,7 +109,6 @@ function makeImg(src, alt = '', extraClass = '') {
     return img;
 }
 
-/** Create a <button> with optional icon and text. */
 function makeButton({ className = '', title = '', icon = null, text = null, ariaLabel = null } = {}) {
     const btn = document.createElement('button');
     btn.className = className;
@@ -125,6 +117,81 @@ function makeButton({ className = '', title = '', icon = null, text = null, aria
     if (icon)      btn.appendChild(makeImg(icon));
     if (text)      btn.appendChild(document.createTextNode(` ${text}`));
     return btn;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// CUSTOM DIALOGS (replaces native confirm/prompt)
+// ═════════════════════════════════════════════════════════════════════════════
+
+function initCustomDialogs() {
+    document.getElementById('custom-confirm-yes')?.addEventListener('click', () => closeCustomDialog(true));
+    document.getElementById('custom-confirm-no')?.addEventListener('click', () => closeCustomDialog(false));
+    document.getElementById('custom-confirm-modal')?.addEventListener('click', e => {
+        if (e.target === document.getElementById('custom-confirm-modal')) closeCustomDialog(false);
+    });
+
+    document.getElementById('custom-prompt-ok')?.addEventListener('click', () => {
+        const input = document.getElementById('custom-prompt-input');
+        closeCustomDialog(input?.value ?? '');
+    });
+    document.getElementById('custom-prompt-cancel')?.addEventListener('click', () => closeCustomDialog(null));
+    document.getElementById('custom-prompt-modal')?.addEventListener('click', e => {
+        if (e.target === document.getElementById('custom-prompt-modal')) closeCustomDialog(null);
+    });
+    document.getElementById('custom-prompt-input')?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); closeCustomDialog(e.target.value); }
+        if (e.key === 'Escape') { e.preventDefault(); closeCustomDialog(null); }
+    });
+}
+
+function openCustomDialog(type, message, title, defaultValue = '') {
+    dialogType = type;
+    const modal = document.getElementById(type === 'confirm' ? 'custom-confirm-modal' : 'custom-prompt-modal');
+    const msgEl = document.getElementById(type === 'confirm' ? 'custom-confirm-message' : 'custom-prompt-message');
+    const titleEl = document.getElementById(type === 'confirm' ? 'custom-confirm-title' : 'custom-prompt-title');
+
+    if (titleEl) titleEl.textContent = sanitizeText(title);
+    if (msgEl) msgEl.textContent = sanitizeText(message);
+
+    if (type === 'prompt') {
+        const input = document.getElementById('custom-prompt-input');
+        if (input) input.value = defaultValue;
+    }
+
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.setAttribute('aria-hidden', 'false');
+        requestAnimationFrame(() => {
+            modal.classList.add('visible');
+            if (type === 'confirm') document.getElementById('custom-confirm-no')?.focus();
+            else document.getElementById('custom-prompt-input')?.focus();
+        });
+    }
+    return new Promise(resolve => { dialogResolve = resolve; });
+}
+
+function closeCustomDialog(value) {
+    const modal = document.getElementById(dialogType === 'confirm' ? 'custom-confirm-modal' : 'custom-prompt-modal');
+    if (modal) {
+        modal.classList.remove('visible');
+        modal.setAttribute('aria-hidden', 'true');
+        setTimeout(() => {
+            if (!modal.classList.contains('visible')) modal.style.display = 'none';
+        }, 200);
+    }
+    if (dialogResolve) {
+        dialogResolve(value);
+        dialogResolve = null;
+    }
+    dialogType = null;
+}
+
+function showCustomConfirm(message, title = 'Confirm') {
+    return openCustomDialog('confirm', message, title);
+}
+
+function showCustomPrompt(message, defaultValue = '', title = 'Input Required') {
+    return openCustomDialog('prompt', message, title, defaultValue);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -144,15 +211,8 @@ function getToastContainer() {
     return toastContainer;
 }
 
-/**
- * Show a toast notification.
- * @param {string} message
- * @param {'success'|'error'|'info'} type
- * @param {number} [duration] ms before auto-dismiss
- */
 function showToast(message, type = 'info', duration = 3000) {
     const container = getToastContainer();
-
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
@@ -166,8 +226,6 @@ function showToast(message, type = 'info', duration = 3000) {
     toast.appendChild(closeBtn);
 
     container.appendChild(toast);
-
-    // Trigger animation
     requestAnimationFrame(() => toast.classList.add('toast-visible'));
 
     const timer = setTimeout(() => dismissToast(toast), duration);
@@ -214,7 +272,6 @@ async function loadSettings() {
             appSettings = { ...DEFAULT_SETTINGS };
         }
     } catch (e) {
-        console.error('loadSettings error:', e);
         appSettings = { ...DEFAULT_SETTINGS };
     }
     applySettingsToUI();
@@ -227,7 +284,6 @@ async function saveSettingsToStore(newSettings) {
         applySettingsToUI();
         return true;
     } catch (e) {
-        console.error('saveSettingsToStore error:', e);
         showToast('Could not save settings.', 'error');
         return false;
     }
@@ -254,9 +310,7 @@ function closeSettingsModal() {
     el.settingsModal.classList.remove('visible');
     el.settingsModal.setAttribute('aria-hidden', 'true');
     setTimeout(() => {
-        if (!el.settingsModal.classList.contains('visible')) {
-            el.settingsModal.style.display = 'none';
-        }
+        if (!el.settingsModal.classList.contains('visible')) el.settingsModal.style.display = 'none';
         el.settingsModalTrigger?.focus();
     }, 350);
 }
@@ -296,14 +350,10 @@ function handleSettingsReset() {
 // PROFILE STORAGE
 // ═════════════════════════════════════════════════════════════════════════════
 
-/**
- * Returns { profiles: { [id]: ProfileObject }, order: string[] }
- * Normalises any bad values so callers always get a clean shape.
- */
 async function loadProfileStore() {
     try {
-        const data  = await chrome.storage.local.get(PROFILES_STORAGE_KEY);
-        const raw   = data[PROFILES_STORAGE_KEY];
+        const data = await chrome.storage.local.get(PROFILES_STORAGE_KEY);
+        const raw = data[PROFILES_STORAGE_KEY];
 
         if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
             return { profiles: {}, order: [] };
@@ -311,21 +361,19 @@ async function loadProfileStore() {
 
         const profiles = raw.profiles && typeof raw.profiles === 'object' && !Array.isArray(raw.profiles)
             ? raw.profiles : {};
-
         const order = Array.isArray(raw.order) ? raw.order.filter(id => typeof id === 'string') : [];
 
-        // Normalise each profile
         for (const [id, p] of Object.entries(profiles)) {
             if (!p || typeof p !== 'object') { delete profiles[id]; continue; }
-            p.id              = id;
-            p.name            = typeof p.name === 'string' ? p.name : 'Unnamed';
-            p.extensionStates = (p.extensionStates && typeof p.extensionStates === 'object') ? p.extensionStates : {};
-            p.shortcut        = typeof p.shortcut === 'string' ? p.shortcut : null;
+            p.id = String(id);
+            p.name = typeof p.name === 'string' && p.name.trim() ? p.name.trim() : 'Unnamed';
+            const states = p.extensionStates;
+            p.extensionStates = (states && typeof states === 'object' && !Array.isArray(states))
+                ? states : {};
+            p.shortcut = typeof p.shortcut === 'string' && p.shortcut.trim() ? p.shortcut.trim() : null;
         }
 
-        // Remove orphan ids from order
         const validOrder = order.filter(id => profiles[id]);
-
         return { profiles, order: validOrder };
     } catch (e) {
         console.error('loadProfileStore error:', e);
@@ -335,6 +383,11 @@ async function loadProfileStore() {
 
 async function saveProfileStore(store) {
     try {
+        if (!store || typeof store !== 'object' || Array.isArray(store)) {
+            throw new Error('Invalid store object');
+        }
+        store.profiles = store.profiles || {};
+        store.order = Array.isArray(store.order) ? store.order : [];
         await chrome.storage.local.set({ [PROFILES_STORAGE_KEY]: store });
     } catch (e) {
         console.error('saveProfileStore error:', e);
@@ -342,7 +395,6 @@ async function saveProfileStore(store) {
     }
 }
 
-/** Ordered array of profile ids respecting the saved order. */
 async function getOrderedProfileIds() {
     const { profiles, order } = await loadProfileStore();
     const inOrder = order.filter(id => profiles[id]);
@@ -354,6 +406,29 @@ async function getOrderedProfileIds() {
 
 function generateProfileId() {
     return `profile_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROFILE CLEANUP (runs every popup start)
+// ═════════════════════════════════════════════════════════════════════════════
+
+async function cleanupOrphanedProfileEntries() {
+    if (!allFetchedExtensions?.length) return;
+    const validIds = new Set(allFetchedExtensions.map(e => e.id));
+    const store = await loadProfileStore();
+    let changed = false;
+
+    for (const profile of Object.values(store.profiles)) {
+        if (!profile?.extensionStates) continue;
+        for (const extId of Object.keys(profile.extensionStates)) {
+            if (!validIds.has(extId)) {
+                delete profile.extensionStates[extId];
+                changed = true;
+            }
+        }
+    }
+
+    if (changed) await saveProfileStore(store);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -380,9 +455,7 @@ function closeProfilesModal() {
     el.profilesModal.classList.remove('visible');
     el.profilesModal.setAttribute('aria-hidden', 'true');
     setTimeout(() => {
-        if (!el.profilesModal.classList.contains('visible')) {
-            el.profilesModal.style.display = 'none';
-        }
+        if (!el.profilesModal.classList.contains('visible')) el.profilesModal.style.display = 'none';
         el.profilesModalTrigger?.focus();
     }, 350);
 }
@@ -404,14 +477,13 @@ async function renderProfileList() {
     const listEl = el.modalProfileList;
     if (!listEl) return;
 
-    listEl.replaceChildren();
-
-    // Remove old header if any
     const oldHeader = el.modalProfileListSection?.querySelector('.modal-list-header');
     if (oldHeader) oldHeader.remove();
 
+    listEl.replaceChildren();
+
     const { profiles } = await loadProfileStore();
-    const orderedIds   = await getOrderedProfileIds();
+    const orderedIds = await getOrderedProfileIds();
 
     if (orderedIds.length === 0) {
         const li = document.createElement('li');
@@ -423,21 +495,20 @@ async function renderProfileList() {
         return;
     }
 
-    // Header row (select-all + bulk delete)
-    const header  = document.createElement('div');
+    const header = document.createElement('div');
     header.className = 'modal-list-header';
 
-    const selAll  = document.createElement('input');
-    selAll.type   = 'checkbox';
-    selAll.id     = 'select-all-profiles-checkbox';
-    selAll.title  = 'Select / deselect all profiles';
+    const selAll = document.createElement('input');
+    selAll.type = 'checkbox';
+    selAll.id = 'select-all-profiles-checkbox';
+    selAll.title = 'Select / deselect all profiles';
 
     const selLabel = document.createElement('label');
-    selLabel.htmlFor   = selAll.id;
+    selLabel.htmlFor = selAll.id;
     selLabel.textContent = 'Select All';
 
     const bulkDelBtn = document.createElement('button');
-    bulkDelBtn.id        = 'modal-bulk-delete-profiles-btn';
+    bulkDelBtn.id = 'modal-bulk-delete-profiles-btn';
     bulkDelBtn.className = 'button-small button-danger';
     bulkDelBtn.style.display = 'none';
     bulkDelBtn.textContent = 'Delete Selected';
@@ -450,7 +521,6 @@ async function renderProfileList() {
     selAll.addEventListener('change', handleSelectAllProfiles);
     bulkDelBtn.addEventListener('click', () => deleteProfiles(selectedProfileIds));
 
-    // Profile items
     const frag = document.createDocumentFragment();
     orderedIds.forEach(profileId => {
         const profile = profiles[profileId];
@@ -461,21 +531,19 @@ async function renderProfileList() {
         li.setAttribute('role', 'listitem');
         if (selectedProfileIds.has(profileId)) li.classList.add('selected');
 
-        // Checkbox
         const cb = document.createElement('input');
-        cb.type  = 'checkbox';
+        cb.type = 'checkbox';
         cb.className = 'profile-select-checkbox';
         cb.dataset.profileid = profileId;
         cb.checked = selectedProfileIds.has(profileId);
         cb.setAttribute('aria-label', `Select profile ${sanitizeText(profile.name)}`);
 
-        // Details
         const details = document.createElement('div');
         details.className = 'profile-item-details';
-        details.title     = sanitizeText(profile.name);
+        details.title = sanitizeText(profile.name);
 
         const nameSpan = document.createElement('span');
-        nameSpan.className   = 'profile-item-name';
+        nameSpan.className = 'profile-item-name';
         nameSpan.textContent = sanitizeText(profile.name);
         details.appendChild(nameSpan);
 
@@ -487,7 +555,6 @@ async function renderProfileList() {
             details.appendChild(scSpan);
         }
 
-        // Action buttons
         const actions = document.createElement('div');
         actions.className = 'profile-item-actions';
 
@@ -497,10 +564,10 @@ async function renderProfileList() {
             return btn;
         };
 
-        actions.appendChild(mkBtn('button-success apply-profile-btn',   'Apply Profile',       'Apply',     null));
-        actions.appendChild(mkBtn('configure-profile-btn',               'Configure Profile',    null,        ICON.configure));
-        actions.appendChild(mkBtn('icon-only duplicate-profile-btn',     'Duplicate Profile',   null,        ICON.duplicate));
-        actions.appendChild(mkBtn('button-danger icon-only delete-profile-btn', 'Delete Profile', null,     ICON.delete));
+        actions.appendChild(mkBtn('button-success apply-profile-btn', 'Apply Profile', 'Apply', null));
+        actions.appendChild(mkBtn('configure-profile-btn', 'Configure Profile', null, ICON.configure));
+        actions.appendChild(mkBtn('icon-only duplicate-profile-btn', 'Duplicate Profile', null, ICON.duplicate));
+        actions.appendChild(mkBtn('button-danger icon-only delete-profile-btn', 'Delete Profile', null, ICON.delete));
 
         li.appendChild(cb);
         li.appendChild(details);
@@ -513,8 +580,8 @@ async function renderProfileList() {
 }
 
 function updateProfileBulkUI() {
-    const bulkBtn  = document.getElementById('modal-bulk-delete-profiles-btn');
-    const selAll   = document.getElementById('select-all-profiles-checkbox');
+    const bulkBtn = document.getElementById('modal-bulk-delete-profiles-btn');
+    const selAll = document.getElementById('select-all-profiles-checkbox');
     if (!bulkBtn || !selAll) return;
 
     const count = selectedProfileIds.size;
@@ -522,41 +589,39 @@ function updateProfileBulkUI() {
     if (count > 0) bulkBtn.textContent = `Delete Selected (${count})`;
 
     const total = el.modalProfileList?.querySelectorAll('.profile-select-checkbox').length ?? 0;
-    selAll.checked       = total > 0 && count === total;
+    selAll.checked = total > 0 && count === total;
     selAll.indeterminate = count > 0 && count < total;
 }
 
 function handleSelectAllProfiles(event) {
     const checked = event.target.checked;
     el.modalProfileList?.querySelectorAll('.profile-select-checkbox').forEach(cb => {
-        const id   = cb.dataset.profileid;
+        const id = cb.dataset.profileid;
         cb.checked = checked;
-        const li   = cb.closest('li');
-        if (checked) { selectedProfileIds.add(id);    li?.classList.add('selected'); }
-        else         { selectedProfileIds.delete(id); li?.classList.remove('selected'); }
+        const li = cb.closest('li');
+        if (checked) { selectedProfileIds.add(id); li?.classList.add('selected'); }
+        else { selectedProfileIds.delete(id); li?.classList.remove('selected'); }
     });
     updateProfileBulkUI();
 }
 
 async function handleProfileListClick(event) {
-    // Checkbox toggle
     if (event.target.matches('.profile-select-checkbox')) {
-        const id  = event.target.dataset.profileid;
-        const li  = event.target.closest('li');
-        if (event.target.checked) { selectedProfileIds.add(id);    li?.classList.add('selected'); }
-        else                      { selectedProfileIds.delete(id); li?.classList.remove('selected'); }
+        const id = event.target.dataset.profileid;
+        const li = event.target.closest('li');
+        if (event.target.checked) { selectedProfileIds.add(id); li?.classList.add('selected'); }
+        else { selectedProfileIds.delete(id); li?.classList.remove('selected'); }
         updateProfileBulkUI();
         return;
     }
 
-    // Button actions
     const btn = event.target.closest('button[data-profileid]');
     if (!btn) return;
     const id = btn.dataset.profileid;
     if (!id) return;
 
-    if      (btn.classList.contains('delete-profile-btn'))    await deleteProfiles(new Set([id]));
-    else if (btn.classList.contains('apply-profile-btn'))     await applyProfile(id);
+    if (btn.classList.contains('delete-profile-btn')) await deleteProfiles(new Set([id]));
+    else if (btn.classList.contains('apply-profile-btn')) await applyProfile(id);
     else if (btn.classList.contains('configure-profile-btn')) await switchToProfileConfigView(id);
     else if (btn.classList.contains('duplicate-profile-btn')) await duplicateProfile(id);
 }
@@ -590,12 +655,16 @@ async function addProfile(profileName) {
 async function deleteProfiles(idsSet) {
     if (idsSet.size === 0) return false;
 
-    const store        = await loadProfileStore();
+    const store = await loadProfileStore();
     const profileNames = Array.from(idsSet)
         .map(id => `"${sanitizeText(store.profiles[id]?.name)}"`)
         .join(', ');
 
-    if (!confirm(`Delete ${idsSet.size} profile(s)?\n\n${profileNames}\n\nThis cannot be undone.`)) {
+    const confirmed = await showCustomConfirm(
+        `Delete ${idsSet.size} profile(s)?\n\n${profileNames}\n\nThis cannot be undone.`,
+        'Delete Profiles'
+    );
+    if (!confirmed) {
         showToast('Deletion cancelled.', 'info');
         return false;
     }
@@ -618,7 +687,7 @@ async function deleteProfiles(idsSet) {
 }
 
 async function duplicateProfile(sourceId) {
-    const store  = await loadProfileStore();
+    const store = await loadProfileStore();
     const source = store.profiles[sourceId];
     if (!source) { showToast('Source profile not found.', 'error'); return false; }
 
@@ -632,9 +701,9 @@ async function duplicateProfile(sourceId) {
     const id = generateProfileId();
     store.profiles[id] = {
         id,
-        name:             newName,
-        extensionStates:  structuredClone(source.extensionStates ?? {}),
-        shortcut:         null,
+        name: newName,
+        extensionStates: structuredClone(source.extensionStates ?? {}),
+        shortcut: null,
     };
     store.order.push(id);
     await saveProfileStore(store);
@@ -647,7 +716,11 @@ async function duplicateProfile(sourceId) {
 
 async function createProfileFromCurrentState() {
     showLoading();
-    const profileName = prompt('Enter a name for the new profile:', 'Current State Profile');
+    const profileName = await showCustomPrompt(
+        'Enter a name for the new profile:',
+        'Current State Profile',
+        'Create Profile from Current State'
+    );
     if (profileName === null) { hideLoading(); return; }
 
     const name = profileName.trim();
@@ -683,9 +756,9 @@ async function applyProfile(profileId) {
     showLoading();
     try {
         const { profiles } = await loadProfileStore();
-        const profile       = profiles[profileId];
+        const profile = profiles[profileId];
 
-        if (!profile?.extensionStates) {
+        if (!profile?.extensionStates || typeof profile.extensionStates !== 'object') {
             hideLoading();
             showToast('Profile not found or is empty.', 'error');
             return;
@@ -703,26 +776,26 @@ async function applyProfile(profileId) {
 
         const ops = entries.map(([extId, shouldEnable]) => new Promise(resolve => {
             const cur = extMap.get(extId);
-            if (!cur || !cur.mayDisable)       return resolve({ status: 'skipped' });
-            if (cur.enabled === shouldEnable)  return resolve({ status: 'nochange' });
+            if (!cur || !cur.mayDisable) return resolve({ status: 'skipped' });
+            if (cur.enabled === shouldEnable) return resolve({ status: 'nochange' });
             chrome.management.setEnabled(extId, shouldEnable, () => {
-                if (chrome.runtime.lastError) resolve({ status: 'error',   id: extId, error: chrome.runtime.lastError.message });
-                else                          resolve({ status: 'success',  id: extId });
+                if (chrome.runtime.lastError) resolve({ status: 'error', id: extId, error: chrome.runtime.lastError.message });
+                else resolve({ status: 'success', id: extId });
             });
         }));
 
         const results = await Promise.all(ops);
         results.forEach(r => {
-            if      (r.status === 'success') { success++;  const ext = extMap.get(r.id); if (ext) ext.enabled = !ext.enabled; }
+            if (r.status === 'success') { success++; const ext = extMap.get(r.id); if (ext) ext.enabled = !ext.enabled; }
             else if (r.status === 'nochange') noChange++;
-            else if (r.status === 'error')   { errors++;  console.error('Apply profile error:', r.id, r.error); }
+            else if (r.status === 'error') { errors++; console.error('Apply profile error:', r.id, r.error); }
         });
 
         hideLoading();
 
-        if (errors > 0)      showToast(`"${sanitizeText(profile.name)}" applied with ${errors} error(s).`, 'error', 5000);
+        if (errors > 0) showToast(`"${sanitizeText(profile.name)}" applied with ${errors} error(s).`, 'error', 5000);
         else if (success > 0) showToast(`"${sanitizeText(profile.name)}" applied – ${success} changed, ${noChange} unchanged.`, 'success');
-        else                  showToast(`All extensions in "${sanitizeText(profile.name)}" were already in the desired state.`, 'info');
+        else showToast(`All extensions in "${sanitizeText(profile.name)}" were already in the desired state.`, 'info');
 
         await refreshExtensionDataAndRender(getCurrentPage());
     } catch (e) {
@@ -739,21 +812,20 @@ async function applyProfile(profileId) {
 async function switchToProfileConfigView(profileId) {
     currentConfiguringId = profileId;
     const { profiles } = await loadProfileStore();
-    const profile       = profiles[profileId];
+    const profile = profiles[profileId];
     if (!profile) { await switchToProfileListView(); return; }
 
     el.modalProfileCreationSection.style.display = 'none';
-    el.modalProfileListSection.style.display     = 'none';
-    el.profileConfigView.style.display           = 'block';
+    el.modalProfileListSection.style.display = 'none';
+    el.profileConfigView.style.display = 'block';
 
-    if (el.profileConfigTitle)        el.profileConfigTitle.textContent = `Configure: ${sanitizeText(profile.name)}`;
-    if (el.profileConfigNameInput)    el.profileConfigNameInput.value   = profile.name;
+    if (el.profileConfigTitle) el.profileConfigTitle.textContent = `Configure: ${sanitizeText(profile.name)}`;
+    if (el.profileConfigNameInput) el.profileConfigNameInput.value = profile.name;
     if (el.profileConfigShortcutInput) {
-        el.profileConfigShortcutInput.disabled    = false;
-        el.profileConfigShortcutInput.value       = profile.shortcut ? (normalizeShortcut(profile.shortcut) ?? '') : '';
+        el.profileConfigShortcutInput.disabled = false;
+        el.profileConfigShortcutInput.value = profile.shortcut ? (normalizeShortcut(profile.shortcut) ?? '') : '';
         el.profileConfigShortcutInput.placeholder = 'e.g., Ctrl+Shift+P';
     }
-    // Hide inline shortcut message
     hideShortcutMessage();
 
     await renderProfileConfigExtensions(profileId);
@@ -784,22 +856,22 @@ async function renderProfileConfigExtensions(profileId) {
     }
 
     const { profiles } = await loadProfileStore();
-    const states       = profiles[profileId]?.extensionStates ?? {};
-    const frag         = document.createDocumentFragment();
+    const states = profiles[profileId]?.extensionStates ?? {};
+    const frag = document.createDocumentFragment();
 
     controllable.forEach(ext => {
-        const checked   = states[ext.id] ?? ext.enabled;
-        const cbId      = `profile-cfg-ext-${ext.id}`;
+        const checked = states[ext.id] ?? ext.enabled;
+        const cbId = `profile-cfg-ext-${ext.id}`;
 
         const item = document.createElement('div');
         item.className = 'profile-config-extension-item';
 
         const cb = document.createElement('input');
-        cb.type              = 'checkbox';
-        cb.id                = cbId;
-        cb.className         = 'profile-config-ext-checkbox';
+        cb.type = 'checkbox';
+        cb.id = cbId;
+        cb.className = 'profile-config-ext-checkbox';
         cb.dataset.extensionId = ext.id;
-        cb.checked           = checked;
+        cb.checked = checked;
 
         const icon = makeImg(
             ext.icons?.find(i => i.size >= 16)?.url || DEFAULT_ICON_PLACEHOLDER,
@@ -809,7 +881,7 @@ async function renderProfileConfigExtensions(profileId) {
         icon.loading = 'lazy';
 
         const label = document.createElement('label');
-        label.htmlFor    = cbId;
+        label.htmlFor = cbId;
         label.textContent = sanitizeText(ext.name);
 
         item.appendChild(cb);
@@ -824,7 +896,7 @@ async function renderProfileConfigExtensions(profileId) {
 async function saveProfileConfig() {
     if (!currentConfiguringId) return;
 
-    const store   = await loadProfileStore();
+    const store = await loadProfileStore();
     const profile = store.profiles[currentConfiguringId];
     if (!profile) return;
 
@@ -840,7 +912,7 @@ async function saveProfileConfig() {
     let validatedShortcut = null;
     if (rawShortcut) {
         const existing = await getExistingShortcuts(currentConfiguringId);
-        const result   = validateShortcut(rawShortcut, existing);
+        const result = validateShortcut(rawShortcut, existing);
         if (!result.isValid) {
             showShortcutMessage(result.message, 'error');
             return;
@@ -853,9 +925,9 @@ async function saveProfileConfig() {
         newStates[cb.dataset.extensionId] = cb.checked;
     });
 
-    profile.name             = newName;
-    profile.extensionStates  = newStates;
-    profile.shortcut         = validatedShortcut;
+    profile.name = newName;
+    profile.extensionStates = newStates;
+    profile.shortcut = validatedShortcut;
 
     await saveProfileStore(store);
     showToast(`Saved "${sanitizeText(profile.name)}".`, 'success');
@@ -874,7 +946,7 @@ async function handleShortcutInputChange(event) {
     const val = event.target.value.trim();
     if (!val) { hideShortcutMessage(); return; }
     const existing = await getExistingShortcuts(currentConfiguringId);
-    const result   = validateShortcut(val, existing);
+    const result = validateShortcut(val, existing);
     showShortcutMessage(result.message, result.isValid ? 'success' : 'error');
 }
 
@@ -884,44 +956,47 @@ async function handleShortcutInputChange(event) {
 
 function fetchAllExtensions() {
     return new Promise((resolve, reject) => {
-        try {
-            chrome.management.getAll(exts => {
-                if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
-                else resolve(exts || []);
-            });
-        } catch (e) {
-            reject(e);
+        if (!chrome?.management?.getAll) {
+            reject(new Error('Extension management API unavailable'));
+            return;
         }
+        chrome.management.getAll(exts => {
+            if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+            else resolve(exts || []);
+        });
     });
 }
 
 async function filterAndSortExtensions(extensions) {
-    const search      = (el.searchInput?.value ?? '').toLowerCase().trim();
-    const terms       = search.split(/\s+/).filter(Boolean);
-    const typeVal     = el.typeFilter?.value   ?? 'all';
-    const statusVal   = el.statusFilter?.value ?? 'all';
+    const search = (el.searchInput?.value ?? '').toLowerCase().trim();
+    const terms = search.split(/\s+/).filter(Boolean);
+    const typeVal = el.typeFilter?.value ?? 'all';
+    const statusVal = el.statusFilter?.value ?? 'all';
 
-    const filtered = extensions.filter(ext => {
+    const filtered = [];
+    for (const ext of extensions) {
         if (typeVal !== 'all') {
             const extType = ext.isApp ? 'app' : (ext.type || 'extension');
-            if (typeVal === 'extension' && !['extension', 'packaged_app'].includes(extType)) return false;
-            if (typeVal === 'theme'     && extType !== 'theme')                               return false;
+            if (typeVal === 'extension' && !['extension', 'packaged_app'].includes(extType)) continue;
+            if (typeVal === 'theme' && extType !== 'theme') continue;
         }
-        if (statusVal === 'enabled'  && !ext.enabled)  return false;
-        if (statusVal === 'disabled' &&  ext.enabled)  return false;
+        if (statusVal === 'enabled' && !ext.enabled) continue;
+        if (statusVal === 'disabled' && ext.enabled) continue;
+
         if (terms.length > 0) {
-            const name = (ext.name        ?? '').toLowerCase();
-            const desc = (ext.description ?? '').toLowerCase();
-            const id   = (ext.id          ?? '').toLowerCase();
-            return terms.every(t => name.includes(t) || desc.includes(t) || id.includes(t));
+            let match = true;
+            for (const t of terms) {
+                if (!ext._searchName.includes(t) && !ext._searchDesc.includes(t) && !ext._searchId.includes(t)) {
+                    match = false;
+                    break;
+                }
+            }
+            if (!match) continue;
         }
-        return true;
-    });
+        filtered.push(ext);
+    }
 
-    filtered.sort((a, b) =>
-        (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
-    );
-
+    filtered.sort((a, b) => a._searchName.localeCompare(b._searchName, undefined, { sensitivity: 'base' }));
     return filtered;
 }
 
@@ -933,24 +1008,20 @@ async function renderExtensionList(page = 1) {
     try {
         if (!el.extensionList) { hideLoading(); return; }
 
-        el.extensionList.replaceChildren();
-        el.emptyState.style.display = 'none';
-        el.emptyState.replaceChildren();
-
         const filteredExtensions = await filterAndSortExtensions(allFetchedExtensions);
-        const total      = filteredExtensions.length;
-        const perPage    = appSettings.itemsPerPage || EXTENSIONS_PER_PAGE;
+        const total = filteredExtensions.length;
+        const perPage = appSettings.itemsPerPage || EXTENSIONS_PER_PAGE;
         const totalPages = Math.ceil(total / perPage) || 1;
-        const curPage    = Math.min(Math.max(page, 1), totalPages);
-        const start      = (curPage - 1) * perPage;
-        const pageItems  = filteredExtensions.slice(start, start + perPage);
+        const curPage = Math.min(Math.max(page, 1), totalPages);
+        const start = (curPage - 1) * perPage;
+        const pageItems = filteredExtensions.slice(start, start + perPage);
 
-        if (el.currentPageSpan)  el.currentPageSpan.textContent  = String(curPage);
-        if (el.totalPagesSpan)   el.totalPagesSpan.textContent   = String(totalPages);
-        if (el.prevPageButton)   el.prevPageButton.disabled       = curPage === 1;
-        if (el.nextPageButton)   el.nextPageButton.disabled       = curPage === totalPages;
+        if (el.currentPageSpan) el.currentPageSpan.textContent = String(curPage);
+        if (el.totalPagesSpan) el.totalPagesSpan.textContent = String(totalPages);
+        if (el.prevPageButton) el.prevPageButton.disabled = curPage === 1;
+        if (el.nextPageButton) el.nextPageButton.disabled = curPage === totalPages;
 
-        const frag        = document.createDocumentFragment();
+        const frag = document.createDocumentFragment();
 
         if (pageItems.length > 0) {
             if (el.extensionListHeader) el.extensionListHeader.style.display = 'flex';
@@ -965,22 +1036,19 @@ async function renderExtensionList(page = 1) {
                 item.classList.toggle('selected', isSelected);
                 item.setAttribute('aria-selected', String(isSelected));
 
-                // Checkbox
                 const cb = document.createElement('input');
-                cb.type                = 'checkbox';
-                cb.className           = 'extension-select-checkbox';
+                cb.type = 'checkbox';
+                cb.className = 'extension-select-checkbox';
                 cb.dataset.extensionId = ext.id;
-                cb.checked             = isSelected;
+                cb.checked = isSelected;
                 cb.setAttribute('aria-label', `Select ${sanitizeText(ext.name)}`);
 
-                // Icon
-                const bestIcon  = ext.icons?.sort((a, b) => b.size - a.size)[0];
-                const iconImg   = makeImg(bestIcon?.url ?? DEFAULT_ICON_PLACEHOLDER, '', 'extension-icon');
+                const bestIcon = ext.icons?.sort((a, b) => b.size - a.size)[0];
+                const iconImg = makeImg(bestIcon?.url ?? DEFAULT_ICON_PLACEHOLDER, '', 'extension-icon');
                 iconImg.loading = 'lazy';
                 iconImg.onerror = () => { if (iconImg.src !== DEFAULT_ICON_PLACEHOLDER) iconImg.src = DEFAULT_ICON_PLACEHOLDER; iconImg.onerror = null; };
 
-                // Details
-                const details  = document.createElement('div');
+                const details = document.createElement('div');
                 details.className = 'extension-details';
                 const nameSpan = document.createElement('span');
                 nameSpan.className = 'extension-name';
@@ -995,36 +1063,35 @@ async function renderExtensionList(page = 1) {
                     details.appendChild(idSpan);
                 }
 
-                // Actions
                 const actions = document.createElement('div');
                 actions.className = 'extension-actions';
 
                 const toggleBtn = makeButton({
                     className: `toggle-button button-small ${ext.enabled ? 'button-danger' : 'button-success'}`,
-                    title:     `${ext.enabled ? 'Disable' : 'Enable'} ${sanitizeText(ext.name)}`,
-                    icon:      ICON.toggle,
-                    text:      ext.enabled ? 'Disable' : 'Enable',
+                    title: `${ext.enabled ? 'Disable' : 'Enable'} ${sanitizeText(ext.name)}`,
+                    icon: ICON.toggle,
+                    text: ext.enabled ? 'Disable' : 'Enable',
                 });
-                toggleBtn.dataset.action       = 'toggle';
-                toggleBtn.dataset.extensionId  = ext.id;
+                toggleBtn.dataset.action = 'toggle';
+                toggleBtn.dataset.extensionId = ext.id;
                 toggleBtn.dataset.currentState = ext.enabled ? 'enabled' : 'disabled';
                 toggleBtn.setAttribute('aria-pressed', String(ext.enabled));
 
                 const detailsBtn = makeButton({
                     className: 'details-button button-small icon-only',
-                    title:     `View details for ${sanitizeText(ext.name)}`,
-                    icon:      ICON.details,
+                    title: `View details for ${sanitizeText(ext.name)}`,
+                    icon: ICON.details,
                 });
-                detailsBtn.dataset.action      = 'details';
+                detailsBtn.dataset.action = 'details';
                 detailsBtn.dataset.extensionId = ext.id;
 
                 const deleteBtn = makeButton({
                     className: 'delete-button button-small button-danger icon-only',
-                    title:     `Uninstall ${sanitizeText(ext.name)}`,
-                    icon:      ICON.delete,
+                    title: `Uninstall ${sanitizeText(ext.name)}`,
+                    icon: ICON.delete,
                 });
-                deleteBtn.dataset.action       = 'delete';
-                deleteBtn.dataset.extensionId  = ext.id;
+                deleteBtn.dataset.action = 'delete';
+                deleteBtn.dataset.extensionId = ext.id;
                 deleteBtn.dataset.extensionName = sanitizeText(ext.name);
 
                 actions.appendChild(toggleBtn);
@@ -1043,7 +1110,7 @@ async function renderExtensionList(page = 1) {
                 el.emptyState.style.display = 'block';
                 const p1 = document.createElement('p');
                 p1.textContent = 'No extensions match your criteria.';
-                el.emptyState.appendChild(p1);
+                el.emptyState.replaceChildren(p1);
                 if (el.searchInput?.value.trim() || el.typeFilter?.value !== 'all' || el.statusFilter?.value !== 'all') {
                     const p2 = document.createElement('p');
                     p2.textContent = 'Try clearing your search or adjusting filters.';
@@ -1052,7 +1119,7 @@ async function renderExtensionList(page = 1) {
             }
         }
 
-        el.extensionList.appendChild(frag);
+        el.extensionList.replaceChildren(frag);
         hideLoading();
         updateSelectAllCheckboxState();
         updateBulkActionsUI();
@@ -1067,11 +1134,16 @@ async function refreshExtensionDataAndRender(page = 1) {
     showLoading();
     try {
         allFetchedExtensions = await fetchAllExtensions();
+        for (const ext of allFetchedExtensions) {
+            ext._searchName = (ext.name ?? '').toLowerCase();
+            ext._searchDesc = (ext.description ?? '').toLowerCase();
+            ext._searchId = (ext.id ?? '').toLowerCase();
+        }
+        await cleanupOrphanedProfileEntries();
         await renderExtensionList(page);
     } catch (e) {
         hideLoading();
-        const msg = e?.message ?? 'Unknown error';
-        showToast(`Error fetching extensions: ${msg}`, 'error');
+        showToast(`Error fetching extensions: ${e?.message ?? 'Unknown error'}`, 'error');
         console.error('Extension fetch/render error:', e);
     }
 }
@@ -1085,10 +1157,10 @@ function handleExtensionListClick(event) {
     const target = event.target;
 
     if (target.classList.contains('extension-select-checkbox')) {
-        const id   = target.dataset.extensionId;
+        const id = target.dataset.extensionId;
         const item = target.closest('.extension-item');
-        if (target.checked) { selectedExtensionIds.add(id);    item?.classList.add('selected'); }
-        else                { selectedExtensionIds.delete(id); item?.classList.remove('selected'); }
+        if (target.checked) { selectedExtensionIds.add(id); item?.classList.add('selected'); }
+        else { selectedExtensionIds.delete(id); item?.classList.remove('selected'); }
         updateBulkActionsUI();
         updateSelectAllCheckboxState();
         return;
@@ -1100,13 +1172,11 @@ function handleExtensionListClick(event) {
     if (!extensionId) return;
 
     switch (action) {
-        case 'toggle':  toggleExtension(extensionId, currentState === 'disabled', btn); break;
+        case 'toggle': toggleExtension(extensionId, currentState === 'disabled', btn); break;
         case 'details': openDetailsPage(extensionId); break;
-        case 'delete':  confirmAndDeleteExtension(extensionId, extensionName || 'this extension'); break;
+        case 'delete': confirmAndDeleteExtension(extensionId, extensionName || 'this extension'); break;
     }
 }
-
-// ─── Single extension actions ─────────────────────────────────────────────────
 
 function toggleExtension(extensionId, enable, buttonElement) {
     showLoading();
@@ -1121,26 +1191,21 @@ function toggleExtension(extensionId, enable, buttonElement) {
         const cached = allFetchedExtensions.find(e => e.id === extensionId);
         if (cached) cached.enabled = enable;
 
-        // Optimistic UI update
-        const item = el.extensionList?.querySelector(`.extension-item[data-extension-id="${extensionId}"]`);
-        const btn  = buttonElement || item?.querySelector('.toggle-button');
-
-        if (item && btn && cached) {
-            btn.dataset.currentState = enable ? 'enabled' : 'disabled';
-            btn.replaceChildren(makeImg(ICON.toggle), document.createTextNode(` ${enable ? 'Disable' : 'Enable'}`));
-            btn.title = `${enable ? 'Disable' : 'Enable'} ${sanitizeText(cached.name)}`;
-            btn.setAttribute('aria-pressed', String(enable));
-            btn.classList.toggle('button-danger',  enable);
-            btn.classList.toggle('button-success', !enable);
-
-            item.classList.add('item-feedback-highlight', enable ? 'success' : 'info');
-            setTimeout(() => item.classList.remove('item-feedback-highlight', 'success', 'info'), ITEM_FEEDBACK_HIGHLIGHT_MS);
-
-            if (el.statusFilter?.value !== 'all') {
-                setTimeout(async () => await refreshExtensionDataAndRender(getCurrentPage()), ITEM_FEEDBACK_HIGHLIGHT_MS + 50);
-            }
-        } else {
+        if (el.statusFilter?.value !== 'all') {
             await refreshExtensionDataAndRender(getCurrentPage());
+        } else {
+            const item = el.extensionList?.querySelector(`.extension-item[data-extension-id="${extensionId}"]`);
+            const btn = buttonElement || item?.querySelector('.toggle-button');
+            if (item && btn && cached) {
+                btn.dataset.currentState = enable ? 'enabled' : 'disabled';
+                btn.replaceChildren(makeImg(ICON.toggle), document.createTextNode(` ${enable ? 'Disable' : 'Enable'}`));
+                btn.title = `${enable ? 'Disable' : 'Enable'} ${sanitizeText(cached.name)}`;
+                btn.setAttribute('aria-pressed', String(enable));
+                btn.classList.toggle('button-danger', enable);
+                btn.classList.toggle('button-success', !enable);
+            } else {
+                await renderExtensionList(getCurrentPage());
+            }
         }
     });
 }
@@ -1149,8 +1214,12 @@ function openDetailsPage(extensionId) {
     chrome.tabs.create({ url: `src/html/details.html?id=${extensionId}` });
 }
 
-function confirmAndDeleteExtension(extensionId, extensionName) {
-    if (confirm(`Uninstall "${sanitizeText(extensionName)}"?\n\nThis cannot be undone.`)) {
+async function confirmAndDeleteExtension(extensionId, extensionName) {
+    const confirmed = await showCustomConfirm(
+        `Uninstall "${sanitizeText(extensionName)}"?\n\nThis cannot be undone.`,
+        'Uninstall Extension'
+    );
+    if (confirmed) {
         uninstallExtension(extensionId, sanitizeText(extensionName));
     }
 }
@@ -1195,15 +1264,15 @@ function updateSelectAllCheckboxState() {
     if (!el.selectAllCheckbox) return;
     const cbs = [...(el.extensionList?.querySelectorAll('.extension-select-checkbox') ?? [])];
     if (!cbs.length) {
-        el.selectAllCheckbox.checked       = false;
+        el.selectAllCheckbox.checked = false;
         el.selectAllCheckbox.indeterminate = false;
-        el.selectAllCheckbox.disabled      = true;
+        el.selectAllCheckbox.disabled = true;
         return;
     }
     el.selectAllCheckbox.disabled = false;
-    const allSel  = cbs.every(cb => cb.checked);
+    const allSel = cbs.every(cb => cb.checked);
     const someSel = cbs.some(cb => cb.checked);
-    el.selectAllCheckbox.checked       = allSel;
+    el.selectAllCheckbox.checked = allSel;
     el.selectAllCheckbox.indeterminate = !allSel && someSel;
 }
 
@@ -1211,10 +1280,10 @@ function handleSelectAllChange(event) {
     const checked = event.target.checked;
     el.extensionList?.querySelectorAll('.extension-select-checkbox').forEach(cb => {
         cb.checked = checked;
-        const id   = cb.dataset.extensionId;
+        const id = cb.dataset.extensionId;
         const item = cb.closest('.extension-item');
-        if (checked) { selectedExtensionIds.add(id);    item?.classList.add('selected'); }
-        else         { selectedExtensionIds.delete(id); item?.classList.remove('selected'); }
+        if (checked) { selectedExtensionIds.add(id); item?.classList.add('selected'); }
+        else { selectedExtensionIds.delete(id); item?.classList.remove('selected'); }
     });
     updateBulkActionsUI();
 }
@@ -1261,8 +1330,8 @@ async function performBulkAction(action) {
     });
 
     hideLoading();
-    if (errors)         showToast(`Done with errors. ${success} ${action}d, ${errors} failed.`, 'error');
-    else if (success)   showToast(`${success} extension(s) ${action}d.`, 'success');
+    if (errors) showToast(`Done with errors. ${success} ${action}d, ${errors} failed.`, 'error');
+    else if (success) showToast(`${success} extension(s) ${action}d.`, 'success');
 
     clearSelection();
     await refreshExtensionDataAndRender(getCurrentPage());
@@ -1272,7 +1341,7 @@ async function performBulkAction(action) {
 
 function toggleBulkAssignMenu(show) {
     const menu = el.bulkAssignDropdownMenu;
-    const btn  = el.bulkAssignActionButton;
+    const btn = el.bulkAssignActionButton;
     if (!menu || !btn) return;
     if (show) {
         menu.classList.add('visible');
@@ -1283,23 +1352,19 @@ function toggleBulkAssignMenu(show) {
     }
 }
 
-/**
- * Build the Assign-To dropdown.
- */
 async function populateBulkAssignMenu() {
     const menu = el.bulkAssignDropdownMenu;
     if (!menu) return;
     menu.replaceChildren();
 
     const { profiles } = await loadProfileStore();
-    const orderedIds   = await getOrderedProfileIds();
+    const orderedIds = await getOrderedProfileIds();
 
-    // Header row (title + optional search)
     const header = document.createElement('div');
     header.className = 'submenu-header';
 
     const titleSpan = document.createElement('span');
-    titleSpan.className   = 'submenu-title';
+    titleSpan.className = 'submenu-title';
     titleSpan.textContent = 'Profiles';
     header.appendChild(titleSpan);
 
@@ -1308,16 +1373,14 @@ async function populateBulkAssignMenu() {
     header.appendChild(tools);
     menu.appendChild(header);
 
-    // Scrollable list
     const list = document.createElement('div');
     list.className = 'submenu';
     menu.appendChild(list);
 
     if (orderedIds.length > 0) {
-        // Search input
         const searchInput = document.createElement('input');
-        searchInput.type        = 'search';
-        searchInput.className   = 'submenu-search';
+        searchInput.type = 'search';
+        searchInput.className = 'submenu-search';
         searchInput.placeholder = 'Search profiles…';
         searchInput.setAttribute('aria-label', 'Search profiles');
         tools.appendChild(searchInput);
@@ -1334,10 +1397,10 @@ async function populateBulkAssignMenu() {
             const displayName = sanitizeText(profile.name);
 
             const btn = document.createElement('button');
-            btn.className     = 'menu-item';
+            btn.className = 'menu-item';
             btn.dataset.action = 'assign-profile';
-            btn.dataset.value  = profileId;
-            btn.dataset.name   = displayName.toLowerCase();
+            btn.dataset.value = profileId;
+            btn.dataset.name = displayName.toLowerCase();
             btn.setAttribute('role', 'menuitem');
             btn.appendChild(makeImg(ICON.profiles, ''));
             const span = document.createElement('span');
@@ -1346,9 +1409,8 @@ async function populateBulkAssignMenu() {
             list.appendChild(btn);
         });
 
-        // Remove from all profiles
         const removeBtn = document.createElement('button');
-        removeBtn.className     = 'menu-item danger';
+        removeBtn.className = 'menu-item danger';
         removeBtn.dataset.action = 'remove-profile';
         removeBtn.setAttribute('role', 'menuitem');
         removeBtn.appendChild(makeImg(ICON.delete, ''));
@@ -1358,9 +1420,8 @@ async function populateBulkAssignMenu() {
         list.appendChild(removeBtn);
         list.appendChild(noResults);
 
-        // Live filtering
         searchInput.addEventListener('input', () => {
-            const q    = searchInput.value.trim().toLowerCase();
+            const q = searchInput.value.trim().toLowerCase();
             let anyVis = false;
             list.querySelectorAll('.menu-item[data-name]').forEach(item => {
                 const visible = !q || item.dataset.name.includes(q);
@@ -1393,7 +1454,7 @@ async function populateBulkAssignMenu() {
 
 async function assignExtensionsToProfile(extensionIds, profileId) {
     if (!extensionIds?.size || !profileId) return;
-    const store   = await loadProfileStore();
+    const store = await loadProfileStore();
     const profile = store.profiles[profileId];
     if (!profile) { showToast('Profile not found.', 'error'); return; }
 
@@ -1433,7 +1494,7 @@ async function removeExtensionsFromAllProfiles(extensionIds) {
 }
 
 async function addExtensionToProfile(extensionId, profileId) {
-    const store   = await loadProfileStore();
+    const store = await loadProfileStore();
     const profile = store.profiles[profileId];
     if (!profile) return;
     const ext = allFetchedExtensions.find(e => e.id === extensionId);
@@ -1465,7 +1526,7 @@ function createContextMenu() {
         return;
     }
     contextMenuEl = document.createElement('div');
-    contextMenuEl.id        = 'custom-context-menu';
+    contextMenuEl.id = 'custom-context-menu';
     contextMenuEl.className = 'custom-context-menu';
     document.body.appendChild(contextMenuEl);
 }
@@ -1480,8 +1541,8 @@ function handleContextMenuKeyDown(event) {
     const items = [...contextMenuEl.querySelectorAll('.context-menu-item:not([style*="display: none"]):not(.context-menu-separator)')];
     if (!items.length) return;
     const focused = document.activeElement;
-    const inside  = contextMenuEl.contains(focused);
-    let newIdx    = -1;
+    const inside = contextMenuEl.contains(focused);
+    let newIdx = -1;
 
     if (event.key === 'ArrowDown') {
         event.preventDefault();
@@ -1511,7 +1572,6 @@ async function showContextMenu(extensionId, event) {
     contextMenuEl.replaceChildren();
     const frag = document.createDocumentFragment();
 
-    // Helper to make a context menu item button
     const makeItem = (text, icon, action, danger = false) => {
         const item = document.createElement('button');
         item.className = `context-menu-item${danger ? ' danger' : ''}`;
@@ -1523,7 +1583,6 @@ async function showContextMenu(extensionId, event) {
         return item;
     };
 
-    // Info section
     const info = document.createElement('div');
     info.className = 'context-menu-info';
     const strong = document.createElement('strong');
@@ -1535,7 +1594,6 @@ async function showContextMenu(extensionId, event) {
     frag.appendChild(info);
     frag.appendChild(Object.assign(document.createElement('hr'), { className: 'context-menu-separator' }));
 
-    // Profile membership
     const { profiles } = await loadProfileStore();
     const memberProfiles = Object.values(profiles).filter(p =>
         Object.prototype.hasOwnProperty.call(p.extensionStates, extensionId)
@@ -1550,8 +1608,8 @@ async function showContextMenu(extensionId, event) {
         memberProfiles.forEach(p => {
             const li = document.createElement('li');
             li.textContent = sanitizeText(p.name);
-            li.title       = sanitizeText(p.name);
-            li.className   = 'context-menu-item-name';
+            li.title = sanitizeText(p.name);
+            li.className = 'context-menu-item-name';
             ul.appendChild(li);
         });
         mem.appendChild(ul);
@@ -1559,10 +1617,8 @@ async function showContextMenu(extensionId, event) {
         frag.appendChild(Object.assign(document.createElement('hr'), { className: 'context-menu-separator' }));
     }
 
-    // Core actions
     frag.appendChild(makeItem('View Details', ICON.details, () => openDetailsPage(extensionId)));
 
-    // Assign to Profile submenu
     const profileMenuItem = document.createElement('button');
     profileMenuItem.className = 'context-menu-item';
     profileMenuItem.appendChild(makeImg(ICON.profiles, ''));
@@ -1582,7 +1638,7 @@ async function showContextMenu(extensionId, event) {
         submenu.appendChild(makeItem('Remove from all Profiles', ICON.delete, () => removeExtensionFromAllProfiles(extensionId), true));
     } else {
         const ph = document.createElement('div');
-        ph.className   = 'context-menu-placeholder';
+        ph.className = 'context-menu-placeholder';
         ph.textContent = 'No profiles created yet.';
         ph.setAttribute('role', 'status');
         submenu.appendChild(ph);
@@ -1604,10 +1660,9 @@ async function showContextMenu(extensionId, event) {
 
     contextMenuEl.appendChild(frag);
 
-    // Position
     const { clientX: mx, clientY: my } = event;
-    contextMenuEl.style.top  = `${Math.min(my, window.innerHeight - contextMenuEl.offsetHeight - 5)}px`;
-    contextMenuEl.style.left = `${Math.min(mx, window.innerWidth  - contextMenuEl.offsetWidth  - 5)}px`;
+    contextMenuEl.style.top = `${Math.min(my, window.innerHeight - contextMenuEl.offsetHeight - 5)}px`;
+    contextMenuEl.style.left = `${Math.min(mx, window.innerWidth - contextMenuEl.offsetWidth - 5)}px`;
     contextMenuEl.classList.add('visible');
     contextMenuEl.addEventListener('keydown', handleContextMenuKeyDown);
     contextMenuEl.querySelector('.context-menu-item')?.focus();
@@ -1631,11 +1686,11 @@ async function setupFiltersAndSearch() {
             clearFiltersBtn = document.getElementById('clear-filters-btn');
             return;
         }
-        clearFiltersBtn             = document.createElement('button');
-        clearFiltersBtn.id          = 'clear-filters-btn';
-        clearFiltersBtn.className   = 'button-small';
+        clearFiltersBtn = document.createElement('button');
+        clearFiltersBtn.id = 'clear-filters-btn';
+        clearFiltersBtn.className = 'button-small';
         clearFiltersBtn.textContent = 'Clear Filters';
-        clearFiltersBtn.title       = 'Reset all search and filter options (Ctrl+Shift+F)';
+        clearFiltersBtn.title = 'Reset all search and filter options (Ctrl+Shift+F)';
         clearFiltersBtn.style.display = 'none';
         el.filtersRow?.appendChild(clearFiltersBtn);
         clearFiltersBtn.addEventListener('click', clearAllFilters);
@@ -1648,8 +1703,8 @@ async function setupFiltersAndSearch() {
     }
 
     async function clearAllFilters() {
-        if (el.searchInput)  el.searchInput.value  = '';
-        if (el.typeFilter)   el.typeFilter.value   = 'all';
+        if (el.searchInput) el.searchInput.value = '';
+        if (el.typeFilter) el.typeFilter.value = 'all';
         if (el.statusFilter) el.statusFilter.value = 'all';
         await handleFilterChange();
     }
@@ -1661,7 +1716,7 @@ async function setupFiltersAndSearch() {
     el.statusFilter?.addEventListener('change', handleFilterChange);
     el.searchInput?.addEventListener('input', () => {
         clearTimeout(searchDebounceTimer);
-        searchDebounceTimer = setTimeout(handleFilterChange, 300);
+        searchDebounceTimer = setTimeout(handleFilterChange, 150);
     });
 
     await populateBulkAssignMenu();
@@ -1715,7 +1770,6 @@ function closeHelpModal() {
 // ═════════════════════════════════════════════════════════════════════════════
 
 function setupModalListeners() {
-    // Profiles modal
     el.profilesModalTrigger?.addEventListener('click', openProfilesModal);
     el.profilesModalCloseButton?.addEventListener('click', closeProfilesModal);
     el.profilesModal?.addEventListener('click', e => { if (e.target === el.profilesModal) closeProfilesModal(); });
@@ -1731,17 +1785,14 @@ function setupModalListeners() {
     el.modalProfileList?.addEventListener('click', handleProfileListClick);
     el.createFromCurrentStateButton?.addEventListener('click', createProfileFromCurrentState);
 
-    // Profile config
     el.saveProfileConfigBtn?.addEventListener('click', saveProfileConfig);
     el.backToProfilesBtn?.addEventListener('click', switchToProfileListView);
     el.profileConfigShortcutInput?.addEventListener('input', handleShortcutInputChange);
 
-    // Help modal
     el.helpModalTrigger?.addEventListener('click', openHelpModal);
     el.helpModalCloseButton?.addEventListener('click', closeHelpModal);
     el.helpModal?.addEventListener('click', e => { if (e.target === el.helpModal) closeHelpModal(); });
 
-    // Settings modal
     el.settingsModalTrigger?.addEventListener('click', openSettingsModal);
     el.settingsModalCloseButton?.addEventListener('click', closeSettingsModal);
     el.settingsModal?.addEventListener('click', e => { if (e.target === el.settingsModal) closeSettingsModal(); });
@@ -1755,27 +1806,23 @@ function setupBulkActionListeners() {
     el.bulkDisableButton?.addEventListener('click', () => performBulkAction('disable'));
 
     const menu = el.bulkAssignDropdownMenu;
-    const btn  = el.bulkAssignActionButton;
+    const btn = el.bulkAssignActionButton;
 
-    // Toggle menu on click; jump straight to profiles submenu (no intermediate screen)
     btn?.addEventListener('click', event => {
         event.stopPropagation();
         if (menu.classList.contains('visible')) {
             toggleBulkAssignMenu(false);
         } else {
-            // Position above or below
-            const btnRect  = btn.getBoundingClientRect();
+            const btnRect = btn.getBoundingClientRect();
             const bodyRect = document.body.getBoundingClientRect();
             const spaceAbove = btnRect.top;
             const spaceBelow = bodyRect.height - btnRect.bottom;
             menu.classList.toggle('position-below', spaceAbove < 220 && spaceBelow > spaceAbove);
             toggleBulkAssignMenu(true);
-            // Focus the search input if present
             menu.querySelector('.submenu-search')?.focus();
         }
     });
 
-    // Handle actions inside menu
     menu?.addEventListener('click', async event => {
         const target = event.target.closest('button[data-action]');
         if (!target) return;
@@ -1784,11 +1831,10 @@ function setupBulkActionListeners() {
 
         switch (action) {
             case 'assign-profile': if (ids.size > 0) await assignExtensionsToProfile(ids, value); toggleBulkAssignMenu(false); break;
-            case 'remove-profile': if (ids.size > 0) await removeExtensionsFromAllProfiles(ids);  toggleBulkAssignMenu(false); break;
+            case 'remove-profile': if (ids.size > 0) await removeExtensionsFromAllProfiles(ids); toggleBulkAssignMenu(false); break;
         }
     });
 
-    // Close on outside click
     document.addEventListener('click', event => {
         if (!menu?.contains(event.target) && !btn?.contains(event.target)) {
             if (menu?.classList.contains('visible')) toggleBulkAssignMenu(false);
@@ -1797,14 +1843,14 @@ function setupBulkActionListeners() {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// KEYBOARD SHORTCUTS (global profile shortcuts + popup hotkeys)
+// KEYBOARD SHORTCUTS (single global handler)
 // ═════════════════════════════════════════════════════════════════════════════
 
 function normalizeShortcut(shortcut) {
     if (!shortcut) return null;
-    const parts     = shortcut.toLowerCase().split('+').map(p => p.trim());
+    const parts = shortcut.toLowerCase().split('+').map(p => p.trim());
     const modifiers = [];
-    let key         = '';
+    let key = '';
     const lowerModifiers = SHORTCUT_MODIFIER_KEYS.map(m => m.toLowerCase());
 
     parts.forEach(part => {
@@ -1819,7 +1865,7 @@ function normalizeShortcut(shortcut) {
 
     modifiers.sort((a, b) => {
         if (a === 'Ctrl') return -1; if (b === 'Ctrl') return 1;
-        if (a === 'Alt')  return -1; if (b === 'Alt')  return 1;
+        if (a === 'Alt') return -1; if (b === 'Alt') return 1;
         return 0;
     });
 
@@ -1828,7 +1874,7 @@ function normalizeShortcut(shortcut) {
 
 async function getExistingShortcuts(excludeProfileId = null) {
     const { profiles } = await loadProfileStore();
-    const existing     = new Map();
+    const existing = new Map();
     Object.entries(profiles).forEach(([id, data]) => {
         if (id !== excludeProfileId && data.shortcut) {
             existing.set(normalizeShortcut(data.shortcut), `Profile: "${data.name}"`);
@@ -1841,8 +1887,8 @@ function validateShortcut(shortcut, existingShortcuts) {
     const normalized = normalizeShortcut(shortcut);
     if (!normalized) return { isValid: false, message: 'Invalid format. Use Ctrl+Shift+<Key> or Alt+Shift+<Key>.', normalizedShortcut: null };
 
-    const parts     = normalized.split('+');
-    const key       = parts[parts.length - 1];
+    const parts = normalized.split('+');
+    const key = parts[parts.length - 1];
     const modifiers = parts.slice(0, -1);
 
     if (!modifiers.some(m => ['Ctrl', 'Alt'].includes(m)))
@@ -1854,29 +1900,69 @@ function validateShortcut(shortcut, existingShortcuts) {
 }
 
 async function registerKeyboardShortcuts() {
-    activeShortcutHandlers.forEach(handler => document.removeEventListener('keydown', handler));
-    activeShortcutHandlers.clear();
-
     const { profiles } = await loadProfileStore();
-    Object.entries(profiles).forEach(([profileId, profile]) => {
-        if (!profile.shortcut) return;
-        const normalized = normalizeShortcut(profile.shortcut);
-        if (!normalized || activeShortcutHandlers.has(normalized)) return;
-
-        const handler = event => {
-            const pressed = [];
-            if (event.ctrlKey)  pressed.push('Ctrl');
-            if (event.altKey)   pressed.push('Alt');
-            if (event.shiftKey) pressed.push('Shift');
-            pressed.push(event.key.toUpperCase());
-            if (normalizeShortcut(pressed.join('+')) === normalized) {
-                event.preventDefault();
-                applyProfile(profileId).then(() => window.close());
-            }
-        };
-        document.addEventListener('keydown', handler);
-        activeShortcutHandlers.set(normalized, handler);
+    currentShortcuts.clear();
+    Object.entries(profiles).forEach(([id, p]) => {
+        if (p?.shortcut) {
+            const normalized = normalizeShortcut(p.shortcut);
+            if (normalized) currentShortcuts.set(normalized, id);
+        }
     });
+}
+
+function handleGlobalKeydown(event) {
+    const active = document.activeElement;
+    const isInput = active && ['INPUT', 'SELECT', 'TEXTAREA'].includes(active.tagName);
+    const profilesOpen = el.profilesModal?.classList.contains('visible');
+    const helpOpen = el.helpModal?.classList.contains('visible');
+    const settingsOpen = el.settingsModal?.classList.contains('visible');
+    const anyModalOpen = profilesOpen || helpOpen || settingsOpen;
+
+    if (event.key === 'Escape') {
+        if (settingsOpen) { closeSettingsModal(); return; }
+        if (profilesOpen) { currentConfiguringId ? switchToProfileListView() : closeProfilesModal(); return; }
+        if (helpOpen) { closeHelpModal(); return; }
+        if (contextMenuEl?.classList.contains('visible')) { hideContextMenu(); return; }
+        if (isInput && !anyModalOpen) { active.blur(); return; }
+    }
+
+    if (!isInput) {
+        const pressed = [];
+        if (event.ctrlKey) pressed.push('Ctrl');
+        if (event.altKey) pressed.push('Alt');
+        if (event.shiftKey) pressed.push('Shift');
+        pressed.push(event.key.toUpperCase());
+        const normalized = normalizeShortcut(pressed.join('+'));
+        if (normalized && currentShortcuts.has(normalized)) {
+            event.preventDefault();
+            applyProfile(currentShortcuts.get(normalized)).then(() => window.close());
+            return;
+        }
+    }
+
+    if (isInput) return;
+
+    if (event.key === '/') {
+        event.preventDefault();
+        el.searchInput?.focus();
+        el.searchInput?.select();
+        return;
+    }
+
+    if (event.ctrlKey && event.shiftKey) {
+        switch (event.key.toUpperCase()) {
+            case 'P': event.preventDefault(); openProfilesModal(); break;
+            case 'A': event.preventDefault(); if (el.selectAllCheckbox && !el.selectAllCheckbox.disabled) el.selectAllCheckbox.click(); break;
+            case 'F': event.preventDefault(); clearAllFilters(); el.searchInput?.focus(); break;
+            case 'H': event.preventDefault(); openHelpModal(); break;
+            case 'R': event.preventDefault(); refreshExtensionDataAndRender(getCurrentPage()); break;
+        }
+    }
+
+    if (event.altKey) {
+        if (event.key === 'ArrowRight' && !el.nextPageButton?.disabled) { event.preventDefault(); el.nextPageButton.click(); }
+        if (event.key === 'ArrowLeft' && !el.prevPageButton?.disabled) { event.preventDefault(); el.prevPageButton.click(); }
+    }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1884,9 +1970,9 @@ async function registerKeyboardShortcuts() {
 // ═════════════════════════════════════════════════════════════════════════════
 
 async function initializePopup() {
-    console.log('modcore EM Popup Initializing…');
     try {
         createContextMenu();
+        initCustomDialogs();
         setupPagination();
         await loadSettings();
         const { clearAllFilters } = await setupFiltersAndSearch();
@@ -1903,55 +1989,22 @@ async function initializePopup() {
             if (!contextMenuEl?.contains(event.target)) hideContextMenu();
         });
 
-        document.addEventListener('keydown', event => {
-            const active      = document.activeElement;
-            const isInput     = active && ['INPUT', 'SELECT', 'TEXTAREA'].includes(active.tagName);
-            const profilesOpen = el.profilesModal?.classList.contains('visible');
-            const helpOpen     = el.helpModal?.classList.contains('visible');
-            const settingsOpen = el.settingsModal?.classList.contains('visible');
-
-            if (event.key === 'Escape') {
-                if (settingsOpen) { closeSettingsModal(); }
-                else if (profilesOpen) { currentConfiguringId ? switchToProfileListView() : closeProfilesModal(); }
-                else if (helpOpen) closeHelpModal();
-            }
-
-            if (isInput && event.key !== 'Escape') return;
-
-            if (event.key === '/') {
-                event.preventDefault();
-                el.searchInput?.focus();
-                el.searchInput?.select();
-            }
-
-            if (event.ctrlKey && event.shiftKey) {
-                switch (event.key.toUpperCase()) {
-                    case 'P': event.preventDefault(); openProfilesModal(); break;
-                    case 'A': event.preventDefault(); if (el.selectAllCheckbox && !el.selectAllCheckbox.disabled) el.selectAllCheckbox.click(); break;
-                    case 'F': event.preventDefault(); clearAllFilters(); el.searchInput?.focus(); break;
-                    case 'H': event.preventDefault(); openHelpModal(); break;
-                    case 'R': event.preventDefault(); refreshExtensionDataAndRender(getCurrentPage()); break;
-                }
-            }
-
-            if (event.altKey) {
-                if (event.key === 'ArrowRight' && !el.nextPageButton?.disabled) { event.preventDefault(); el.nextPageButton.click(); }
-                if (event.key === 'ArrowLeft'  && !el.prevPageButton?.disabled) { event.preventDefault(); el.prevPageButton.click(); }
-            }
-        });
+        document.addEventListener('keydown', handleGlobalKeydown);
 
         await refreshExtensionDataAndRender(1);
         el.searchInput?.focus({ preventScroll: true });
-        await registerKeyboardShortcuts();
 
-        // Footer version
+        setTimeout(() => registerKeyboardShortcuts().catch(console.error), 0);
+
         const footerEl = document.getElementById('footer-info');
         if (footerEl) {
-            const manifest = chrome.runtime.getManifest();
-            footerEl.textContent = `Version ${manifest.version} | © ${new Date().getFullYear()} modcore. Made in Germany.`;
+            try {
+                const manifest = chrome.runtime.getManifest();
+                footerEl.textContent = `Version ${manifest?.version ?? '?'} | © ${new Date().getFullYear()} modcore. Made in Germany.`;
+            } catch (e) {
+                footerEl.textContent = `© ${new Date().getFullYear()} modcore. Made in Germany.`;
+            }
         }
-
-        console.log('modcore EM Popup Initialized.');
     } catch (e) {
         console.error('Initialization error:', e);
         showToast('Failed to initialize popup. Please reload.', 'error', 10000);

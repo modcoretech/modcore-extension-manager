@@ -31,7 +31,6 @@ body {
 ::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--color-text-secondary) 60%, transparent);
   border-radius: var(--radius-full);
-  transition: background var(--transition-fast);
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-text-secondary); }
 ::selection { background: var(--color-highlight-bg); color: var(--color-highlight-text); }
@@ -40,7 +39,7 @@ body {
 /* SVG Icon Coloring */
 .button-small img, .header-icon-btn img, .header-icon-link img, #pagination-container button img {
     filter: var(--filter-icon);
-    transition: filter var(--transition-fast), opacity var(--transition-fast), transform var(--transition-fast);
+    transition: filter var(--transition-fast), opacity var(--transition-fast);
 }
 .button-small.button-primary img { filter: var(--filter-icon-primary); }
 .extension-icon, .extension-icon-small { filter: none; }
@@ -60,7 +59,6 @@ body {
   background-color: var(--color-surface);
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-border);
-  transition: all var(--transition-normal);
 }
 .popup-header {
   display: flex;
@@ -70,12 +68,10 @@ body {
   padding-bottom: var(--space-3);
   border-bottom: 1px solid var(--color-border);
   position: sticky; top: 0;
-  backdrop-filter: blur(1px);
   z-index: 10;
   padding-top: var(--space-1);
-  transition: background-color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+  background-color: var(--color-surface);
 }
-.popup-container.scrolled .popup-header { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04); }
 .popup-header h1 {
   font-size: 1.15em; font-weight: 600; color: var(--color-text-primary);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -86,18 +82,16 @@ body {
   background: none; border: none; padding: var(--space-1); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   border-radius: var(--radius-md);
-  transition: background-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast) cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
   color: var(--color-text-secondary); outline: none;
-  will-change: transform, background-color, color;
 }
 .header-icon-btn:hover, .header-icon-link:hover {
-  background-color: var(--color-surface-hover); color: var(--color-text-primary); box-shadow: none;
+  background-color: var(--color-surface-hover); color: var(--color-text-primary);
 }
 .header-icon-btn:active, .header-icon-link:active {
-    transform: scale(0.92); box-shadow: none; transition-duration: 0.08s;
+    transform: scale(0.92); transition-duration: 0.08s;
 }
 .header-icon-btn img, .header-icon-link img { height: 18px; width: 18px; vertical-align: middle; }
-.header-icon-btn:hover img, .header-icon-link:hover img { transform: scale(1.05); }
 
 /* Inputs, Selects, Filters */
 input[type="text"], select {
@@ -108,7 +102,7 @@ input[type="text"], select {
   background-color: var(--color-surface);
   color: var(--color-text-primary);
   font-size: 0.9em;
-  transition: border-color var(--transition-fast), background-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+  transition: border-color var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast);
   outline: none;
 }
 input[type="text"]::placeholder { color: var(--color-text-placeholder); opacity: 1; }
@@ -132,7 +126,6 @@ select:disabled, input[type="text"]:disabled {
     display: flex; align-items: center; white-space: nowrap; color: var(--color-text-secondary);
     font-size: 0.9em; font-weight: 500; flex-shrink: 0; line-height: 1.4; padding-right: var(--space-1);
 }
-/* Search + Filters combined row */
 .search-filters-row {
   display: flex; align-items: center; gap: var(--space-2);
   margin-bottom: var(--space-4);
@@ -165,8 +158,8 @@ select:disabled, input[type="text"]:disabled {
   gap: 5px; padding: 6px 12px; cursor: pointer; border: 1px solid var(--color-secondary-border);
   border-radius: var(--radius-md); font-size: 0.85em; font-weight: 500;
   line-height: 1.3; white-space: nowrap;
-  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast) cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow var(--transition-fast), opacity var(--transition-fast);
-  outline: none; will-change: transform, background-color, border-color, box-shadow;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast), opacity var(--transition-fast);
+  outline: none;
 }
 .button-small {
   background-color: var(--color-secondary); color: var(--color-secondary-text);
@@ -174,7 +167,7 @@ select:disabled, input[type="text"]:disabled {
 }
 .button-small:hover:not(:disabled) {
   background-color: var(--color-secondary-hover); border-color: var(--color-secondary-border);
-  color: var(--color-secondary-text); transform: none; box-shadow: var(--shadow-sm);
+  color: var(--color-secondary-text); box-shadow: var(--shadow-sm);
 }
 .button-small:active:not(:disabled) {
   transform: scale(0.92); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08); transition-duration: 0.08s;
@@ -185,7 +178,6 @@ select:disabled, input[type="text"]:disabled {
 }
 .button-small.button-primary:hover:not(:disabled) {
   background-color: var(--color-primary-hover); border-color: var(--color-primary-hover);
-  transform: none;
 }
 .button-small.button-primary:active:not(:disabled) {
   background-color: var(--color-primary-hover); transform: scale(0.94);
@@ -227,7 +219,7 @@ select:disabled, input[type="text"]:disabled {
 }
 #pagination-container button:hover:not(:disabled) {
   background-color: var(--color-surface-hover); border-color: var(--color-border-strong);
-  transform: none; box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-sm);
 }
 #pagination-container button:active:not(:disabled) {
   transform: scale(0.95); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08); transition-duration: 0.08s;
@@ -240,19 +232,18 @@ select:disabled, input[type="text"]:disabled {
     padding: var(--space-2) var(--space-3); margin-bottom: var(--space-3);
     background-color: var(--color-surface); border: 1px solid var(--color-border);
     border-radius: var(--radius-md); flex-wrap: wrap;
-    transition: all var(--transition-normal); box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-sm);
 }
 .bulk-actions-container #selected-count {
     font-size: 0.85em; color: var(--color-text-secondary); font-weight: 500;
     margin-right: var(--space-1); flex-shrink: 0;
 }
 
-/* --- New Hierarchical Dropdown Styles --- */
 .bulk-actions-dropdown { position: relative; display: inline-block; }
 #bulk-assign-action-btn { min-width: 0px; }
 .bulk-actions-dropdown-menu {
     position: absolute;
-    bottom: 100%; /* Default: Position above */
+    bottom: 100%;
     left: 0;
     background-color: var(--color-surface);
     width: 240px;
@@ -266,7 +257,7 @@ select:disabled, input[type="text"]:disabled {
     transform: translateY(10px);
     transition: opacity var(--transition-fast), transform var(--transition-fast);
     visibility: hidden;
-    overflow: hidden; /* Important for sliding views */
+    overflow: hidden;
 }
 .bulk-actions-dropdown-menu.position-below {
     bottom: auto; top: 100%; margin-bottom: 0; margin-top: var(--space-1);
@@ -285,18 +276,15 @@ select:disabled, input[type="text"]:disabled {
 }
 .submenu { max-height: 150px; overflow-y: auto; padding-right: var(--space-1); }
 
-/* Submenu search & tools (Profiles) */
 .submenu-tools {
   display: flex;
   gap: var(--space-1);
   align-items: center;
   margin-left: auto;
   flex-shrink: 0;
-  /* keep tools visually aligned with header */
   padding-left: var(--space-2);
 }
 
-/* Search input inside submenu header */
 .submenu-search {
   appearance: none;
   -webkit-appearance: none;
@@ -315,21 +303,15 @@ select:disabled, input[type="text"]:disabled {
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-fast);
   outline: none;
 }
-
-/* Placeholder color & accessibility */
 .submenu-search::placeholder { color: var(--color-text-placeholder); opacity: 1; }
 .submenu-search:focus-visible {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px var(--color-focus-ring), inset 0 1px 2px rgba(0,0,0,0.04);
 }
-
-/* Hover state for search input */
 .submenu-search:hover:not(:focus-visible) {
   border-color: var(--color-border-strong);
   background-color: color-mix(in srgb, var(--color-surface) 95%, var(--color-surface-hover) 5%);
 }
-
-/* Disabled */
 .submenu-search:disabled {
   background-color: var(--color-disabled-bg);
   color: var(--color-disabled-text);
@@ -338,18 +320,14 @@ select:disabled, input[type="text"]:disabled {
   opacity: 0.9;
 }
 
-/* Compact layout for narrow popup widths */
 @media (max-width: 520px) {
   .submenu-tools { gap: var(--space-1); }
   .submenu-search { min-width: 110px; width: 36vw; }
 }
 
-/* Search result visuals inside submenu */
 .submenu .menu-item {
   transition: background-color var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
 }
-
-/* Smooth hide/show for filtered items */
 .submenu .menu-item[style*="display: none"] {
   opacity: 0;
   height: 0;
@@ -360,8 +338,6 @@ select:disabled, input[type="text"]:disabled {
   overflow: hidden;
   transition: opacity var(--transition-fast), height var(--transition-fast);
 }
-
-/* Placeholder shown when no results or no items */
 .context-menu-placeholder {
   padding: var(--space-2) var(--space-3);
   color: var(--color-text-secondary);
@@ -371,22 +347,16 @@ select:disabled, input[type="text"]:disabled {
   background: transparent;
   display: block;
 }
-
-/* Ensure placeholder visually distinct in submenu area */
 .submenu .context-menu-placeholder {
   margin-top: var(--space-1);
   border-top: 1px dashed var(--color-border);
   padding-top: var(--space-2);
 }
-
-/* Keyboard focus for menu items and create buttons */
 .submenu .menu-item:focus {
   outline: none;
   box-shadow: 0 0 0 3px var(--color-focus-ring);
   background-color: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface));
 }
-
-/* Respect reduced motion setting */
 @media (prefers-reduced-motion: reduce) {
   .submenu-search,
   .submenu-search-btn,
@@ -397,7 +367,7 @@ select:disabled, input[type="text"]:disabled {
 }
 
 .menu-item {
-    font-family: var(--font-sans);  /* Use the same font as the rest of the UI */
+    font-family: var(--font-sans);
     display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2);
     background-color: transparent; border: none; width: 100%; text-align: left;
     cursor: pointer; font-size: 0.9em; color: var(--color-text-primary);
@@ -417,7 +387,6 @@ select:disabled, input[type="text"]:disabled {
     padding: var(--space-1) var(--space-3); margin-bottom: var(--space-1);
     border-bottom: 1px solid var(--color-border); font-size: 0.8em; font-weight: 600;
     color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em;
-    transition: border-bottom-color var(--transition-fast);
 }
 .subtle-hint-header {
     font-size: 0.9em; font-weight: 400; color: var(--color-text-secondary);
@@ -438,27 +407,21 @@ select:disabled, input[type="text"]:disabled {
   display: flex; align-items: center; gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
-  transition: background-color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast) cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
   border: 1px solid var(--color-border); background-color: var(--color-surface);
   margin-bottom: var(--space-1); position: relative;
-  box-shadow: var(--shadow-sm); will-change: background-color, border-color, transform, box-shadow;
+  box-shadow: var(--shadow-sm);
 }
 .extension-item:hover {
-    transform: translateY(-2px); border-color: var(--color-border-strong);
+    border-color: var(--color-border-strong);
 }
 .extension-item .extension-actions button, .extension-item input[type="checkbox"] { cursor: pointer; }
 .extension-item.selected {
     background-color: var(--color-surface-selected); border-color: var(--color-primary);
-    transform: translateY(-1px);
 }
-.extension-item.selected:hover {
-    background-color: color-mix(in srgb, var(--color-surface-selected) 90%, var(--color-surface-hover) 10%);
-}
-.extension-item.fade-in { animation: fadeInSlideUp 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
-.extension-item.fade-out { animation: fadeOutSlideDown 0.3s cubic-bezier(0.4, 0, 1, 1) forwards; pointer-events: none; }
 .extension-item input[type="checkbox"] {
     margin-right: calc(var(--space-2) / 2); flex-shrink: 0; cursor: pointer;
-    transform: scale(1); transition: transform var(--transition-fast) cubic-bezier(0.2, 0.8, 0.2, 1);
+    transform: scale(1); transition: transform var(--transition-fast);
 }
 .extension-item input[type="checkbox"]:hover { transform: scale(1.1); }
 .extension-item input[type="checkbox"]:active { transform: scale(0.9); }
@@ -466,9 +429,7 @@ select:disabled, input[type="text"]:disabled {
   width: 28px; height: 28px; border-radius: var(--radius-sm);
   object-fit: contain; flex-shrink: 0; background-color: var(--color-surface);
   padding: 0; border: none; pointer-events: none;
-  transition: transform var(--transition-normal);
 }
-.extension-item:hover .extension-icon { transform: scale(1.05); }
 .extension-details { flex-grow: 1; overflow: hidden; min-width: 0; pointer-events: none; position: relative; }
 .extension-name {
   font-weight: 500; margin-bottom: 0; color: var(--color-text-primary);
@@ -481,30 +442,12 @@ select:disabled, input[type="text"]:disabled {
 }
 .extension-actions .button-small { flex-shrink: 0; min-width: auto; }
 .extension-actions .button-small.icon-only { min-width: 28px; padding: 6px; }
-.item-feedback-highlight { transition: background-color 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.item-feedback-highlight.success {
-  background-color: color-mix(in srgb, var(--color-success) 12%, transparent);
-  animation: pulseGreen 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-.item-feedback-highlight.info {
-  background-color: color-mix(in srgb, var(--color-primary) 8%, transparent);
-  animation: pulseBlue 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-@keyframes pulseGreen {
-    0% { background-color: transparent; }
-    50% { background-color: color-mix(in srgb, var(--color-success) 15%, transparent); }
-    100% { background-color: transparent; }
-}
-@keyframes pulseBlue {
-    0% { background-color: transparent; }
-    50% { background-color: color-mix(in srgb, var(--color-primary) 10%, transparent); }
-    100% { background-color: transparent; }
-}
+
 .no-extensions-message {
   font-size: 0.95em; color: var(--color-text-secondary); text-align: center;
   margin: var(--space-5) 0; padding: var(--space-4);
   background-color: var(--color-surface); border: 1px dashed var(--color-border);
-  border-radius: var(--radius-lg); transition: all var(--transition-normal);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
 }
 .no-extensions-message p { margin-bottom: var(--space-1); }
@@ -513,19 +456,16 @@ select:disabled, input[type="text"]:disabled {
   display: flex; justify-content: center; align-items: center;
   gap: var(--space-3); margin: var(--space-5) 0;
   color: var(--color-text-secondary); font-size: 0.95em;
-  transition: opacity var(--transition-normal);
 }
 .spinner {
   width: 18px; height: 18px; border: 2px solid var(--color-border-strong);
   border-top-color: var(--color-primary); border-radius: 50%;
-  animation: spin 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+  animation: spin 0.8s linear infinite;
 }
 @keyframes spin {
-  0% { transform: rotate(0deg) scale(1); }
-  50% { transform: rotate(180deg) scale(1.05); }
-  100% { transform: rotate(360deg) scale(1); }
+  to { transform: rotate(360deg); }
 }
-/* ── Inline shortcut feedback (profile config only) ──────────────────────── */
+
 .feedback-message {
   display: flex; align-items: center; justify-content: center;
   gap: var(--space-2); padding: var(--space-2) var(--space-3);
@@ -547,7 +487,6 @@ select:disabled, input[type="text"]:disabled {
   border-color: color-mix(in srgb, var(--color-text-secondary) 15%, transparent);
 }
 
-/* ── Toast notification system ───────────────────────────────────────────── */
 #toast-container {
   position: fixed;
   bottom: var(--space-4);
@@ -574,10 +513,7 @@ select:disabled, input[type="text"]:disabled {
   pointer-events: auto;
   opacity: 0;
   transform: translateY(10px) scale(0.97);
-  transition:
-    opacity var(--transition-fast),
-    transform var(--transition-fast);
-  will-change: opacity, transform;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
   min-width: 200px;
   max-width: 380px;
   text-align: center;
@@ -640,8 +576,8 @@ select:disabled, input[type="text"]:disabled {
   position: fixed; inset: 0; background-color: var(--color-backdrop);
   display: flex; justify-content: center; align-items: center;
   z-index: 1000; opacity: 0; pointer-events: none;
-  transition: opacity var(--transition-normal) cubic-bezier(0.2, 0.8, 0.2, 1), backdrop-filter var(--transition-normal) cubic-bezier(0.2, 0.8, 0.2, 1);
-  backdrop-filter: blur(0px); will-change: opacity, backdrop-filter;
+  transition: opacity var(--transition-normal), backdrop-filter var(--transition-normal);
+  backdrop-filter: blur(0px);
 }
 .modal-overlay.visible {
     opacity: 1; pointer-events: auto; backdrop-filter: blur(5px);
@@ -652,27 +588,25 @@ select:disabled, input[type="text"]:disabled {
   max-height: 85vh; overflow-y: auto; position: relative;
   transform: scale(0.95) translateY(20px); opacity: 0;
   border: 1px solid var(--color-border); box-shadow: var(--shadow-lg);
-  will-change: transform, opacity, box-shadow;
 }
-.modal-overlay.visible .modal-content { animation: modalEnter 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
-.modal-overlay.exiting .modal-content { animation: modalExit 0.3s cubic-bezier(0.4, 0, 1, 1) forwards; }
+.modal-overlay.visible .modal-content { animation: modalEnter 0.25s ease-out forwards; }
+.modal-overlay.exiting .modal-content { animation: modalExit 0.2s ease-in forwards; }
 @keyframes modalEnter {
-  0% { opacity: 0; transform: scale(0.95) translateY(20px); }
-  70% { transform: scale(1.01) translateY(-5px); }
+  0% { opacity: 0; transform: scale(0.96) translateY(10px); }
   100% { opacity: 1; transform: scale(1) translateY(0); }
 }
 @keyframes modalExit {
   0% { opacity: 1; transform: scale(1) translateY(0); }
-  100% { opacity: 0; transform: scale(0.95) translateY(10px); }
+  100% { opacity: 0; transform: scale(0.96) translateY(10px); }
 }
 .modal-close-button {
   position: absolute; top: var(--space-2); right: var(--space-2);
   background: transparent; border: none; font-size: 1.1em;
   font-weight: 500; color: var(--color-text-primary); cursor: pointer; padding: 0 var(--space-1);
-  line-height: 1; transition: color var(--transition-fast), transform var(--transition-fast) cubic-bezier(0.2, 0.8, 0.2, 1), background-color var(--transition-fast), box-shadow var(--transition-fast);
+  line-height: 1; transition: color var(--transition-fast), transform var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast);
   border-radius: var(--radius-full); width: 26px; height: 26px;
   display: flex; align-items: center; justify-content: center; outline: none;
-  box-shadow: var(--shadow-sm); will-change: transform, background-color, box-shadow;
+  box-shadow: var(--shadow-sm);
 }
 .modal-close-button:hover { background-color: var(--color-surface-hover); transform: translateY(-1px); }
 .modal-close-button:active { transform: scale(0.9); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08); transition-duration: 0.08s;}
@@ -718,7 +652,6 @@ select:disabled, input[type="text"]:disabled {
   border-bottom: 1px solid var(--color-border); font-size: 0.9em;
   flex-wrap: nowrap; gap: var(--space-3); cursor: grab;
   transition: background-color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
-  will-change: background-color, box-shadow;
 }
 #modal-profile-management-list li:last-child { border-bottom: none; }
 #modal-profile-management-list li:hover {
@@ -777,7 +710,6 @@ select:disabled, input[type="text"]:disabled {
 .no-profiles-message {
     padding: var(--space-3); text-align: center; color: var(--color-text-secondary);
     font-style: italic; cursor: default; font-size: 0.9em; border: none;
-    transition: all var(--transition-normal);
 }
 .no-profiles-message:hover { background: none; }
 .modal-feedback { margin-top: var(--space-3); margin-bottom: calc(-1 * var(--space-1)); font-size: 0.85em; }
@@ -790,7 +722,6 @@ select:disabled, input[type="text"]:disabled {
     display: flex; align-items: center; padding: var(--space-1) 0;
     gap: var(--space-2); font-size: 0.9em;
     transition: background-color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
-    will-change: background-color, box-shadow;
 }
 .profile-config-extension-item:not(:last-child) {
     border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-2); margin-bottom: var(--space-2);
@@ -799,7 +730,7 @@ select:disabled, input[type="text"]:disabled {
 .profile-config-extension-item input[type="checkbox"] {
     margin-right: var(--space-1); flex-shrink: 0; cursor: pointer;
     width: 18px; height: 18px; border-radius: 4px;
-    transition: transform var(--transition-fast) cubic-bezier(0.2, 0.8, 0.2, 1);
+    transition: transform var(--transition-fast);
 }
 .profile-config-extension-item input[type="checkbox"]:hover { transform: scale(1.1); }
 .profile-config-extension-item input[type="checkbox"]:active { transform: scale(0.9); }
@@ -840,11 +771,6 @@ select:disabled, input[type="text"]:disabled {
     background-color: color-mix(in srgb, var(--color-surface-selected) 90%, var(--color-surface-hover) 10%);
     box-shadow: 0 0 0 1px var(--color-primary), var(--shadow-sm);
 }
-@keyframes buttonPop {
-  0% { transform: scale(1); }
-  70% { transform: scale(0.95); }
-  100% { transform: scale(1); }
-}
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important; animation: none !important;
@@ -862,22 +788,17 @@ select:disabled, input[type="text"]:disabled {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: var(--space-2);
 }
-
 .help-links-list li {
     background-color: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-    transition: background-color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast) cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow var(--transition-fast);
+    transition: background-color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
     box-shadow: var(--shadow-sm);
-    will-change: background-color, transform, box-shadow;
 }
-
 .help-links-list li:hover {
     background-color: var(--color-surface-hover);
     border-color: var(--color-border-strong);
-    transform: translateY(-2px);
 }
-
 .help-links-list a {
     display: flex;
     align-items: center;
@@ -889,30 +810,23 @@ select:disabled, input[type="text"]:disabled {
     font-size: 0.95em;
     transition: color var(--transition-fast);
 }
-
 .help-links-list a:hover {
     color: var(--color-primary);
 }
-
 .help-links-list a img {
     width: 20px;
     height: 20px;
     filter: var(--filter-icon);
     transition: filter var(--transition-fast), transform var(--transition-fast);
 }
-
 .help-links-list a:hover img {
     filter: var(--filter-icon-primary);
     transform: scale(1.05);
 }
-
 .text-center {
     text-align: center;
 }
 
-/* ==========================================================================
-   NEW: Modal header actions (settings + close)
-   ========================================================================== */
 .modal-header-actions {
     position: absolute;
     top: var(--space-2);
@@ -936,7 +850,7 @@ select:disabled, input[type="text"]:disabled {
     cursor: pointer;
     padding: 0 var(--space-1);
     line-height: 1;
-    transition: color var(--transition-fast), transform var(--transition-fast) cubic-bezier(0.2, 0.8, 0.2, 1), background-color var(--transition-fast), box-shadow var(--transition-fast);
+    transition: color var(--transition-fast), transform var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast);
     border-radius: var(--radius-full);
     width: 26px;
     height: 26px;
@@ -945,11 +859,9 @@ select:disabled, input[type="text"]:disabled {
     justify-content: center;
     outline: none;
     box-shadow: var(--shadow-sm);
-    will-change: transform, background-color, box-shadow;
 }
 .modal-settings-button:hover { background-color: var(--color-surface-hover); transform: translateY(-1px); }
 .modal-settings-button:active { transform: scale(0.9); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08); transition-duration: 0.08s; }
-
 .modal-close-button img,
 .modal-settings-button img {
     width: 14px;
@@ -958,9 +870,6 @@ select:disabled, input[type="text"]:disabled {
     pointer-events: none;
 }
 
-/* ==========================================================================
-   NEW: Settings form styles
-   ========================================================================== */
 .settings-row {
     margin-bottom: var(--space-2);
     display: flex;
@@ -999,9 +908,6 @@ select:disabled, input[type="text"]:disabled {
     font-size: 0.9em;
 }
 
-/* ==========================================================================
-   NEW: Compact mode
-   ========================================================================== */
 .compact-mode .extension-item {
     padding: var(--space-1) var(--space-2);
     gap: var(--space-2);
@@ -1020,8 +926,6 @@ select:disabled, input[type="text"]:disabled {
 .compact-mode .extension-list-header {
     padding: var(--space-1) var(--space-2);
 }
-
-/* Custom Context Menu - Compact Style Modifications */
 .compact-mode .custom-context-menu {
     min-width: 220px;
 }
@@ -1052,9 +956,6 @@ select:disabled, input[type="text"]:disabled {
     font-size: 0.8em;
 }
 
-/* ==========================================================================
-   NEW: Extension ID display
-   ========================================================================== */
 .extension-id-display {
     font-size: 0.75em;
     color: var(--color-text-secondary);
@@ -1064,7 +965,6 @@ select:disabled, input[type="text"]:disabled {
     line-height: 1.2;
 }
 
-/* --- Custom Context Menu --- */
 .custom-context-menu {
     position: fixed;
     z-index: 2000;
@@ -1078,21 +978,17 @@ select:disabled, input[type="text"]:disabled {
     transform: scale(0.98) translateY(-5px);
     transition: opacity var(--transition-fast), transform var(--transition-fast);
     pointer-events: none;
-    will-change: opacity, transform;
 }
-
 .custom-context-menu.visible {
     opacity: 1;
     transform: scale(1) translateY(0);
     pointer-events: auto;
 }
-
 .context-menu-info {
     padding: var(--space-2) var(--space-3);
     font-size: 0.8em;
     color: var(--color-text-secondary);
 }
-
 .context-menu-info strong {
     display: block;
     font-weight: 600;
@@ -1103,11 +999,9 @@ select:disabled, input[type="text"]:disabled {
     overflow: hidden;
     text-overflow: ellipsis;
 }
-
 .context-menu-info span {
     display: block;
 }
-
 .context-menu-item {
     font-family: var(--font-sans);
     display: flex;
@@ -1123,47 +1017,40 @@ select:disabled, input[type="text"]:disabled {
     color: var(--color-text-primary);
     border-radius: var(--radius-md);
     transition: background-color var(--transition-fast), color var(--transition-fast);
-    position: relative; /* For submenu positioning */
+    position: relative;
 }
-
 .context-menu-item:hover {
     background-color: var(--color-primary);
     color: var(--color-primary-on);
 }
-
 .context-menu-item img {
     width: 16px;
     height: 16px;
     filter: var(--filter-icon);
     transition: filter var(--transition-fast);
 }
-
 .context-menu-item:hover img {
     filter: var(--filter-icon-primary);
 }
-
 .context-menu-item.danger:hover {
     background-color: var(--color-danger);
     color: var(--color-primary-on);
 }
-
 .context-menu-item .submenu-arrow {
     margin-left: auto;
     font-size: 0.8em;
 }
-
 .context-menu-separator {
     height: 1px;
     background-color: var(--color-border);
     margin: var(--space-1) 0;
     border: none;
 }
-
 .context-menu-submenu {
     position: absolute;
-    top: -5px; /* Adjust to align with parent */
+    top: -5px;
     left: 100%;
-    display: none; /* Hidden by default */
+    display: none;
     background-color: var(--color-modal-bg);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
@@ -1172,31 +1059,26 @@ select:disabled, input[type="text"]:disabled {
     min-width: 200px;
     max-height: 250px;
     overflow-y: auto;
-    z-index: 2001; /* Above the main menu */
+    z-index: 2001;
 }
-
 .context-menu-item:hover > .context-menu-submenu {
-    display: block; /* Show on hover */
+    display: block;
 }
-
 .context-menu-membership {
     font-size: 0.85em;
     color: var(--color-text-secondary);
     padding: var(--space-1) var(--space-3);
     margin-top: var(--space-1);
 }
-
 .context-menu-membership strong {
     color: var(--color-text-primary);
     font-weight: 600;
 }
-
 .context-menu-membership ul {
     list-style-type: none;
     padding-left: 0;
     margin-top: var(--space-1);
 }
-
 .context-menu-membership li.context-menu-item-name {
     max-width: 170px;
     overflow: hidden;
