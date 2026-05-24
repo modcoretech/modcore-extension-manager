@@ -22,12 +22,6 @@ const CRX_MAGIC = [0x43, 0x72, 0x32, 0x34]; // "Cr24"
  */
 const _crxQueue = [];
 
-/**
- * Map of active blob URLs -> metadata for ZIP downloads.
- * @type {Map<string, {name: string, id: string}>}
- */
-const _blobDownloads = new Map();
-
 // ==========================================================================
 // URL & Filename Utilities
 // ==========================================================================
@@ -46,15 +40,11 @@ function isWebStoreUrl(url) {
 
 function sanitizeFilename(text) {
     if (!text || typeof text !== 'string') return 'unknown';
-    // Remove control chars and Windows reserved characters
     let clean = text.replace(/[\x00-\x1f\x7f&/\\:"*<>|?]/g, '').trim();
-    // Remove trailing dots and spaces (Windows restriction)
     clean = clean.replace(/[.\s]+$/, '');
-    // Guard against reserved Windows names
     if (/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i.test(clean)) {
         clean = '_' + clean;
     }
-    // Length cap to avoid path-too-long errors
     if (clean.length > 200) clean = clean.slice(0, 200);
     return clean || 'unknown';
 }
@@ -75,15 +65,31 @@ function buildCRXUrl(arch, id, version) {
 }
 
 // ==========================================================================
-// CRX -> ZIP Conversion
+// Base64 helper (service-worker safe, no stack overflow)
 // ==========================================================================
 
 /**
- * Strips the CRX header and returns the raw ZIP ArrayBuffer.
- * Supports CRX2 and CRX3.
- * @param {ArrayBuffer} buffer
- * @returns {ArrayBuffer}
+ * Converts an ArrayBuffer to a base64 string without blowing the stack.
+ * Processes in 8 KB chunks using spread syntax.
  */
+function arrayBufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    let binary = '';
+    const chunkSize = 0x2000; // 8192
+
+    for (let i = 0; i < len; i += chunkSize) {
+        const end = Math.min(i + chunkSize, len);
+        // Spread a small TypedArray slice directly into fromCharCode
+        binary += String.fromCharCode(...bytes.subarray(i, end));
+    }
+    return btoa(binary);
+}
+
+// ==========================================================================
+// CRX -> ZIP Conversion
+// ==========================================================================
+
 function stripCrxHeader(buffer) {
     if (buffer.byteLength < 8) {
         throw new Error('File too small to be a valid CRX');
@@ -92,7 +98,6 @@ function stripCrxHeader(buffer) {
     const bytes = new Uint8Array(buffer);
     const view  = new DataView(buffer);
 
-    // Verify magic: "Cr24"
     for (let i = 0; i < 4; i++) {
         if (bytes[i] !== CRX_MAGIC[i]) {
             throw new Error('Invalid CRX magic number');
@@ -126,11 +131,6 @@ function stripCrxHeader(buffer) {
 // Download Orchestration
 // ==========================================================================
 
-/**
- * Initiates a CRX or ZIP download for the given tab.
- * @param {chrome.tabs.Tab} tab
- * @param {'crx'|'zip'} [type='crx']
- */
 export function triggerCRXDownload(tab, type = 'crx') {
     if (!tab?.url) {
         console.warn('CRX: no tab URL provided.');
@@ -157,9 +157,6 @@ export function triggerCRXDownload(tab, type = 'crx') {
     }
 }
 
-/**
- * Downloads the extension as a CRX file via chrome.downloads.
- */
 function downloadAsCrx(extId, extName, chromeVersion) {
     chrome.runtime.getPlatformInfo(platform => {
         const arch = platform.nacl_arch || 'x86-64';
@@ -186,10 +183,10 @@ function downloadAsCrx(extId, extName, chromeVersion) {
 
 /**
  * Fetches the CRX, strips the header, and downloads as a ZIP file.
+ * Uses a base64 data URL because service workers lack URL.createObjectURL.
  */
 async function downloadAsZip(extId, extName, chromeVersion) {
-    let url     = null;
-    let blobUrl = null;
+    let url = null;
 
     try {
         const platform = await chrome.runtime.getPlatformInfo();
@@ -203,31 +200,19 @@ async function downloadAsZip(extId, extName, chromeVersion) {
 
         const buffer    = await response.arrayBuffer();
         const zipBuffer = stripCrxHeader(buffer);
-        const zipBlob   = new Blob([zipBuffer], { type: 'application/zip' });
-        blobUrl = URL.createObjectURL(zipBlob);
-
-        // Prevent memory leak if the download stalls
-        setTimeout(() => {
-            if (blobUrl) {
-                URL.revokeObjectURL(blobUrl);
-                _blobDownloads.delete(blobUrl);
-            }
-        }, 60000);
+        const base64    = arrayBufferToBase64(zipBuffer);
+        const dataUrl   = `data:application/zip;base64,${base64}`;
 
         await chrome.downloads.download({
-            url: blobUrl,
+            url: dataUrl,
             filename: `${extName} [${extId.substring(0, 8)}].zip`,
             saveAs: true,
         });
     } catch (err) {
         console.error('ZIP download failed:', err);
-        if (blobUrl) {
-            URL.revokeObjectURL(blobUrl);
-            _blobDownloads.delete(blobUrl);
-        }
 
-        // Fallback: download via chrome.downloads (will have .crx extension,
-        // but users can rename; this avoids a total failure if fetch is blocked)
+        // Fallback: hand the raw CRX URL to chrome.downloads so the user
+        // at least gets the file (they can rename .crx -> .zip manually).
         if (url) {
             _crxQueue.push({
                 url,
@@ -256,9 +241,6 @@ function pruneCrxQueue() {
 
 export function registerCrxListeners() {
     chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
-        // ZIP downloads use blob URLs and pre-set filenames; ignore them here.
-        if (item.url.startsWith('blob:')) return;
-
         if (!item.url.startsWith('https://clients2.google.com/service/update2/crx')) return;
 
         const idx = _crxQueue.findIndex(q => q.url === item.url);
@@ -267,7 +249,6 @@ export function registerCrxListeners() {
         const { name, id, type } = _crxQueue[idx];
         _crxQueue.splice(idx, 1);
 
-        // Extract version from the server's suggested filename, e.g. "name_1_2_3.crx"
         const vMatch  = item.filename.match(/_(\d+(?:_\d+)*)\.crx$/i);
         const version = vMatch ? vMatch[1].replace(/_/g, '.') : 'latest';
 
