@@ -70,5 +70,25 @@
   },
   "report_badge_recommended": { "message": "Empfohlen" },
   "report_badge_optional": { "message": "Optional" },
-  "report_badge_captured_count": { "message": "$COUNT$ erfasst", "placeholders": { "count": { "content": "$1" } } }
+  "report_badge_captured_count": { "message": "$COUNT$ erfasst", "placeholders": { "count": { "content": "$1" } } },
+
+
+  
+  
+  "action_menu": {
+    "message": "Aktionen",
+    "description": "Parent menu label in the toolbar action context menu."
+  },
+  "action_enable_all": {
+    "message": "Alle Erweiterungen aktivieren",
+    "description": "Menu item to enable every installed extension."
+  },
+  "action_disable_all": {
+    "message": "Alle Erweiterungen deaktivieren",
+    "description": "Menu item to disable every installed extension."
+  },
+  "action_export_list": {
+    "message": "Erweiterungsliste exportieren",
+    "description": "Menu item to download a JSON dump of all extensions."
+  }
 }

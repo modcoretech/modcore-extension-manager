@@ -79,5 +79,26 @@
   "report_badge_captured_count": {
     "message": "$COUNT$ captured",
     "placeholders": { "count": { "content": "$1" } }
+  },
+
+
+
+  
+  
+  "action_menu": {
+    "message": "Actions",
+    "description": "Parent menu label in the toolbar action context menu."
+  },
+  "action_enable_all": {
+    "message": "Enable All Extensions",
+    "description": "Menu item to enable every installed extension."
+  },
+  "action_disable_all": {
+    "message": "Disable All Extensions",
+    "description": "Menu item to disable every installed extension."
+  },
+  "action_export_list": {
+    "message": "Export Extension List",
+    "description": "Menu item to download a JSON dump of all extensions."
   }
 }

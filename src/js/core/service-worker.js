@@ -7,6 +7,11 @@
 
 import { triggerCRXDownload, registerCrxListeners } from '../features/crx-downloader.js';
 import {
+    registerActionMenus,
+    isActionMenuItem,
+    handleActionMenuClick,
+} from '../features/actions-menu.js';
+import {
     EXTENSION_HISTORY_KEY,
     HISTORY_SETTINGS_KEY,
     recordExtensionActivity,
@@ -154,7 +159,9 @@ function registerContextMenus() {
             documentUrlPatterns: WEBSTORE_PATTERNS,
         });
 
-        // Action context menu — always visible
+        // Action context menus — always visible
+        registerActionMenus();
+
         chrome.contextMenus.create({
             id: MENU_DONATE,
             title: chrome.i18n.getMessage('donate_menu'),
@@ -363,7 +370,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 // ==========================================================================
-// CRX / ZIP Download Delegation
+// CRX / ZIP / Actions / Donate Delegation
 // ==========================================================================
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
@@ -371,6 +378,8 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
         triggerCRXDownload(tab, 'crx');
     } else if (info.menuItemId === MENU_ZIP_DOWNLOAD || info.menuItemId === ACTION_MENU_ZIP_DOWNLOAD) {
         triggerCRXDownload(tab, 'zip');
+    } else if (isActionMenuItem(info.menuItemId)) {
+        handleActionMenuClick(info.menuItemId);
     } else if (info.menuItemId === MENU_DONATE) {
         chrome.tabs.create({ url: 'https://www.patreon.com/cw/modcore' });
     }
