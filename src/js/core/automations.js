@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             'rule-name-error', 'back-to-rules-list', 'cancel-rule-form',
             'setting-confirm-delete', 'setting-default-target-type', 'setting-default-trigger-type',
             'confirm-dialog-overlay', 'confirm-dialog-message', 'confirm-ok-btn', 'confirm-cancel-btn',
-            'toast-container', 'tag-filter-bar', 'tag-chips-container', 'clear-tag-filter',
+            'tag-filter-bar', 'tag-chips-container', 'clear-tag-filter',
             'empty-state-add-btn', 'reset-all-filters-btn', 'save-rule-btn'
         ];
         ids.forEach(id => { DOM[id] = document.getElementById(id); });
@@ -88,10 +88,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function saveSettings() {
         try {
             await chrome.storage.local.set({ [SETTINGS_KEY]: state.settings });
-            showToast('Settings saved.', 'success');
+            Toaster.success('Settings saved.');
         } catch (e) {
             console.error('Failed to save settings:', e);
-            showToast('Failed to save settings.', 'error');
+            Toaster.error('Failed to save settings.');
         }
     }
 
@@ -138,7 +138,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             updateSelectAllCheckboxState();
         } catch (error) {
             console.error('Error refreshing UI:', error);
-            showToast('Error loading data. Please refresh.', 'error');
+            Toaster.error('Error loading data. Please refresh.');
         } finally {
             state.isRefreshing = false;
         }
@@ -538,7 +538,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         removeBtn.addEventListener('click', () => {
             const cards = document.querySelectorAll('.condition-card');
             if (cards.length <= 1) {
-                showToast('A rule needs at least one condition.', 'error');
+                Toaster.error('A rule needs at least one condition.');
                 return;
             }
             card.remove();
@@ -807,7 +807,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         removeBtn.addEventListener('click', () => {
             const cards = document.querySelectorAll('.action-card');
             if (cards.length <= 1) {
-                showToast('A rule needs at least one action.', 'error');
+                Toaster.error('A rule needs at least one action.');
                 return;
             }
             card.remove();
@@ -969,7 +969,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!validateStep(1)) showStep(1);
             else if (!validateStep(2)) showStep(2);
             else showStep(3);
-            showToast('Please correct the errors before saving.', 'error');
+            Toaster.error('Please correct the errors before saving.');
             return;
         }
 
@@ -1002,7 +1002,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const conflicts = findConflictingRules(ruleData);
         if (conflicts.length > 0) {
             const names = conflicts.map(r => `"${sanitizeText(r.name)}"`).join(', ');
-            showToast(`Cannot save: conflicts with ${names}. Disable conflicting rules first.`, 'error');
+            Toaster.error(`Cannot save: conflicts with ${names}. Disable conflicting rules first.`);
             return;
         }
 
@@ -1017,7 +1017,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updatedRules }, () => {
             refreshUI();
-            showToast('Rule saved successfully!', 'success');
+            Toaster.success('Rule saved successfully!');
             setActivePanel('rules-list-panel');
         });
     }
@@ -1043,7 +1043,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             state.selectedRuleIds.delete(ruleId);
             chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updated }, () => {
                 refreshUI();
-                showToast('Rule deleted.', 'success');
+                Toaster.success('Rule deleted.');
             });
         } else if (e.target.classList.contains('toggle-rule-btn')) {
             const toggle = e.target;
@@ -1053,7 +1053,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 toggle.setAttribute('aria-checked', toggle.checked);
                 chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: state.allRules }, () => {
                     refreshUI();
-                    showToast(`Rule "${sanitizeText(rule.name)}" ${rule.enabled ? 'enabled' : 'disabled'}.`, 'success');
+                    Toaster.success(`Rule "${sanitizeText(rule.name)}" ${rule.enabled ? 'enabled' : 'disabled'}.`);
                 });
             }
         } else if (e.target.classList.contains('rule-select-checkbox')) {
@@ -1117,7 +1117,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function bulkDeleteSelected() {
         if (state.selectedRuleIds.size === 0) {
-            showToast('No rules selected.', 'info');
+            Toaster.info('No rules selected.');
             return;
         }
         if (state.settings.confirmBeforeDelete) {
@@ -1129,13 +1129,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         state.selectedRuleIds.clear();
         chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updated }, () => {
             refreshUI();
-            showToast(`${count} rule(s) deleted.`, 'success');
+            Toaster.success(`${count} rule(s) deleted.`);
         });
     }
 
     async function bulkToggleSelected(enable) {
         if (state.selectedRuleIds.size === 0) {
-            showToast(`No rules selected.`, 'info');
+            Toaster.info('No rules selected.');
             return;
         }
         const action = enable ? 'enable' : 'disable';
@@ -1146,7 +1146,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         state.selectedRuleIds.clear();
         chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updated }, () => {
             refreshUI();
-            showToast(`${count} rule(s) ${action}d.`, 'success');
+            Toaster.success(`${count} rule(s) ${action}d.`);
         });
     }
 
@@ -1217,7 +1217,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         setActivePanel('add-rule-panel');
     }
 
-    // --- Dialogs & Toasts ---
+    // --- Dialogs ---
     function showConfirmDialog(message) {
         return new Promise((resolve) => {
             const overlay = DOM['confirm-dialog-overlay'];
@@ -1265,19 +1265,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             e.preventDefault();
             first.focus();
         }
-    }
-
-    function showToast(message, type = 'info') {
-        const container = DOM['toast-container'];
-        if (!container) return;
-        const toast = createElement('div', `toast ${type}`, message);
-        container.appendChild(toast);
-        requestAnimationFrame(() => toast.classList.add('show'));
-        setTimeout(() => {
-            toast.classList.remove('show');
-            const remove = () => { toast.remove(); toast.removeEventListener('transitionend', remove); };
-            toast.addEventListener('transitionend', remove);
-        }, 4000);
     }
 
     // --- Event Listeners ---

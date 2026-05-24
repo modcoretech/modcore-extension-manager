@@ -25,22 +25,6 @@ import {
     executeRuleAction,
     handleRuleAlarm,
 } from '../features/automations-manager.js';
-import {
-    SYNC_SETTINGS_KEY,
-    SYNC_DATA_KEY,
-    SYNC_ALARM_NAME,
-    updateSyncAlarm,
-    handleSyncAlarm,
-} from '../features/cloud-manager.js';
-
-// Hard limits - must match cloud.js constants!!
-const HARD_MAX_VERSIONS    = 5;
-const HARD_MAX_LOG_ENTRIES = 100;
-
-const DATA_KEYS_TO_SYNC = {
-    [RULES_STORAGE_KEY]:    'Automation Rules',
-    [PROFILES_STORAGE_KEY]: 'Profiles',
-};
 
 // ==========================================================================
 // Permissions cache (for accurate permission-change detection)
@@ -128,15 +112,6 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     if (details.reason === 'install') {
         await chrome.storage.local.set({
             [RULES_STORAGE_KEY]:    [],
-            [SYNC_SETTINGS_KEY]: {
-                autoSyncEnabled:        false,
-                syncInterval:           60,
-                selectiveSync:          Object.keys(DATA_KEYS_TO_SYNC).reduce((a, k) => ({ ...a, [k]: true }), {}),
-                lastSyncTimestamp:      null,
-                logRetentionPolicy:     '50',
-                historyRetentionPolicy: '5',
-            },
-            syncLog:                    [],
             [EXTENSION_HISTORY_KEY]:    [],
             [HISTORY_SETTINGS_KEY]:     { trackingEnabled: true },
         });
@@ -144,7 +119,6 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     }
 
     await updateAlarmsAndCache();
-    await updateSyncAlarm();
     await initializePermissionsCache();
     registerManagementListeners();
 
@@ -181,10 +155,8 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 chrome.runtime.onStartup.addListener(async () => {
     console.log('Browser started. Re-initializing systems.');
     await updateAlarmsAndCache();
-    await updateSyncAlarm();
     await initializePermissionsCache();
     registerManagementListeners();
-    // Note: "sync on startup" removed - use the auto-sync alarm interval instead.
 });
 
 // ==========================================================================
@@ -199,10 +171,6 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
                 updateAlarmsAndCache();
                 sendResponse({ status: 'success' });
             });
-            return true;
-
-        case 'UPDATE_SYNC_ALARM':
-            updateSyncAlarm().then(() => sendResponse({ status: 'success' }));
             return true;
 
         case 'GET_EXTENSION_HISTORY':
@@ -267,10 +235,6 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (alarm.name.startsWith('rule_')) {
         await handleRuleAlarm(alarm.name);
         return;
-    }
-
-    if (alarm.name === SYNC_ALARM_NAME) {
-        handleSyncAlarm();
     }
 });
 

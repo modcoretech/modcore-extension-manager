@@ -6,7 +6,7 @@
 
 import {
     el, allFetchedExtensions, selectedExtensionIds, appSettings,
-    showToast, showLoading, hideLoading, sanitizeText, makeImg, makeButton,
+    showLoading, hideLoading, sanitizeText, makeImg, makeButton,
     showCustomConfirm, showCustomPrompt, saveSettingsToStore,
     SETTINGS_STORAGE_KEY,
     ICON, DEFAULT_ICON_PLACEHOLDER, SHORTCUT_MODIFIER_KEYS, VALID_SHORTCUT_KEYS,
@@ -70,7 +70,7 @@ export async function saveProfileStore(store) {
         await chrome.storage.local.set({ [PROFILES_STORAGE_KEY]: store });
     } catch (e) {
         console.error('saveProfileStore error:', e);
-        showToast('Could not save profiles.', 'error');
+        Toaster.error('Could not save profiles.');
     }
 }
 
@@ -167,7 +167,7 @@ function initProfileSortable() {
             const newOrder = Array.from(items).map(li => li.dataset.profileid).filter(Boolean);
             store.order = newOrder;
             await saveProfileStore(store);
-            showToast('Profile order saved.', 'success');
+            Toaster.success('Profile order saved.');
         }
     });
 }
@@ -303,7 +303,6 @@ function handleSelectAllProfiles(event) {
     const checked = event.target.checked;
     el.modalProfileList?.querySelectorAll('.profile-select-checkbox').forEach(cb => {
         const id = cb.dataset.profileid;
-        cb.checked = checked;
         const li = cb.closest('li');
         if (checked) { selectedProfileIds.add(id); li?.classList.add('selected'); }
         else { selectedProfileIds.delete(id); li?.classList.remove('selected'); }
@@ -338,11 +337,11 @@ export async function handleProfileListClick(event) {
 
 export async function addProfile(profileName) {
     const name = profileName.trim();
-    if (!name) { showToast('Profile name cannot be empty.', 'error'); return false; }
+    if (!name) { Toaster.error('Profile name cannot be empty.'); return false; }
 
     const store = await loadProfileStore();
     if (Object.values(store.profiles).some(p => p.name.toLowerCase() === name.toLowerCase())) {
-        showToast(`Profile "${sanitizeText(name)}" already exists.`, 'error');
+        Toaster.error(`Profile "${sanitizeText(name)}" already exists.`);
         return false;
     }
 
@@ -353,7 +352,7 @@ export async function addProfile(profileName) {
 
     await renderProfileList();
     await populateBulkAssignMenu();
-    showToast(`Profile "${sanitizeText(name)}" added.`, 'success');
+    Toaster.success(`Profile "${sanitizeText(name)}" added.`);
     await registerKeyboardShortcuts();
     return true;
 }
@@ -371,7 +370,7 @@ export async function deleteProfiles(idsSet) {
         'Delete Profiles'
     );
     if (!confirmed) {
-        showToast('Deletion cancelled.', 'info');
+        Toaster.info('Deletion cancelled.');
         return false;
     }
 
@@ -386,7 +385,7 @@ export async function deleteProfiles(idsSet) {
         selectedProfileIds.clear();
         await renderProfileList();
         await populateBulkAssignMenu();
-        showToast(`${deleted} profile(s) deleted.`, 'success');
+        Toaster.success(`${deleted} profile(s) deleted.`);
         await registerKeyboardShortcuts();
     }
     return true;
@@ -395,7 +394,7 @@ export async function deleteProfiles(idsSet) {
 export async function duplicateProfile(sourceId) {
     const store = await loadProfileStore();
     const source = store.profiles[sourceId];
-    if (!source) { showToast('Source profile not found.', 'error'); return false; }
+    if (!source) { Toaster.error('Source profile not found.'); return false; }
 
     let newName = `${source.name} (Copy)`;
     let counter = 1;
@@ -415,7 +414,7 @@ export async function duplicateProfile(sourceId) {
     await saveProfileStore(store);
 
     await renderProfileList();
-    showToast(`Profile duplicated as "${sanitizeText(newName)}".`, 'success');
+    Toaster.success(`Profile duplicated as "${sanitizeText(newName)}".`);
     await registerKeyboardShortcuts();
     return true;
 }
@@ -430,12 +429,12 @@ export async function createProfileFromCurrentState() {
     if (profileName === null) { hideLoading(); return; }
 
     const name = profileName.trim();
-    if (!name) { hideLoading(); showToast('Profile name cannot be empty.', 'error'); return; }
+    if (!name) { hideLoading(); Toaster.error('Profile name cannot be empty.'); return; }
 
     const store = await loadProfileStore();
     if (Object.values(store.profiles).some(p => p.name.toLowerCase() === name.toLowerCase())) {
         hideLoading();
-        showToast(`Profile "${sanitizeText(name)}" already exists.`, 'error');
+        Toaster.error(`Profile "${sanitizeText(name)}" already exists.`);
         return;
     }
 
@@ -450,7 +449,7 @@ export async function createProfileFromCurrentState() {
     hideLoading();
     await renderProfileList();
     await populateBulkAssignMenu();
-    showToast(`Profile "${sanitizeText(name)}" created from current state.`, 'success');
+    Toaster.success(`Profile "${sanitizeText(name)}" created from current state.`);
     await registerKeyboardShortcuts();
 }
 
@@ -466,14 +465,14 @@ export async function applyProfile(profileId) {
 
         if (!profile?.extensionStates || typeof profile.extensionStates !== 'object') {
             hideLoading();
-            showToast('Profile not found or is empty.', 'error');
+            Toaster.error('Profile not found or is empty.');
             return;
         }
 
         const entries = Object.entries(profile.extensionStates);
         if (entries.length === 0) {
             hideLoading();
-            showToast(`Profile "${sanitizeText(profile.name)}" has no extensions configured.`, 'info');
+            Toaster.info(`Profile "${sanitizeText(profile.name)}" has no extensions configured.`);
             return;
         }
 
@@ -499,15 +498,15 @@ export async function applyProfile(profileId) {
 
         hideLoading();
 
-        if (errors > 0) showToast(`"${sanitizeText(profile.name)}" applied with ${errors} error(s).`, 'error', 5000);
-        else if (success > 0) showToast(`"${sanitizeText(profile.name)}" applied – ${success} changed, ${noChange} unchanged.`, 'success');
-        else showToast(`All extensions in "${sanitizeText(profile.name)}" were already in the desired state.`, 'info');
+        if (errors > 0) Toaster.error(`"${sanitizeText(profile.name)}" applied with ${errors} error(s).`, 5000);
+        else if (success > 0) Toaster.success(`"${sanitizeText(profile.name)}" applied – ${success} changed, ${noChange} unchanged.`);
+        else Toaster.info(`All extensions in "${sanitizeText(profile.name)}" were already in the desired state.`);
 
         await refreshExtensionDataAndRender();
     } catch (e) {
         hideLoading();
         console.error('applyProfile error:', e);
-        showToast('Failed to apply profile.', 'error');
+        Toaster.error('Failed to apply profile.');
     }
 }
 
@@ -607,12 +606,12 @@ async function saveProfileConfig() {
     if (!profile) return;
 
     const newName = el.profileConfigNameInput?.value.trim() ?? '';
-    if (!newName) { showToast('Profile name cannot be empty.', 'error'); return; }
+    if (!newName) { Toaster.error('Profile name cannot be empty.'); return; }
 
     const nameTaken = Object.values(store.profiles).some(
         p => p.name.toLowerCase() === newName.toLowerCase() && p.id !== currentConfiguringId
     );
-    if (nameTaken) { showToast(`Name "${sanitizeText(newName)}" already in use.`, 'error'); return; }
+    if (nameTaken) { Toaster.error(`Name "${sanitizeText(newName)}" already in use.`); return; }
 
     const rawShortcut = el.profileConfigShortcutInput?.value.trim() || null;
     let validatedShortcut = null;
@@ -636,7 +635,7 @@ async function saveProfileConfig() {
     profile.shortcut = validatedShortcut;
 
     await saveProfileStore(store);
-    showToast(`Saved "${sanitizeText(profile.name)}".`, 'success');
+    Toaster.success(`Saved "${sanitizeText(profile.name)}".`);
     await registerKeyboardShortcuts();
 }
 
@@ -860,7 +859,7 @@ export async function assignExtensionsToProfile(extensionIds, profileId) {
     if (!extensionIds?.size || !profileId) return;
     const store = await loadProfileStore();
     const profile = store.profiles[profileId];
-    if (!profile) { showToast('Profile not found.', 'error'); return; }
+    if (!profile) { Toaster.error('Profile not found.'); return; }
 
     let changed = false;
     extensionIds.forEach(extId => {
@@ -869,9 +868,9 @@ export async function assignExtensionsToProfile(extensionIds, profileId) {
 
     if (changed) {
         await saveProfileStore(store);
-        showToast(`${extensionIds.size} extension(s) added to "${sanitizeText(profile.name)}".`, 'success');
+        Toaster.success(`${extensionIds.size} extension(s) added to "${sanitizeText(profile.name)}".`);
     } else {
-        showToast(`All selected extensions were already in "${sanitizeText(profile.name)}".`, 'info');
+        Toaster.info(`All selected extensions were already in "${sanitizeText(profile.name)}".`);
     }
     clearSelection();
 }
@@ -890,9 +889,9 @@ export async function removeExtensionsFromAllProfiles(extensionIds) {
     });
     if (changed) {
         await saveProfileStore(store);
-        showToast(`${extensionIds.size} extension(s) removed from all profiles.`, 'success');
+        Toaster.success(`${extensionIds.size} extension(s) removed from all profiles.`);
     } else {
-        showToast('Selected extensions were not in any profiles.', 'info');
+        Toaster.info('Selected extensions were not in any profiles.');
     }
     clearSelection();
 }
@@ -905,7 +904,7 @@ export async function addExtensionToProfile(extensionId, profileId) {
     if (!ext) return;
     profile.extensionStates[extensionId] = ext.enabled;
     await saveProfileStore(store);
-    showToast(`Added to "${sanitizeText(profile.name)}".`, 'success', 2000);
+    Toaster.success(`Added to "${sanitizeText(profile.name)}".`, 2000);
 }
 
 export async function removeExtensionFromAllProfiles(extensionId) {
@@ -917,7 +916,7 @@ export async function removeExtensionFromAllProfiles(extensionId) {
             changed = true;
         }
     });
-    if (changed) { await saveProfileStore(store); showToast('Removed from all profiles.', 'success', 2000); }
+    if (changed) { await saveProfileStore(store); Toaster.success('Removed from all profiles.', 2000); }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

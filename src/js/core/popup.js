@@ -43,7 +43,6 @@ export const ICON = {
     duplicate: '../../public/icons/svg/copy.svg',
     current:   '../../public/icons/svg/current.svg',
     shortcut:  '../../public/icons/svg/keyboard.svg',
-    close:     '../../public/icons/svg/close.svg',
 };
 
 // ─── DOM cache ────────────────────────────────────────────────────────────────
@@ -210,51 +209,6 @@ export function showCustomPrompt(message, defaultValue = '', title = 'Input Requ
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// TOAST / FEEDBACK
-// ═════════════════════════════════════════════════════════════════════════════
-
-let toastContainer = null;
-
-function getToastContainer() {
-    if (!toastContainer) {
-        toastContainer = document.createElement('div');
-        toastContainer.id = 'toast-container';
-        toastContainer.setAttribute('aria-live', 'polite');
-        toastContainer.setAttribute('aria-atomic', 'false');
-        document.body.appendChild(toastContainer);
-    }
-    return toastContainer;
-}
-
-export function showToast(message, type = 'info', duration = 3000) {
-    const container = getToastContainer();
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
-    toast.textContent = sanitizeText(message);
-
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'toast-close';
-    closeBtn.setAttribute('aria-label', 'Dismiss');
-    closeBtn.appendChild(makeImg(ICON.close, 'Dismiss'));
-    closeBtn.addEventListener('click', () => dismissToast(toast));
-    toast.appendChild(closeBtn);
-
-    container.appendChild(toast);
-    requestAnimationFrame(() => toast.classList.add('toast-visible'));
-
-    const timer = setTimeout(() => dismissToast(toast), duration);
-    toast._dismissTimer = timer;
-}
-
-function dismissToast(toast) {
-    clearTimeout(toast._dismissTimer);
-    toast.classList.remove('toast-visible');
-    toast.classList.add('toast-exit');
-    toast.addEventListener('animationend', () => toast.remove(), { once: true });
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
 // LOADING
 // ═════════════════════════════════════════════════════════════════════════════
 
@@ -297,7 +251,7 @@ export async function saveSettingsToStore(newSettings) {
         applySettingsToUI();
         return true;
     } catch (e) {
-        showToast('Could not save settings.', 'error');
+        Toaster.error('Could not save settings.');
         return false;
     }
 }
@@ -341,14 +295,14 @@ export async function handleSettingsSave() {
     };
     const saved = await saveSettingsToStore(newSettings);
     if (!saved) return;
-    showToast('Settings saved.', 'success');
+    Toaster.success('Settings saved.');
     await refreshExtensionDataAndRender();
     closeSettingsModal();
 }
 
 export function handleSettingsReset() {
     populateSettingsForm();
-    showToast('Form reset to saved values.', 'info');
+    Toaster.info('Form reset to saved values.');
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -560,7 +514,7 @@ function initExtensionSortable() {
             const newOrder = [...visibleOrder, ...remaining, ...extra];
             appSettings.extensionOrder = newOrder;
             await saveSettingsToStore(appSettings);
-            showToast('Extension order saved.', 'success');
+            Toaster.success('Extension order saved.');
 
             const orderMap = new Map(newOrder.map((id, idx) => [id, idx]));
             allFetchedExtensions.sort((a, b) => {
@@ -653,7 +607,7 @@ export async function renderExtensionList() {
     } catch (e) {
         hideLoading();
         console.error('renderExtensionList error:', e);
-        showToast('Error rendering extension list.', 'error');
+        Toaster.error('Error rendering extension list.');
     }
 }
 
@@ -671,7 +625,7 @@ export async function refreshExtensionDataAndRender() {
         await renderExtensionList();
     } catch (e) {
         hideLoading();
-        showToast(`Error fetching extensions: ${e?.message ?? 'Unknown error'}`, 'error');
+        Toaster.error(`Error fetching extensions: ${e?.message ?? 'Unknown error'}`);
         console.error('Extension fetch/render error:', e);
     }
 }
@@ -712,10 +666,10 @@ export function toggleExtension(extensionId, enable, buttonElement) {
     chrome.management.setEnabled(extensionId, enable, async () => {
         hideLoading();
         if (chrome.runtime.lastError) {
-            showToast(`Error: ${chrome.runtime.lastError.message}`, 'error');
+            Toaster.error(`Error: ${chrome.runtime.lastError.message}`);
             return;
         }
-        showToast(`Extension ${enable ? 'enabled' : 'disabled'}.`, 'success', 2000);
+        Toaster.success(`Extension ${enable ? 'enabled' : 'disabled'}.`, 2000);
 
         const cached = allFetchedExtensions.find(e => e.id === extensionId);
         if (cached) cached.enabled = enable;
@@ -758,9 +712,9 @@ export function uninstallExtension(extensionId, safeName) {
     chrome.management.uninstall(extensionId, { showConfirmDialog: false }, async () => {
         hideLoading();
         if (chrome.runtime.lastError) {
-            showToast(`Error uninstalling "${safeName}": ${chrome.runtime.lastError.message}`, 'error');
+            Toaster.error(`Error uninstalling "${safeName}": ${chrome.runtime.lastError.message}`);
         } else {
-            showToast(`"${safeName}" uninstalled.`, 'success');
+            Toaster.success(`"${safeName}" uninstalled.`);
             selectedExtensionIds.delete(extensionId);
             await refreshExtensionDataAndRender();
             await refreshProfileViews();
@@ -859,8 +813,8 @@ export async function performBulkAction(action) {
     });
 
     hideLoading();
-    if (errors) showToast(`Done with errors. ${success} ${action}d, ${errors} failed.`, 'error');
-    else if (success) showToast(`${success} extension(s) ${action}d.`, 'success');
+    if (errors) Toaster.error(`Done with errors. ${success} ${action}d, ${errors} failed.`);
+    else if (success) Toaster.success(`${success} extension(s) ${action}d.`);
 
     clearSelection();
     await refreshExtensionDataAndRender();
@@ -1016,9 +970,9 @@ export async function showContextMenu(extensionId, event) {
 
     frag.appendChild(makeItem('Options', ICON.configure, () => {
         chrome.management.get(extensionId, ext => {
-            if (chrome.runtime.lastError) { showToast(chrome.runtime.lastError.message, 'error'); return; }
+            if (chrome.runtime.lastError) { Toaster.error(chrome.runtime.lastError.message); return; }
             chrome.tabs.create({ url: ext?.optionsUrl || `chrome://extensions/?id=${extensionId}` });
-            if (!ext?.optionsUrl) showToast('No dedicated Options page; opened extension details.', 'info');
+            if (!ext?.optionsUrl) Toaster.info('No dedicated Options page; opened extension details.');
         });
     }));
     frag.appendChild(makeItem('Uninstall', ICON.delete, () => confirmAndDeleteExtension(extensionId, extension.name), true));
@@ -1242,7 +1196,7 @@ export async function initializePopup() {
         await populateBulkAssignMenu();
     } catch (e) {
         console.error('Initialization error:', e);
-        showToast('Failed to initialize popup. Please reload.', 'error', 10000);
+        Toaster.error('Failed to initialize popup. Please reload.', 10000);
         hideLoading();
     }
 }

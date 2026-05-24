@@ -837,37 +837,6 @@ input[type="text"].invalid, input[type="time"].invalid, input[type="search"].inv
     border-top: var(--border-width) solid var(--color-border);
 }
 
-/* --- Toast --- */
-#toast-container {
-    position: fixed;
-    bottom: var(--space-4);
-    right: var(--space-4);
-    z-index: 9999;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: var(--space-2);
-}
-.toast {
-    background-color: var(--color-surface-high);
-    color: var(--color-text-primary);
-    padding: var(--space-3) var(--space-4);
-    border-radius: var(--radius-md);
-    font-size: var(--text-body-md);
-    opacity: 0;
-    transform: translateY(10px);
-    transition: all var(--duration-normal) var(--ease-standard);
-    border-left: 5px solid transparent;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    min-width: 280px;
-    max-width: 400px;
-    pointer-events: auto;
-}
-.toast.show { opacity: 1; transform: translateY(0); }
-.toast.success { border-left-color: var(--color-risk-low); }
-.toast.error { border-left-color: var(--color-risk-high); }
-.toast.info { border-left-color: var(--color-primary); }
-
 /* --- Confirm Dialog --- */
 #confirm-dialog-overlay {
     position: fixed;
@@ -1143,8 +1112,6 @@ input[type="text"].invalid, input[type="time"].invalid, input[type="search"].inv
     .form-step { background-color: var(--color-surface-low); color: var(--color-text-muted); }
     .form-step.active { background-color: var(--color-primary-container); color: var(--color-primary); }
     .form-step.completed { background-color: var(--color-success-container); color: var(--color-success); }
-
-    .toast { background-color: var(--color-surface-high); color: var(--color-text-primary); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
 
     .confirm-dialog-content { background-color: var(--color-surface); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
 
