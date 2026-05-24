@@ -27,6 +27,26 @@ import {
 } from '../features/automations-manager.js';
 
 // ==========================================================================
+// Context Menu Constants
+// ==========================================================================
+
+const WEBSTORE_PATTERNS = [
+    'https://chrome.google.com/webstore/detail/*',
+    'https://chromewebstore.google.com/detail/*',
+];
+
+const MENU_CRX_FEATURES = 'crxFeatures';
+const MENU_CRX_DOWNLOAD = 'crxDownload';
+const MENU_ZIP_DOWNLOAD = 'zipDownload';
+const MENU_DONATE       = 'donate';
+
+const ACTION_MENU_CRX_FEATURES = 'crxFeatures_action';
+const ACTION_MENU_CRX_DOWNLOAD = 'crxDownload_action';
+const ACTION_MENU_ZIP_DOWNLOAD = 'zipDownload_action';
+
+let actionCrxMenuVisible = false;
+
+// ==========================================================================
 // Permissions cache (for accurate permission-change detection)
 // ==========================================================================
 
@@ -103,6 +123,107 @@ function registerManagementListeners() {
 }
 
 // ==========================================================================
+// Context Menu Management
+// ==========================================================================
+
+function registerContextMenus() {
+    chrome.contextMenus.removeAll(() => {
+        if (chrome.runtime.lastError) {
+            console.warn('removeAll menus:', chrome.runtime.lastError.message);
+        }
+
+        // Page context menus — only visible on Web Store extension pages
+        chrome.contextMenus.create({
+            id: MENU_CRX_FEATURES,
+            title: chrome.i18n.getMessage('crx_features_menu'),
+            contexts: ['all'],
+            documentUrlPatterns: WEBSTORE_PATTERNS,
+        });
+        chrome.contextMenus.create({
+            id: MENU_CRX_DOWNLOAD,
+            parentId: MENU_CRX_FEATURES,
+            title: chrome.i18n.getMessage('crx_download_menu'),
+            contexts: ['all'],
+            documentUrlPatterns: WEBSTORE_PATTERNS,
+        });
+        chrome.contextMenus.create({
+            id: MENU_ZIP_DOWNLOAD,
+            parentId: MENU_CRX_FEATURES,
+            title: chrome.i18n.getMessage('zip_download_menu'),
+            contexts: ['all'],
+            documentUrlPatterns: WEBSTORE_PATTERNS,
+        });
+
+        // Action context menu — always visible
+        chrome.contextMenus.create({
+            id: MENU_DONATE,
+            title: chrome.i18n.getMessage('donate_menu'),
+            contexts: ['action'],
+        });
+
+        // Reset dynamic state and evaluate current active tab
+        actionCrxMenuVisible = false;
+        updateActionCrxMenu();
+    });
+}
+
+async function updateActionCrxMenu() {
+    let url = '';
+    try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        url = tabs[0]?.url || '';
+    } catch (e) {
+        console.warn('updateActionCrxMenu: failed to query tabs', e);
+        return;
+    }
+
+    const shouldShow = url && (
+        url.includes('chrome.google.com/webstore/detail') ||
+        url.includes('chromewebstore.google.com/detail')
+    );
+
+    if (shouldShow && !actionCrxMenuVisible) {
+        try {
+            chrome.contextMenus.create({
+                id: ACTION_MENU_CRX_FEATURES,
+                title: chrome.i18n.getMessage('crx_features_menu'),
+                contexts: ['action'],
+            });
+            chrome.contextMenus.create({
+                id: ACTION_MENU_CRX_DOWNLOAD,
+                parentId: ACTION_MENU_CRX_FEATURES,
+                title: chrome.i18n.getMessage('crx_download_menu'),
+                contexts: ['action'],
+            });
+            chrome.contextMenus.create({
+                id: ACTION_MENU_ZIP_DOWNLOAD,
+                parentId: ACTION_MENU_CRX_FEATURES,
+                title: chrome.i18n.getMessage('zip_download_menu'),
+                contexts: ['action'],
+            });
+            actionCrxMenuVisible = true;
+        } catch (err) {
+            console.warn('Failed to create action CRX menu:', err);
+        }
+    } else if (!shouldShow && actionCrxMenuVisible) {
+        try {
+            chrome.contextMenus.remove(ACTION_MENU_ZIP_DOWNLOAD);
+            chrome.contextMenus.remove(ACTION_MENU_CRX_DOWNLOAD);
+            chrome.contextMenus.remove(ACTION_MENU_CRX_FEATURES);
+            actionCrxMenuVisible = false;
+        } catch (err) {
+            console.warn('Failed to remove action CRX menu:', err);
+        }
+    }
+}
+
+// Update action menu when the active tab changes or navigates
+chrome.tabs.onActivated.addListener(() => updateActionCrxMenu());
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo, _tab) => {
+    if (changeInfo.url) updateActionCrxMenu();
+});
+
+// ==========================================================================
 // Lifecycle Events
 // ==========================================================================
 
@@ -121,6 +242,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     await updateAlarmsAndCache();
     await initializePermissionsCache();
     registerManagementListeners();
+    registerContextMenus();
 
     if (details.reason === 'install' || details.reason === 'update') {
         try {
@@ -128,24 +250,6 @@ chrome.runtime.onInstalled.addListener(async (details) => {
             recordExtensionActivity(details.reason, selfInfo, `Reason: ${details.reason}`);
         } catch (_) {}
     }
-
-    // Context menus (consolidated to avoid duplicate creation)
-    chrome.contextMenus.removeAll(() => {
-        chrome.contextMenus.create({
-            id:                  'getCRX',
-            title:               chrome.i18n.getMessage('get_crx_menu'),
-            contexts:            ['all'],
-            documentUrlPatterns: [
-                'https://chrome.google.com/webstore/detail/*',
-                'https://chromewebstore.google.com/detail/*',
-            ],
-        });
-        chrome.contextMenus.create({
-            id:       'donate',
-            title:    chrome.i18n.getMessage('donate_menu'),
-            contexts: ['browser_action', 'action'],
-        });
-    });
 
     chrome.runtime.setUninstallURL(
         'https://sites.google.com/view/modcore-apps/modcore-apps/modcore-extension-manager/ui/uninstall'
@@ -157,6 +261,7 @@ chrome.runtime.onStartup.addListener(async () => {
     await updateAlarmsAndCache();
     await initializePermissionsCache();
     registerManagementListeners();
+    updateActionCrxMenu();
 });
 
 // ==========================================================================
@@ -243,16 +348,13 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 // ==========================================================================
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    // Ensure we only care about the primary top-level frame navigation finishing
     if (changeInfo.status !== 'complete' || !tab.url) return;
 
-    // Use tab.url safety fallback and ignore subframe resource completions
     const cache = getUrlRulesCache();
     if (!cache || cache.length === 0) return;
 
     for (const rule of cache) {
         if (rule.enabled && rule.trigger?.url) {
-            // Upgrade from basic substring inclusion to a cleaner match boundary
             if (tab.url.includes(rule.trigger.url)) {
                 executeRuleAction(rule);
             }
@@ -261,12 +363,17 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 // ==========================================================================
-// CRX Download Delegation
+// CRX / ZIP Download Delegation
 // ==========================================================================
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-    if (info.menuItemId === 'getCRX')  triggerCRXDownload(tab);
-    if (info.menuItemId === 'donate')  chrome.tabs.create({ url: 'https://www.patreon.com/cw/modcore' });
+    if (info.menuItemId === MENU_CRX_DOWNLOAD || info.menuItemId === ACTION_MENU_CRX_DOWNLOAD) {
+        triggerCRXDownload(tab, 'crx');
+    } else if (info.menuItemId === MENU_ZIP_DOWNLOAD || info.menuItemId === ACTION_MENU_ZIP_DOWNLOAD) {
+        triggerCRXDownload(tab, 'zip');
+    } else if (info.menuItemId === MENU_DONATE) {
+        chrome.tabs.create({ url: 'https://www.patreon.com/cw/modcore' });
+    }
 });
 
 registerCrxListeners();

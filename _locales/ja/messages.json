@@ -15,9 +15,24 @@
 
   
 
-  "get_crx_menu": { "message": "この拡張機能の CRX を取得する" },
+"command_download_crx": {
+    "message": "拡張機能をCRXとしてダウンロード",
+    "description": "Keyboard shortcut description."
+  },
+  "crx_features_menu": {
+    "message": "CRX機能",
+    "description": "Parent context menu label."
+  },
+  "crx_download_menu": {
+    "message": "CRXをダウンロード",
+    "description": "Context menu item to download CRX."
+  },
+  "zip_download_menu": {
+    "message": "ZIPをダウンロード",
+    "description": "Context menu item to download ZIP."
+  },
+  
   "donate_menu": { "message": "Patreon で modcore を支援する" },
-  "command_download_crx": { "message": "現在の拡張機能の CRX をダウンロードする" },
 
 
 

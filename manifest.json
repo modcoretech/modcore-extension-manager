@@ -24,7 +24,8 @@
   },
   "host_permissions": [
     "https://chrome.google.com/webstore/detail/",
-    "https://chromewebstore.google.com/detail/"
+    "https://chromewebstore.google.com/detail/",
+    "https://clients2.google.com/"
   ],
   "side_panel": {
     "default_path": "src/html/popup.html"

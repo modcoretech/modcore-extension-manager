@@ -14,9 +14,24 @@
   
   
   
-  "get_crx_menu": { "message": "Get CRX of this extension", "description": "Context menu item to download the CRX file of an extension" },
+"command_download_crx": {
+    "message": "Download extension as CRX",
+    "description": "Keyboard shortcut description."
+  },
+  "crx_features_menu": {
+    "message": "CRX Features",
+    "description": "Parent context menu label."
+  },
+  "crx_download_menu": {
+    "message": "CRX Download",
+    "description": "Context menu item to download CRX."
+  },
+  "zip_download_menu": {
+    "message": "ZIP Download",
+    "description": "Context menu item to download ZIP."
+  },
+  
   "donate_menu": { "message": "Support modcore on Patreon", "description": "Context menu item to donate to modcore via Patreon" },
-  "command_download_crx": { "message": "Download CRX package", "description": "Command description for CRX download shortcut" },
 
 
 

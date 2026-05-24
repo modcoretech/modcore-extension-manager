@@ -9,7 +9,7 @@ const GITHUB_REPO           = 'modcoretech/modcore-extension-manager';
 const GITHUB_API_URL        = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 const VERSION_CACHE_TTL_MS  = 24 * 60 * 60 * 1000; // 24 hours
 
-const DEFAULT_FEATURE_ORDER = ['inspect', 'safety', 'snapshot', 'timeline', 'automations', 'cloud', 'notes'];
+const DEFAULT_FEATURE_ORDER = ['inspect', 'safety', 'snapshot', 'timeline', 'automations', 'notes'];
 
 // --- Feature Definitions ---
 const FEATURES = {
@@ -18,7 +18,6 @@ const FEATURES = {
     snapshot:    { id: 'snapshot',    name: 'Snapshot',    fullName: 'modcore Snapshot',    url: 'src/html/snapshot.html',      icon: '../../public/icons/svg/host.svg'    },
     timeline:    { id: 'timeline',    name: 'Timeline',    fullName: 'modcore Timeline',    url: 'src/html/timeline.html',      icon: '../../public/icons/svg/clock.svg'   },
     automations: { id: 'automations', name: 'Automations', fullName: 'modcore Automations', url: 'src/html/automations.html',   icon: '../../public/icons/svg/rules.svg'   },
-    cloud:       { id: 'cloud',       name: 'Cloud',       fullName: 'modcore Cloud',       url: 'src/html/cloud.html',         icon: '../../public/icons/svg/cloud.svg'   },
     notes:       { id: 'notes',       name: 'Notes',       fullName: 'Extension Notes',     url: 'src/html/notes.html',         icon: '../../public/icons/svg/edit.svg'    }
 };
 

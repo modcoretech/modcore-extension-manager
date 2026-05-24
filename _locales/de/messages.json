@@ -14,9 +14,20 @@
 
   
   
-  "get_crx_menu": { "message": "CRX dieser Erweiterung herunterladen" },
+"crx_features_menu": {
+    "message": "CRX-Funktionen",
+    "description": "Parent context menu label."
+  },
+  "crx_download_menu": {
+    "message": "CRX herunterladen",
+    "description": "Context menu item to download CRX."
+  },
+  "zip_download_menu": {
+    "message": "ZIP herunterladen",
+    "description": "Context menu item to download ZIP."
+  },
+  
   "donate_menu": { "message": "Unterstütze modcore auf Patreon" },
-  "command_download_crx": { "message": "CRX-Paket herunterladen", "description": "Beschreibung für die Tastenkombination zum CRX-Download" },
 
 
 

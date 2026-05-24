@@ -15,9 +15,24 @@
   
   
   
-  "get_crx_menu": { "message": "Obtenir le CRX de cette extension" },
+"command_download_crx": {
+    "message": "Télécharger l'extension en CRX",
+    "description": "Keyboard shortcut description."
+  },
+  "crx_features_menu": {
+    "message": "Fonctions CRX",
+    "description": "Parent context menu label."
+  },
+  "crx_download_menu": {
+    "message": "Télécharger CRX",
+    "description": "Context menu item to download CRX."
+  },
+  "zip_download_menu": {
+    "message": "Télécharger ZIP",
+    "description": "Context menu item to download ZIP."
+  },
+  
   "donate_menu": { "message": "Soutenir modcore sur Patreon" },
-  "command_download_crx": { "message": "Télécharger le CRX de l'extension actuelle" },
 
 
 
