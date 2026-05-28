@@ -1,6 +1,7 @@
 /**
  * timeline.js - modcore Timeline
- * Refactored for auto-save, compact-by-default, safer DOM, and robust controls.
+ * Refactored for auto-save, compact-by-default, safer DOM, robust controls,
+ * detail view, keyboard shortcuts, and real-time extension status.
  */
 (() => {
     'use strict';
@@ -19,6 +20,7 @@
     /* ---------------------------------------------------------------------- */
     let allHistoryRecords = [];
     let filteredRecords   = [];
+    let installedExtensions = new Map(); // id -> {name, enabled}
     let currentFilters    = {
         searchTerm: '',
         eventTypes: new Set(EVENT_TYPES),
@@ -53,6 +55,11 @@
     const debounce = (fn, wait) => {
         let t;
         return (...args) => { clearTimeout(t); t = setTimeout(() => fn.apply(this, args), wait); };
+    };
+
+    const escapeHtml = (str) => {
+        if (!str) return '';
+        return str.replace(/[&<<>"']/g, m => ({'&':'&amp;','<<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
     };
 
     const showToast = (message, type = 'info', duration = TOAST_DURATION_MS, action = null) => {
@@ -122,12 +129,21 @@
         const min  = Math.floor(sec / 60);
         const hr   = Math.floor(min / 60);
         const day  = Math.floor(hr / 24);
+        const week = Math.floor(day / 7);
+        const month= Math.floor(day / 30);
         if (sec < 10)  return 'Just now';
         if (sec < 60)  return `${sec}s ago`;
         if (min < 60)  return `${min}m ago`;
         if (hr < 24)   return `${hr}h ago`;
         if (day < 7)   return `${day}d ago`;
+        if (week < 4)  return `${week}w ago`;
+        if (month < 12)return `${month}mo ago`;
         return new Date(ts).toLocaleDateString();
+    };
+
+    const formatFullDate = (ts) => {
+        const d = new Date(ts);
+        return d.toLocaleString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' });
     };
 
     const showSaveIndicator = () => {
@@ -146,11 +162,12 @@
         setupEventListeners();
         await loadSettings();
         setBusyState(true);
-        await loadInitialData();
+        await Promise.all([loadInstalledExtensions(), loadInitialData(false)]);
         buildFilterCheckboxes();
         if (dom.currentYear) dom.currentYear.textContent = new Date().getFullYear();
         await maybeAutoPrune();
         startLiveRefresh();
+        setBusyState(false);
     };
 
     const cacheDomElements = () => {
@@ -161,7 +178,6 @@
         dom.currentYear       = document.getElementById('current-year');
         dom.panels            = document.querySelectorAll('.content-panel');
         dom.sidebarButtons    = document.querySelectorAll('.sidebar-button[data-panel-target]');
-        dom.body              = document.body;
 
         /* History */
         dom.historyContentWrapper = document.getElementById('history-content-wrapper');
@@ -215,6 +231,12 @@
         dom.pruneTypeOptions   = document.getElementById('prune-type-options');
         dom.pruneTypeCancelBtn = document.getElementById('prune-type-cancel-btn');
         dom.pruneTypeConfirmBtn= document.getElementById('prune-type-confirm-btn');
+
+        /* Detail Modal */
+        dom.detailModal        = document.getElementById('detail-modal');
+        dom.detailContent      = document.getElementById('detail-content');
+        dom.closeDetailBtn     = document.getElementById('close-detail-btn');
+        dom.copyDetailIdBtn    = document.getElementById('copy-detail-id-btn');
     };
 
     const setupEventListeners = () => {
@@ -274,11 +296,54 @@
         dom.modalDisableBtn.addEventListener('click', handleModalDisable);
         dom.pruneTypeCancelBtn.addEventListener('click', () => hideModal('pruneByTypeModal'));
         dom.pruneTypeConfirmBtn.addEventListener('click', handlePruneByTypeConfirm);
+
+        /* Detail Modal */
+        if (dom.closeDetailBtn) dom.closeDetailBtn.addEventListener('click', () => hideModal('detailModal'));
+        if (dom.copyDetailIdBtn) dom.copyDetailIdBtn.addEventListener('click', handleCopyDetailId);
+
+        /* Keyboard shortcuts */
+        document.addEventListener('keydown', handleGlobalKeydown);
+
+        /* Modal backdrop click */
+        dom.modalBackdrop.addEventListener('click', () => {
+            hideModal('limitModal');
+            hideModal('pruneByTypeModal');
+            hideModal('detailModal');
+        });
+    };
+
+    const handleGlobalKeydown = (e) => {
+        if (e.key === 'Escape') {
+            if (!dom.detailModal.hidden) { hideModal('detailModal'); return; }
+            if (!dom.pruneByTypeModal.hidden) { hideModal('pruneByTypeModal'); return; }
+            if (!dom.limitModal.hidden) { hideModal('limitModal'); return; }
+            if (dom.filterPanel.classList.contains('is-visible')) {
+                toggleFilterPanel();
+                return;
+            }
+            if (document.activeElement === dom.searchInput) {
+                handleClearSearch();
+                return;
+            }
+        }
+        if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.tagName !== 'SELECT') {
+            e.preventDefault();
+            dom.searchInput.focus();
+        }
     };
 
     /* ---------------------------------------------------------------------- */
     /*  Data & State                                                          */
     /* ---------------------------------------------------------------------- */
+    const loadInstalledExtensions = async () => {
+        try {
+            const exts = await chrome.management.getAll();
+            installedExtensions = new Map(exts.map(e => [e.id, { name: e.name, enabled: e.enabled }]));
+        } catch (e) {
+            console.warn('Failed to load installed extensions:', e);
+        }
+    };
+
     const loadSettings = async () => {
         try {
             const res = await chrome.runtime.sendMessage({ type: 'GET_HISTORY_SETTINGS' });
@@ -298,7 +363,8 @@
                 r && typeof r === 'object' &&
                 typeof r.timestamp === 'number' &&
                 typeof r.extensionId === 'string' &&
-                typeof r.eventType === 'string'
+                typeof r.eventType === 'string' &&
+                EVENT_TYPES.includes(r.eventType)
             );
             applyFiltersAndSort();
             checkHistoryLimit();
@@ -315,10 +381,12 @@
     };
 
     const applyFiltersAndSort = () => {
+        const term = currentFilters.searchTerm;
         filteredRecords = allHistoryRecords.filter(r => {
-            const searchMatch = !currentFilters.searchTerm ||
-                (r.extensionName || '').toLowerCase().includes(currentFilters.searchTerm) ||
-                (r.details || '').toLowerCase().includes(currentFilters.searchTerm);
+            const searchMatch = !term ||
+                (r.extensionName || '').toLowerCase().includes(term) ||
+                (r.extensionId || '').toLowerCase().includes(term) ||
+                (r.details || '').toLowerCase().includes(term);
             const typeMatch = currentFilters.eventTypes.has(r.eventType);
             const s = currentFilters.startDate;
             const e = currentFilters.endDate;
@@ -330,9 +398,11 @@
         if (so === 'desc' || so === 'asc') {
             filteredRecords.sort((a, b) => so === 'desc' ? b.timestamp - a.timestamp : a.timestamp - b.timestamp);
         } else if (so === 'name') {
-            filteredRecords.sort((a, b) => (a.extensionName || '').localeCompare(b.extensionName || ''));
+            filteredRecords.sort((a, b) => (a.extensionName || '').localeCompare(b.extensionName || '') || b.timestamp - a.timestamp);
         } else if (so === 'type') {
             filteredRecords.sort((a, b) => a.eventType.localeCompare(b.eventType) || b.timestamp - a.timestamp);
+        } else if (so === 'group') {
+            filteredRecords.sort((a, b) => (a.extensionName || '').localeCompare(b.extensionName || '') || b.timestamp - a.timestamp);
         }
 
         currentPage = 1;
@@ -394,8 +464,9 @@
             btn.setAttribute('aria-current', active ? 'page' : 'false');
         });
         dom.panels.forEach(panel => {
-            panel.hidden = panel.id !== targetId;
-            panel.classList.toggle('active', panel.id === targetId);
+            const isTarget = panel.id === targetId;
+            panel.hidden = !isTarget;
+            panel.classList.toggle('active', isTarget);
         });
     };
 
@@ -437,29 +508,47 @@
         if (filteredRecords.length === 0) return;
 
         const frag = document.createDocumentFragment();
+        const isGroup = settings.sortOrder === 'group';
 
-        if (settings.sortOrder === 'group') {
-            const groups = groupRecordsByExtension(page);
-            for (const name in groups) {
-                const h = document.createElement('h3');
-                h.className = 'history-group-header';
-                h.textContent = name;
-                frag.appendChild(h);
-                groups[name].forEach(r => frag.appendChild(createHistoryItemElement(r)));
-            }
+        if (isGroup) {
+            let lastGroup = null;
+            page.forEach(r => {
+                const groupName = r.extensionName || 'Unknown Extension';
+                if (groupName !== lastGroup) {
+                    const h = document.createElement('h3');
+                    h.className = 'history-group-header';
+                    h.textContent = groupName;
+                    frag.appendChild(h);
+                    lastGroup = groupName;
+                }
+                frag.appendChild(createHistoryItemElement(r));
+            });
         } else {
-            const days = groupRecordsByDate(page);
-            for (const dk in days) {
-                const h = document.createElement('h3');
-                h.className = 'history-day-header';
-                h.textContent = dk;
-                frag.appendChild(h);
-                days[dk].forEach(r => frag.appendChild(createHistoryItemElement(r)));
-            }
+            let lastDay = null;
+            page.forEach(r => {
+                const dayKey = getDayKey(r.timestamp);
+                if (dayKey !== lastDay) {
+                    const h = document.createElement('h3');
+                    h.className = 'history-day-header';
+                    h.textContent = dayKey;
+                    frag.appendChild(h);
+                    lastDay = dayKey;
+                }
+                frag.appendChild(createHistoryItemElement(r));
+            });
         }
 
         dom.historyList.appendChild(frag);
         renderPagination();
+    };
+
+    const getDayKey = (ts) => {
+        const today = new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+        const yesterday = new Date(Date.now()-864e5).toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+        let key = new Date(ts).toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+        if (key === today) key = 'Today';
+        else if (key === yesterday) key = 'Yesterday';
+        return key;
     };
 
     const createHistoryItemElement = (record) => {
@@ -468,6 +557,7 @@
         item.dataset.recordId = record.id || `${record.timestamp}-${record.extensionId}-${record.eventType}`;
         item.setAttribute('tabindex', '0');
         item.setAttribute('role', 'listitem');
+        item.setAttribute('aria-label', `${record.extensionName || 'Unknown'}, ${formatEventType(record.eventType)}`);
 
         const iconWrap = document.createElement('div');
         iconWrap.className = 'item-icon';
@@ -484,46 +574,71 @@
         const header = document.createElement('div');
         header.className = 'history-item-header';
         header.textContent = `${record.extensionName || 'Unknown'} (v${record.extensionVersion || 'N/A'})`;
-        const details = document.createElement('div');
+
+        const metaRow = document.createElement('div');
+        metaRow.className = 'history-item-meta-row';
+
+        const details = document.createElement('span');
         details.className = 'history-item-details';
-        details.textContent = `${formatEventType(record.eventType)}${record.details ? ` - ${record.details}` : ''}`;
-        content.append(header, details);
+        details.textContent = formatEventType(record.eventType) + (record.details ? ` — ${record.details}` : '');
+
+        const status = document.createElement('span');
+        status.className = 'extension-status';
+        const ext = installedExtensions.get(record.extensionId);
+        if (ext) {
+            status.textContent = ext.enabled ? 'Enabled' : 'Disabled';
+            status.classList.add(ext.enabled ? 'status-enabled' : 'status-disabled');
+        } else {
+            status.textContent = 'Uninstalled';
+            status.classList.add('status-uninstalled');
+        }
+
+        metaRow.append(details, status);
+        content.append(header, metaRow);
 
         item.append(iconWrap, content);
 
         if (settings.displayTimestamps) {
-            const meta = document.createElement('div');
-            meta.className = 'history-item-meta';
-            meta.textContent = settings.relativeTimestamps
+            const time = document.createElement('div');
+            time.className = 'history-item-meta';
+            time.textContent = settings.relativeTimestamps
                 ? formatRelativeTime(record.timestamp)
                 : new Date(record.timestamp).toLocaleTimeString();
-            item.appendChild(meta);
+            item.appendChild(time);
         }
+
+        item.addEventListener('click', () => openDetailModal(record));
+        item.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetailModal(record); } });
         return item;
     };
 
-    const groupRecordsByDate = (records) => {
-        const today = new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-        const yesterday = new Date(Date.now()-864e5).toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-        return records.reduce((acc, r) => {
-            let key = new Date(r.timestamp).toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-            if (key === today) key = 'Today';
-            else if (key === yesterday) key = 'Yesterday';
-            if (!acc[key]) acc[key] = [];
-            acc[key].push(r);
-            return acc;
-        }, {});
+    const openDetailModal = (record) => {
+        if (!dom.detailContent) return;
+        const ext = installedExtensions.get(record.extensionId);
+        const isInstalled = !!ext;
+
+        dom.detailContent.innerHTML = `
+            <div class="detail-row"><strong>Extension:</strong> <span>${escapeHtml(record.extensionName || 'Unknown')}</span></div>
+            <div class="detail-row"><strong>Version:</strong> <span>${escapeHtml(record.extensionVersion || 'N/A')}</span></div>
+            <div class="detail-row"><strong>Event:</strong> <span class="detail-event detail-event-${record.eventType}">${formatEventType(record.eventType)}</span></div>
+            <div class="detail-row"><strong>Date:</strong> <span>${formatFullDate(record.timestamp)}</span></div>
+            <div class="detail-row"><strong>Relative:</strong> <span>${formatRelativeTime(record.timestamp)}</span></div>
+            <div class="detail-row"><strong>Extension ID:</strong> <code class="detail-code" id="detail-extension-id">${escapeHtml(record.extensionId)}</code></div>
+            <div class="detail-row"><strong>Current Status:</strong> <span class="extension-status ${isInstalled ? (ext.enabled ? 'status-enabled' : 'status-disabled') : 'status-uninstalled'}">${isInstalled ? (ext.enabled ? 'Enabled' : 'Disabled') : 'Uninstalled'}</span></div>
+            ${record.details ? `<div class="detail-row detail-details"><strong>Details:</strong> <p>${escapeHtml(record.details)}</p></div>` : ''}
+        `;
+        showModal('detailModal');
     };
 
-    const groupRecordsByExtension = (records) => {
-        const g = records.reduce((acc, r) => {
-            const n = r.extensionName || 'Unknown Extension';
-            if (!acc[n]) acc[n] = [];
-            acc[n].push(r);
-            return acc;
-        }, {});
-        for (const k in g) g[k].sort((a, b) => b.timestamp - a.timestamp);
-        return g;
+    const handleCopyDetailId = async () => {
+        const idEl = document.getElementById('detail-extension-id');
+        if (!idEl) return;
+        try {
+            await navigator.clipboard.writeText(idEl.textContent);
+            showToast('Extension ID copied to clipboard.', 'success');
+        } catch (err) {
+            showToast('Failed to copy.', 'error');
+        }
     };
 
     const toggleFilterPanel = () => {

@@ -58,9 +58,9 @@
                 <div class="panel-content">
                     <div class="history-controls">
                         <div class="history-search">
-                            <label for="search-input" class="visually-hidden">Search history...</label>
+                            <label for="search-input" class="visually-hidden">Search history by name, ID, or details</label>
                             <span class="icon icon-search" aria-hidden="true"></span>
-                            <input type="search" id="search-input" class="text-input" placeholder="Search by extension name or event details..." aria-controls="history-list-container">
+                            <input type="search" id="search-input" class="text-input" placeholder="Search by name, ID, or details..." aria-controls="history-list-container">
                             <button id="clear-search-btn" class="clear-search-btn" aria-label="Clear search" hidden>&times;</button>
                         </div>
                         <div class="header-actions">
@@ -99,7 +99,7 @@
 
                     <div id="history-content-wrapper" class="content-section" aria-live="polite">
                         <div id="history-list-container">
-                            <div id="history-list" class="history-list"></div>
+                            <div id="history-list" class="history-list" role="list" aria-label="Extension activity records"></div>
                             <p id="no-history-message" class="placeholder-message" hidden>No history records found.</p>
                             <div id="pagination-controls" class="pagination-controls" hidden>
                                 <button id="prev-page-btn" class="btn tertiary" disabled>
@@ -281,10 +281,21 @@
         </div>
     </div>
 
+    <div id="detail-modal" class="modal detail-modal" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title" hidden>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="detail-modal-title">Record Details</h3>
+                <button id="close-detail-btn" class="btn tertiary small" aria-label="Close details">&times;</button>
+            </div>
+            <div id="detail-content" class="detail-content"></div>
+            <div class="modal-actions">
+                <button id="copy-detail-id-btn" class="btn secondary">Copy Extension ID</button>
+            </div>
+        </div>
+    </div>
+
     <div id="modal-backdrop" class="modal-backdrop" hidden></div>
 
     <script src="../js/core/timeline.js"></script>
-    <script src="../js/features/discovery.js"></script>
-    <script src="../js/features/report.js"></script>
 </body>
 </html>
