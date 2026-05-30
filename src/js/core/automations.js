@@ -1,14 +1,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const PROFILES_STORAGE_KEY = 'em_profiles';
     const DEFAULT_ICON_PLACEHOLDER = '../../public/icons/svg/updatelogo.svg';
-    const SETTINGS_KEY = 'automations_settings';
     const RULES_STORAGE_KEY = 'rules';
-
-    const DEFAULT_SETTINGS = {
-        confirmBeforeDelete: true,
-        defaultTargetType: 'extension',
-        defaultTriggerType: 'time'
-    };
 
     // --- State ---
     const state = {
@@ -18,11 +11,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         allTags: new Set(),
         selectedRuleIds: new Set(),
         currentFilters: { query: '', status: 'all', trigger: 'all', targetType: 'all', tag: 'all' },
-        settings: { ...DEFAULT_SETTINGS },
         isRefreshing: false,
         ruleElementsCache: new Map(),
         searchDebounceTimer: null,
-        currentStep: 1
+        currentStep: 1,
+        activePanelId: null,
     };
 
     // --- DOM Cache ---
@@ -30,10 +23,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     function cacheDOM() {
         const ids = [
             'rules-list-container', 'empty-state', 'no-results-placeholder', 'table-wrapper',
-            'rules-count-badge', 'rule-search-input', 'select-all-rules', 'filter-btn',
+            'rule-search-input', 'select-all-rules', 'filter-btn',
             'filter-side-sheet', 'filter-sheet-overlay', 'close-filter-sheet',
             'apply-filters-btn', 'reset-filters-btn', 'filter-status-select',
             'filter-trigger-select', 'filter-target-type-select',
+            'filter-tags-group', 'tag-chips-container',
             'bulk-actions-bar', 'selected-rules-count', 'bulk-enable-btn',
             'bulk-disable-btn', 'bulk-delete-btn',
             'add-rule-panel', 'rule-form', 'form-panel-title', 'rule-id-input',
@@ -42,10 +36,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             'actions-container', 'add-action-btn', 'actions-error',
             'step-1-next', 'step-2-back', 'step-2-next', 'step-3-back',
             'rule-name-error', 'back-to-rules-list', 'cancel-rule-form',
-            'setting-confirm-delete', 'setting-default-target-type', 'setting-default-trigger-type',
             'confirm-dialog-overlay', 'confirm-dialog-message', 'confirm-ok-btn', 'confirm-cancel-btn',
-            'tag-filter-bar', 'tag-chips-container', 'clear-tag-filter',
-            'empty-state-add-btn', 'reset-all-filters-btn', 'save-rule-btn'
+            'empty-state-add-btn', 'reset-all-filters-btn', 'save-rule-btn',
         ];
         ids.forEach(id => { DOM[id] = document.getElementById(id); });
         DOM.panels = document.querySelectorAll('.content-panel');
@@ -71,30 +63,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function createFragment() { return document.createDocumentFragment(); }
 
-    // --- Settings ---
-    async function loadSettings() {
-        try {
-            const result = await chrome.storage.local.get(SETTINGS_KEY);
-            const stored = result?.[SETTINGS_KEY] || {};
-            state.settings = { ...DEFAULT_SETTINGS, ...stored };
-            if (DOM['setting-confirm-delete']) DOM['setting-confirm-delete'].checked = state.settings.confirmBeforeDelete;
-            if (DOM['setting-default-target-type']) DOM['setting-default-target-type'].value = state.settings.defaultTargetType;
-            if (DOM['setting-default-trigger-type']) DOM['setting-default-trigger-type'].value = state.settings.defaultTriggerType;
-        } catch (e) {
-            console.error('Failed to load settings:', e);
-        }
-    }
-
-    async function saveSettings() {
-        try {
-            await chrome.storage.local.set({ [SETTINGS_KEY]: state.settings });
-            Toaster.success('Settings saved.');
-        } catch (e) {
-            console.error('Failed to save settings:', e);
-            Toaster.error('Failed to save settings.');
-        }
-    }
-
     // --- Data Loading ---
     async function loadProfiles() {
         try {
@@ -110,7 +78,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 name: typeof p.name === 'string' ? p.name : 'Unnamed',
                 extensionStates: p.extensionStates || {},
                 shortcut: p.shortcut || null,
-                icons: p.icons || null
+                icons: p.icons || null,
             })).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         } catch (e) {
             console.error('Failed to load profiles:', e);
@@ -151,42 +119,36 @@ document.addEventListener('DOMContentLoaded', async () => {
                 rule.tags.forEach(t => { if (typeof t === 'string' && t.trim()) state.allTags.add(t.trim()); });
             }
         });
-        renderTagFilter();
+        renderTagFilterInSheet();
     }
 
-    // --- Tag Filter UI ---
-    function renderTagFilter() {
+    // --- Tag Filter UI (inside filter sheet) ---
+    function renderTagFilterInSheet() {
         const container = DOM['tag-chips-container'];
-        const bar = DOM['tag-filter-bar'];
-        if (!container || !bar) return;
+        const group = DOM['filter-tags-group'];
+        if (!container || !group) return;
+
         container.textContent = '';
+
         if (state.allTags.size === 0) {
-            bar.style.display = 'none';
+            group.style.display = 'none';
             return;
         }
-        bar.style.display = 'flex';
+
+        group.style.display = '';
         const sorted = Array.from(state.allTags).sort((a, b) => a.localeCompare(b));
         sorted.forEach(tag => {
             const chip = createElement('button', 'tag-chip', sanitizeText(tag));
             chip.type = 'button';
-            chip.setAttribute('aria-pressed', 'false');
+            chip.setAttribute('aria-pressed', state.currentFilters.tag === tag ? 'true' : 'false');
             chip.dataset.tag = tag;
-            if (state.currentFilters.tag === tag) {
-                chip.classList.add('active');
-                chip.setAttribute('aria-pressed', 'true');
-            }
+            if (state.currentFilters.tag === tag) chip.classList.add('active');
             chip.addEventListener('click', () => {
                 state.currentFilters.tag = state.currentFilters.tag === tag ? 'all' : tag;
-                applyFiltersAndRender();
-                renderTagFilter();
-                updateSelectAllCheckboxState();
+                renderTagFilterInSheet();
             });
             container.appendChild(chip);
         });
-        const clearBtn = DOM['clear-tag-filter'];
-        if (clearBtn) {
-            clearBtn.style.display = state.currentFilters.tag !== 'all' ? 'flex' : 'none';
-        }
     }
 
     // --- Filtering & Rendering ---
@@ -222,17 +184,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         const emptyState = DOM['empty-state'];
         const noResults = DOM['no-results-placeholder'];
         const tableWrapper = DOM['table-wrapper'];
-        const countBadge = DOM['rules-count-badge'];
         if (!container) return;
 
         const hasRules = state.allRules.length > 0;
         const hasResults = rulesToRender.length > 0;
 
-        if (countBadge) countBadge.textContent = hasRules ? String(state.allRules.length) : '';
-
         if (emptyState) emptyState.style.display = !hasRules ? 'flex' : 'none';
         if (tableWrapper) tableWrapper.style.display = hasRules ? 'block' : 'none';
         if (noResults) noResults.style.display = hasRules && !hasResults ? 'block' : 'none';
+
         if (!hasRules) {
             container.textContent = '';
             state.ruleElementsCache.clear();
@@ -245,8 +205,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         rulesToRender.forEach(rule => {
             if (!rule?.id) return;
-            const existing = state.ruleElementsCache.get(rule.id);
             const el = createRuleElement(rule);
+            const existing = state.ruleElementsCache.get(rule.id);
             if (existing && existing.isConnected) existing.replaceWith(el);
             else fragment.appendChild(el);
             newCache.set(rule.id, el);
@@ -271,7 +231,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const cb = createElement('input', 'rule-select-checkbox');
         cb.type = 'checkbox';
         cb.checked = state.selectedRuleIds.has(rule.id);
-        cb.setAttribute('aria-label', `Select rule ${sanitizeText(rule.name)}`);
+        cb.setAttribute('aria-label', `Select rule "${sanitizeText(rule.name)}"`);
         tdSelect.appendChild(cb);
 
         // Name cell
@@ -281,7 +241,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         nameDiv.appendChild(nameText);
         if (Array.isArray(rule.tags) && rule.tags.length > 0) {
             const tagsDiv = createElement('div', 'tags-container');
-            rule.tags.forEach(t => { if (typeof t === 'string') tagsDiv.appendChild(createElement('span', 'tag', sanitizeText(t))); });
+            rule.tags.forEach(t => {
+                if (typeof t === 'string' && t.trim()) {
+                    tagsDiv.appendChild(createElement('span', 'tag', sanitizeText(t)));
+                }
+            });
             nameDiv.appendChild(tagsDiv);
         }
         tdName.appendChild(nameDiv);
@@ -292,8 +256,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Targets cell
         const tdTargets = createElement('td', 'col-targets');
-        tdTargets.textContent = buildTargetsSummary(rule);
-        tdTargets.title = tdTargets.textContent;
+        const targetText = buildTargetsSummary(rule);
+        tdTargets.textContent = targetText;
+        tdTargets.title = targetText;
 
         // Status cell
         const tdStatus = createElement('td', 'col-status');
@@ -301,8 +266,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Actions cell
         const tdActions = createElement('td', 'col-actions');
-        const editBtn = createIconButton('icon-edit', 'edit-rule-btn', `Edit ${sanitizeText(rule.name)}`);
-        const deleteBtn = createIconButton('icon-trash', 'delete-rule-btn', `Delete ${sanitizeText(rule.name)}`);
+        const editBtn = createIconButton('icon-edit', 'edit-rule-btn', `Edit "${sanitizeText(rule.name)}"`);
+        const deleteBtn = createIconButton('icon-trash', 'delete-rule-btn', `Delete "${sanitizeText(rule.name)}"`);
         tdActions.appendChild(editBtn);
         tdActions.appendChild(deleteBtn);
 
@@ -320,7 +285,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (trigger.type === 'compound' && Array.isArray(trigger.conditions)) {
             const wrapper = createElement('div', 'rule-condition');
             const count = trigger.conditions.length;
-            const icon = createElement('span', 'icon icon-clock'); // generic
+            const icon = createElement('span', 'icon icon-clock');
             const text = createElement('div', 'condition-text', `${count} condition${count !== 1 ? 's' : ''} (AND)`);
             wrapper.appendChild(icon);
             wrapper.appendChild(text);
@@ -333,16 +298,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (trigger.type === 'url') {
             return createConditionElement('icon-url', trigger.url || '');
         }
+        if (trigger.type === 'time_range') {
+            const days = (trigger.days || []).map(d => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d]).join(', ');
+            return createConditionElement('icon-clock', `${trigger.startTime || '00:00'}–${trigger.endTime || '23:59'} — ${days}`);
+        }
         return createElement('span', null, '—');
     }
 
     function buildTargetsSummary(rule) {
-        const actions = Array.isArray(rule.actions) ? rule.actions : [{ type: rule.action, targetType: rule.targetType, targetIds: rule.targetIds }];
+        const actions = Array.isArray(rule.actions)
+            ? rule.actions
+            : [{ type: rule.action, targetType: rule.targetType, targetIds: rule.targetIds }];
         const parts = [];
         actions.forEach(action => {
             if (!action?.targetIds?.length) return;
             if (action.targetType === 'extension') {
-                const names = state.allExtensions.filter(ext => action.targetIds.includes(ext.id)).map(ext => ext.name);
+                const names = state.allExtensions
+                    .filter(ext => action.targetIds.includes(ext.id))
+                    .map(ext => ext.name);
                 parts.push(names.join(', ') || 'Unknown extensions');
             } else if (action.targetType === 'profile') {
                 const p = state.allProfiles.find(pr => pr.id === action.targetIds[0]);
@@ -355,6 +328,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function createConditionElement(iconClass, text) {
         const wrap = createElement('div', 'rule-condition');
         const icon = createElement('span', `icon ${iconClass}`);
+        icon.setAttribute('aria-hidden', 'true');
         const txt = createElement('div', 'condition-text', sanitizeText(text));
         wrap.appendChild(icon);
         wrap.appendChild(txt);
@@ -366,6 +340,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         btn.setAttribute('aria-label', ariaLabel);
         btn.type = 'button';
         const icon = createElement('span', `icon ${iconClass}`);
+        icon.setAttribute('aria-hidden', 'true');
         btn.appendChild(icon);
         return btn;
     }
@@ -379,7 +354,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         input.dataset.ruleId = ruleId;
         input.classList.add('toggle-rule-btn');
         input.setAttribute('role', 'switch');
-        input.setAttribute('aria-checked', !!isEnabled);
+        input.setAttribute('aria-checked', String(!!isEnabled));
         const slider = createElement('span', 'slider');
         label.appendChild(input);
         label.appendChild(slider);
@@ -391,15 +366,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         state.currentStep = step;
         DOM.stepTabs.forEach((tab, idx) => {
             const num = idx + 1;
-            tab.classList.toggle('active', num === step);
+            const isActive = num === step;
+            tab.classList.toggle('active', isActive);
             tab.classList.toggle('completed', num < step);
-            tab.setAttribute('aria-selected', num === step);
+            tab.setAttribute('aria-selected', String(isActive));
+            tab.setAttribute('tabindex', isActive ? '0' : '-1');
         });
         DOM.stepContents.forEach(content => {
             const contentStep = parseInt(content.dataset.stepContent, 10);
-            content.classList.toggle('active', contentStep === step);
+            const isActive = contentStep === step;
+            content.classList.toggle('active', isActive);
+            content.hidden = !isActive;
         });
-        // Focus management
         if (step === 1) DOM['rule-name-input']?.focus();
         else if (step === 2) DOM['add-trigger-condition-btn']?.focus();
         else if (step === 3) DOM['add-action-btn']?.focus();
@@ -414,11 +392,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             const name = DOM['rule-name-input']?.value?.trim();
             if (!name) {
                 showValidationError(DOM['rule-name-error'], 'Rule name is required.');
+                DOM['rule-name-input']?.focus();
                 return false;
             }
-            const isTaken = state.allRules.some(r => r && r.name && r.name.toLowerCase() === name.toLowerCase() && r.id !== (DOM['rule-id-input']?.value || ''));
+            const isTaken = state.allRules.some(r =>
+                r && r.name &&
+                r.name.toLowerCase() === name.toLowerCase() &&
+                r.id !== (DOM['rule-id-input']?.value || '')
+            );
             if (isTaken) {
                 showValidationError(DOM['rule-name-error'], 'A rule with this name already exists.');
+                DOM['rule-name-input']?.focus();
                 return false;
             }
             return true;
@@ -485,6 +469,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function createAndConnector() {
         const div = createElement('div', 'and-connector');
         div.textContent = 'AND';
+        div.setAttribute('aria-hidden', 'true');
         return div;
     }
 
@@ -495,18 +480,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         const header = createElement('div', 'condition-header');
         const badge = createElement('span', 'condition-type-badge', `Condition ${index + 1}`);
         const removeBtn = createIconButton('icon-trash', 'remove-condition-btn', 'Remove condition');
-        if (document.querySelectorAll('.condition-card').length <= 0) {
-            // Always allow removal if we will enforce min 1 elsewhere
-        }
         header.appendChild(badge);
         header.appendChild(removeBtn);
 
         const body = createElement('div', 'condition-body');
 
-        // Type select
         const typeGroup = createElement('div', 'form-group');
+        const typeId = `cond-type-${index}-${Math.random().toString(36).slice(2, 7)}`;
         const typeLabel = createElement('label', 'form-label', 'Type');
+        typeLabel.htmlFor = typeId;
         const typeSelect = createElement('select', 'condition-type-select');
+        typeSelect.id = typeId;
         typeSelect.innerHTML = `
             <option value="time" ${condition.type === 'time' ? 'selected' : ''}>Specific Time</option>
             <option value="time_range" ${condition.type === 'time_range' ? 'selected' : ''}>Time Range</option>
@@ -519,13 +503,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const renderDynamic = () => {
             dynamicArea.textContent = '';
             const type = typeSelect.value;
-            if (type === 'time') {
-                dynamicArea.appendChild(buildTimeFields(condition));
-            } else if (type === 'time_range') {
-                dynamicArea.appendChild(buildTimeRangeFields(condition));
-            } else if (type === 'url') {
-                dynamicArea.appendChild(buildUrlFields(condition));
-            }
+            if (type === 'time') dynamicArea.appendChild(buildTimeFields(condition));
+            else if (type === 'time_range') dynamicArea.appendChild(buildTimeRangeFields(condition));
+            else if (type === 'url') dynamicArea.appendChild(buildUrlFields(condition));
         };
         typeSelect.addEventListener('change', renderDynamic);
         renderDynamic();
@@ -541,6 +521,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 Toaster.error('A rule needs at least one condition.');
                 return;
             }
+            // Also remove the preceding AND connector if present
+            const prev = card.previousElementSibling;
+            if (prev?.classList.contains('and-connector')) prev.remove();
             card.remove();
             updateConditionBadges();
         });
@@ -550,32 +533,41 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function buildTimeFields(condition = {}) {
         const wrap = createElement('div', 'condition-row');
+        const uid = Math.random().toString(36).slice(2, 7);
+
         const timeGroup = createElement('div', 'form-group');
-        timeGroup.innerHTML = `<label class="form-label">Time <span aria-hidden="true">*</span></label>`;
+        const timeLbl = createElement('label', 'form-label', 'Time');
+        const timeId = `cond-time-${uid}`;
+        timeLbl.htmlFor = timeId;
         const timeInput = createElement('input');
         timeInput.type = 'time';
+        timeInput.id = timeId;
         timeInput.className = 'condition-time-input';
         timeInput.value = condition.time || '';
         timeInput.required = true;
+        timeGroup.appendChild(timeLbl);
         timeGroup.appendChild(timeInput);
 
         const daysGroup = createElement('div', 'form-group');
-        daysGroup.innerHTML = `<label class="form-label">Days <span aria-hidden="true">*</span></label>`;
+        const daysLegend = createElement('span', 'form-label', 'Days');
+        daysGroup.appendChild(daysLegend);
         const daySelector = createElement('div', 'day-selector');
         const days = condition.days || [];
         const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
         dayNames.forEach((name, val) => {
+            const id = `cond-day-${val}-${uid}`;
             const cb = createElement('input');
             cb.type = 'checkbox';
             cb.value = val;
-            cb.id = `cond-day-${val}-${Math.random().toString(36).slice(2,7)}`;
+            cb.id = id;
             cb.checked = days.includes(val);
             const lbl = createElement('label', null, name);
-            lbl.htmlFor = cb.id;
+            lbl.htmlFor = id;
             daySelector.appendChild(cb);
             daySelector.appendChild(lbl);
         });
         daysGroup.appendChild(daySelector);
+
         wrap.appendChild(timeGroup);
         wrap.appendChild(daysGroup);
         return wrap;
@@ -583,67 +575,80 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function buildTimeRangeFields(condition = {}) {
         const wrap = createElement('div', 'condition-row');
-        const startGroup = createElement('div', 'form-group');
-        startGroup.innerHTML = `<label class="form-label">Start <span aria-hidden="true">*</span></label>`;
-        const startInput = createElement('input');
-        startInput.type = 'time';
-        startInput.className = 'condition-start-time-input';
-        startInput.value = condition.startTime || '';
-        startGroup.appendChild(startInput);
+        const uid = Math.random().toString(36).slice(2, 7);
 
-        const endGroup = createElement('div', 'form-group');
-        endGroup.innerHTML = `<label class="form-label">End <span aria-hidden="true">*</span></label>`;
-        const endInput = createElement('input');
-        endInput.type = 'time';
-        endInput.className = 'condition-end-time-input';
-        endInput.value = condition.endTime || '';
-        endGroup.appendChild(endInput);
+        const makeTimeGroup = (labelText, cls, val) => {
+            const group = createElement('div', 'form-group');
+            const lbl = createElement('label', 'form-label', labelText);
+            const id = `cond-${cls}-${uid}`;
+            lbl.htmlFor = id;
+            const input = createElement('input');
+            input.type = 'time';
+            input.id = id;
+            input.className = cls;
+            input.value = val || '';
+            group.appendChild(lbl);
+            group.appendChild(input);
+            return group;
+        };
 
         const daysGroup = createElement('div', 'form-group');
-        daysGroup.innerHTML = `<label class="form-label">Days <span aria-hidden="true">*</span></label>`;
+        const daysLegend = createElement('span', 'form-label', 'Days');
+        daysGroup.appendChild(daysLegend);
         const daySelector = createElement('div', 'day-selector');
         const days = condition.days || [];
         const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
         dayNames.forEach((name, val) => {
+            const id = `range-day-${val}-${uid}`;
             const cb = createElement('input');
             cb.type = 'checkbox';
             cb.value = val;
-            cb.id = `range-day-${val}-${Math.random().toString(36).slice(2,7)}`;
+            cb.id = id;
             cb.checked = days.includes(val);
             const lbl = createElement('label', null, name);
-            lbl.htmlFor = cb.id;
+            lbl.htmlFor = id;
             daySelector.appendChild(cb);
             daySelector.appendChild(lbl);
         });
         daysGroup.appendChild(daySelector);
 
-        wrap.appendChild(startGroup);
-        wrap.appendChild(endGroup);
+        wrap.appendChild(makeTimeGroup('Start', 'condition-start-time-input', condition.startTime));
+        wrap.appendChild(makeTimeGroup('End', 'condition-end-time-input', condition.endTime));
         wrap.appendChild(daysGroup);
         return wrap;
     }
 
     function buildUrlFields(condition = {}) {
         const wrap = createElement('div', 'condition-row');
+        const uid = Math.random().toString(36).slice(2, 7);
+
         const urlGroup = createElement('div', 'form-group');
         urlGroup.style.flex = '2';
-        urlGroup.innerHTML = `<label class="form-label">URL or Domain <span aria-hidden="true">*</span></label>`;
+        const urlId = `cond-url-${uid}`;
+        const urlLbl = createElement('label', 'form-label', 'URL or Domain');
+        urlLbl.htmlFor = urlId;
         const urlInput = createElement('input');
         urlInput.type = 'text';
+        urlInput.id = urlId;
         urlInput.className = 'condition-url-input';
         urlInput.placeholder = 'e.g., github.com or https://developer.chrome.com';
         urlInput.value = condition.url || '';
+        urlGroup.appendChild(urlLbl);
         urlGroup.appendChild(urlInput);
 
         const matchGroup = createElement('div', 'form-group');
-        matchGroup.innerHTML = `<label class="form-label">Match</label>`;
+        const matchId = `cond-match-${uid}`;
+        const matchLbl = createElement('label', 'form-label', 'Match');
+        matchLbl.htmlFor = matchId;
         const matchSelect = createElement('select', 'condition-match-type-select');
+        matchSelect.id = matchId;
         matchSelect.innerHTML = `
-            <option value="contains" ${condition.matchType === 'contains' || !condition.matchType ? 'selected' : ''}>Contains</option>
+            <option value="contains" ${!condition.matchType || condition.matchType === 'contains' ? 'selected' : ''}>Contains</option>
             <option value="exact" ${condition.matchType === 'exact' ? 'selected' : ''}>Exact</option>
             <option value="startsWith" ${condition.matchType === 'startsWith' ? 'selected' : ''}>Starts with</option>
             <option value="regex" ${condition.matchType === 'regex' ? 'selected' : ''}>Regex</option>
         `;
+        matchGroup.appendChild(matchLbl);
         matchGroup.appendChild(matchSelect);
 
         wrap.appendChild(urlGroup);
@@ -687,9 +692,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const container = DOM['actions-container'];
         if (!container) return;
         container.textContent = '';
-        actions.forEach((a, i) => {
-            container.appendChild(createActionCard(a, i));
-        });
+        actions.forEach((a, i) => container.appendChild(createActionCard(a, i)));
         updateActionNumbers();
     }
 
@@ -705,35 +708,37 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const body = createElement('div', 'action-body');
 
-        // Target type
         const typeRow = createElement('div', 'action-row');
+
         const typeGroup = createElement('div', 'form-group');
-        typeGroup.innerHTML = `<label class="form-label">Target Type <span aria-hidden="true">*</span></label>`;
+        const ttId = `act-tt-${index}-${Math.random().toString(36).slice(2, 7)}`;
+        const ttLbl = createElement('label', 'form-label', 'Target Type');
+        ttLbl.htmlFor = ttId;
         const typeSelect = createElement('select', 'action-target-type-select');
+        typeSelect.id = ttId;
         typeSelect.innerHTML = `
             <option value="extension" ${action.targetType === 'extension' ? 'selected' : ''}>Extensions</option>
             <option value="profile" ${action.targetType === 'profile' ? 'selected' : ''}>Profile</option>
         `;
+        typeGroup.appendChild(ttLbl);
         typeGroup.appendChild(typeSelect);
 
-        // Action type
         const actGroup = createElement('div', 'form-group');
-        actGroup.innerHTML = `<label class="form-label">Action <span aria-hidden="true">*</span></label>`;
+        const atId = `act-at-${index}-${Math.random().toString(36).slice(2, 7)}`;
+        const atLbl = createElement('label', 'form-label', 'Action');
+        atLbl.htmlFor = atId;
         const actSelect = createElement('select', 'action-type-select');
-        actSelect.innerHTML = `
-            <option value="enable" ${action.type === 'enable' ? 'selected' : ''}>Enable</option>
-            <option value="disable" ${action.type === 'disable' ? 'selected' : ''}>Disable</option>
-            <option value="apply" ${action.type === 'apply' ? 'selected' : ''}>Apply</option>
-        `;
+        actSelect.id = atId;
+        actGroup.appendChild(atLbl);
         actGroup.appendChild(actSelect);
 
         typeRow.appendChild(typeGroup);
         typeRow.appendChild(actGroup);
         body.appendChild(typeRow);
 
-        // Target selector
         const targetGroup = createElement('div', 'form-group');
-        targetGroup.innerHTML = `<label class="form-label">Select Targets <span aria-hidden="true">*</span></label>`;
+        const tgtLbl = createElement('label', 'form-label', 'Select Targets');
+        targetGroup.appendChild(tgtLbl);
         const targetContainer = createElement('div', 'mini-target-selector');
         targetContainer.dataset.index = index;
         targetGroup.appendChild(targetContainer);
@@ -743,10 +748,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tType = typeSelect.value;
             const selected = action.targetIds || [];
             targetContainer.textContent = '';
-            let items = [];
-            if (tType === 'extension') items = state.allExtensions;
-            else if (tType === 'profile') items = state.allProfiles;
-
+            const items = tType === 'extension' ? state.allExtensions : state.allProfiles;
             if (items.length === 0) {
                 targetContainer.appendChild(createElement('p', 'placeholder-text', `No ${tType}s found.`));
                 return;
@@ -759,15 +761,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (item.icons?.length > 0 && item.icons[item.icons.length - 1]?.url) {
                     imgSrc = item.icons[item.icons.length - 1].url;
                 }
+                const inputId = `act-${index}-target-${id}`;
                 const row = createElement('div', 'extension-selector-item');
                 const input = createElement('input');
                 input.type = tType === 'profile' ? 'radio' : 'checkbox';
                 input.name = `action-target-${index}`;
                 input.value = id;
+                input.id = inputId;
                 input.checked = selected.includes(id);
                 const lbl = createElement('label');
-                lbl.htmlFor = `act-${index}-target-${id}`;
-                input.id = lbl.htmlFor;
+                lbl.htmlFor = inputId;
                 const img = createElement('img');
                 img.src = imgSrc;
                 img.alt = '';
@@ -790,7 +793,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             } else {
                 actSelect.appendChild(new Option('Apply', 'apply'));
             }
-            // Restore if valid
             if (Array.from(actSelect.options).some(o => o.value === oldVal)) actSelect.value = oldVal;
         };
 
@@ -821,18 +823,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.querySelectorAll('.action-card').forEach((card, i) => {
             const badge = card.querySelector('.action-number-badge');
             if (badge) badge.textContent = `Action ${i + 1}`;
-            const inputs = card.querySelectorAll('input[type="checkbox"], input[type="radio"]');
-            inputs.forEach(inp => {
-                const oldName = inp.name;
+            card.querySelectorAll('input[type="checkbox"], input[type="radio"]').forEach(inp => {
                 const newName = `action-target-${i}`;
-                if (oldName && oldName !== newName) {
+                if (inp.name && inp.name !== newName) {
                     inp.name = newName;
-                    const lbl = inp.nextElementSibling;
-                    if (lbl && lbl.htmlFor) {
-                        const oldId = inp.id;
-                        inp.id = oldId.replace(/act-\d+-/, `act-${i}-`);
-                        lbl.htmlFor = inp.id;
-                    }
                 }
             });
         });
@@ -852,11 +846,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!element) return;
         element.textContent = message;
         element.setAttribute('role', 'alert');
-        const input = element.previousElementSibling;
-        if (input && (input.tagName === 'INPUT' || input.tagName === 'SELECT' || input.tagName === 'TEXTAREA')) {
-            input.classList.add('invalid');
-            input.setAttribute('aria-invalid', 'true');
-        }
     }
 
     function clearValidationError(element) {
@@ -880,7 +869,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // --- Conflict Detection (Strict Prevention) ---
+    // --- Conflict Detection ---
     function findConflictingRules(newRule) {
         if (!newRule.enabled) return [];
         const conflicts = [];
@@ -891,7 +880,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         for (const existing of relevant) {
             if (!existing.trigger) continue;
             if (!triggersOverlap(newTrigger, existing.trigger)) continue;
-
             const existingActions = existing.actions || [{ type: existing.action, targetType: existing.targetType, targetIds: existing.targetIds }];
             for (const na of newActions) {
                 for (const ea of existingActions) {
@@ -914,18 +902,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!a || !b) continue;
                 if (a.type === 'time' && b.type === 'time') {
                     if (a.time === b.time) {
-                        const d1 = a.days || [];
-                        const d2 = b.days || [];
+                        const d1 = a.days || [], d2 = b.days || [];
                         if (d1.some(d => d2.includes(d))) return true;
                     }
                 } else if ((a.type === 'time' && b.type === 'time_range') || (a.type === 'time_range' && b.type === 'time')) {
-                    // Simplification: any shared day is potential overlap
-                    const d1 = a.days || [];
-                    const d2 = b.days || [];
+                    const d1 = a.days || [], d2 = b.days || [];
                     if (d1.some(d => d2.includes(d))) return true;
                 } else if (a.type === 'time_range' && b.type === 'time_range') {
-                    const d1 = a.days || [];
-                    const d2 = b.days || [];
+                    const d1 = a.days || [], d2 = b.days || [];
                     if (d1.some(d => d2.includes(d))) return true;
                 } else if (a.type === 'url' && b.type === 'url') {
                     const u1 = (a.url || '').toLowerCase();
@@ -939,7 +923,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function actionsConflict(a1, a2) {
         if (!a1 || !a2) return false;
-        // Cross-type: profile vs extension
         if (a1.targetType !== a2.targetType) {
             if (a1.targetType === 'profile' && a2.targetType === 'extension') {
                 const profile = state.allProfiles.find(p => p.id === a1.targetIds?.[0]);
@@ -951,7 +934,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             return false;
         }
-        // Same type
         const common = (a1.targetIds || []).filter(id => (a2.targetIds || []).includes(id));
         if (common.length === 0) return false;
         if (a1.targetType === 'extension') {
@@ -965,13 +947,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- Form Submit ---
     async function handleFormSubmit(e) {
         e.preventDefault();
-        if (!validateStep(1) || !validateStep(2) || !validateStep(3)) {
-            if (!validateStep(1)) showStep(1);
-            else if (!validateStep(2)) showStep(2);
-            else showStep(3);
-            Toaster.error('Please correct the errors before saving.');
-            return;
-        }
+
+        const step1Ok = validateStep(1);
+        const step2Ok = validateStep(2);
+        const step3Ok = validateStep(3);
+
+        if (!step1Ok) { showStep(1); Toaster.error('Please correct the errors before saving.'); return; }
+        if (!step2Ok) { showStep(2); Toaster.error('Please correct the errors before saving.'); return; }
+        if (!step3Ok) { showStep(3); Toaster.error('Please correct the errors before saving.'); return; }
 
         const conditions = collectConditionsFromForm();
         const trigger = { type: 'compound', operator: 'and', conditions };
@@ -983,14 +966,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             tags: (DOM['rule-tags-input']?.value || '').split(',').map(t => t.trim()).filter(Boolean),
             trigger,
             actions,
-            enabled: true
+            enabled: true,
         };
 
         // Preserve disabled state when editing
         const existing = state.allRules.find(r => r.id === ruleData.id);
         if (existing && existing.enabled === false) ruleData.enabled = false;
 
-        // Add legacy fields for backward compatibility
+        // Legacy fields for backward compatibility
         const legacyAction = actions[0];
         if (legacyAction) {
             ruleData.action = legacyAction.type;
@@ -998,7 +981,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             ruleData.targetIds = legacyAction.targetIds;
         }
 
-        // Strict conflict prevention
         const conflicts = findConflictingRules(ruleData);
         if (conflicts.length > 0) {
             const names = conflicts.map(r => `"${sanitizeText(r.name)}"`).join(', ');
@@ -1035,10 +1017,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else if (e.target.closest('.delete-rule-btn')) {
             const rule = state.allRules.find(r => r?.id === ruleId);
             if (!rule) return;
-            if (state.settings.confirmBeforeDelete) {
-                const confirmed = await showConfirmDialog(`Delete the rule "${sanitizeText(rule.name)}"? This cannot be undone.`);
-                if (!confirmed) return;
-            }
+            const confirmed = await showConfirmDialog(`Delete the rule "${sanitizeText(rule.name)}"? This cannot be undone.`);
+            if (!confirmed) return;
             const updated = state.allRules.filter(r => r?.id !== ruleId);
             state.selectedRuleIds.delete(ruleId);
             chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updated }, () => {
@@ -1050,7 +1030,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const rule = state.allRules.find(r => r?.id === ruleId);
             if (rule) {
                 rule.enabled = toggle.checked;
-                toggle.setAttribute('aria-checked', toggle.checked);
+                toggle.setAttribute('aria-checked', String(toggle.checked));
+                const parentLabel = toggle.closest('.toggle-switch');
+                if (parentLabel) parentLabel.setAttribute('aria-label', rule.enabled ? 'Disable rule' : 'Enable rule');
                 chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: state.allRules }, () => {
                     refreshUI();
                     Toaster.success(`Rule "${sanitizeText(rule.name)}" ${rule.enabled ? 'enabled' : 'disabled'}.`);
@@ -1065,7 +1047,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!ruleId) return;
         if (isChecked) state.selectedRuleIds.add(ruleId);
         else state.selectedRuleIds.delete(ruleId);
-        const row = document.querySelector(`tr[data-rule-id="${ruleId}"]`);
+        const row = document.querySelector(`tr[data-rule-id="${CSS.escape(ruleId)}"]`);
         if (row) row.classList.toggle('selected', isChecked);
         updateBulkActionBarVisibility();
         updateSelectAllCheckboxState();
@@ -1116,14 +1098,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function bulkDeleteSelected() {
-        if (state.selectedRuleIds.size === 0) {
-            Toaster.info('No rules selected.');
-            return;
-        }
-        if (state.settings.confirmBeforeDelete) {
-            const confirmed = await showConfirmDialog(`Delete ${state.selectedRuleIds.size} selected rule(s)? This cannot be undone.`);
-            if (!confirmed) return;
-        }
+        if (state.selectedRuleIds.size === 0) { Toaster.info('No rules selected.'); return; }
+        const confirmed = await showConfirmDialog(`Delete ${state.selectedRuleIds.size} selected rule(s)? This cannot be undone.`);
+        if (!confirmed) return;
         const updated = state.allRules.filter(r => !state.selectedRuleIds.has(r.id));
         const count = state.selectedRuleIds.size;
         state.selectedRuleIds.clear();
@@ -1134,44 +1111,50 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function bulkToggleSelected(enable) {
-        if (state.selectedRuleIds.size === 0) {
-            Toaster.info('No rules selected.');
-            return;
-        }
-        const action = enable ? 'enable' : 'disable';
-        const confirmed = await showConfirmDialog(`${action.charAt(0).toUpperCase() + action.slice(1)} ${state.selectedRuleIds.size} selected rule(s)?`);
+        if (state.selectedRuleIds.size === 0) { Toaster.info('No rules selected.'); return; }
+        const action = enable ? 'Enable' : 'Disable';
+        const confirmed = await showConfirmDialog(`${action} ${state.selectedRuleIds.size} selected rule(s)?`);
         if (!confirmed) return;
         const updated = state.allRules.map(r => state.selectedRuleIds.has(r.id) ? { ...r, enabled: enable } : r);
         const count = state.selectedRuleIds.size;
         state.selectedRuleIds.clear();
         chrome.runtime.sendMessage({ type: 'SAVE_RULES', payload: updated }, () => {
             refreshUI();
-            Toaster.success(`${count} rule(s) ${action}d.`);
+            Toaster.success(`${count} rule(s) ${action.toLowerCase()}d.`);
         });
     }
 
     // --- Panel Navigation ---
+    // Bug fix: only highlight the nav button whose aria-controls matches the ACTIVE panel.
+    // The 'Add New Rule' nav button must NOT stay highlighted after navigating away.
     function setActivePanel(panelId) {
         if (!panelId) return;
+        state.activePanelId = panelId;
+
         DOM.panels.forEach(p => {
-            p.classList.remove('active');
-            p.setAttribute('aria-hidden', 'true');
+            const isActive = p.id === panelId;
+            p.classList.toggle('active', isActive);
+            p.setAttribute('aria-hidden', String(!isActive));
         });
-        DOM.navButtons.forEach(b => b.classList.remove('active'));
-        const target = document.getElementById(panelId);
-        if (target) {
-            target.classList.add('active');
-            target.setAttribute('aria-hidden', 'false');
-            const btn = document.querySelector(`[aria-controls="${panelId}"]`);
-            if (btn) {
-                btn.classList.add('active');
-                if (btn.tagName === 'BUTTON') btn.setAttribute('aria-current', 'page');
-            }
+
+        // Remove active from all nav buttons first
+        DOM.navButtons.forEach(b => {
+            b.classList.remove('active');
+            if (b.tagName === 'BUTTON') b.removeAttribute('aria-current');
+        });
+
+        // Only set active on the button that directly controls this panel
+        // (not the 'Add New Rule' button when we're on the add-rule panel via edit flow)
+        const directBtn = document.querySelector(`.sidebar-button[aria-controls="${panelId}"]`);
+        if (directBtn) {
+            directBtn.classList.add('active');
+            if (directBtn.tagName === 'BUTTON') directBtn.setAttribute('aria-current', 'page');
         }
+
         if (panelId === 'rules-list-panel') {
-            DOM['rule-search-input']?.focus();
             state.selectedRuleIds.clear();
             updateBulkActionBarVisibility();
+            DOM['rule-search-input']?.focus();
         }
     }
 
@@ -1179,47 +1162,65 @@ document.addEventListener('DOMContentLoaded', async () => {
         DOM['rule-form']?.reset();
         clearAllValidationErrors();
         showStep(1);
-        DOM['rule-id-input'].value = '';
+        if (DOM['rule-id-input']) DOM['rule-id-input'].value = '';
 
         if (ruleToEdit) {
-            DOM['form-panel-title'].textContent = 'Edit Rule';
-            DOM['rule-id-input'].value = ruleToEdit.id || '';
-            DOM['rule-name-input'].value = ruleToEdit.name || '';
-            DOM['rule-tags-input'].value = (Array.isArray(ruleToEdit.tags) ? ruleToEdit.tags : []).map(t => sanitizeText(t)).join(', ');
+            if (DOM['form-panel-title']) DOM['form-panel-title'].textContent = 'Edit Rule';
+            if (DOM['rule-id-input']) DOM['rule-id-input'].value = ruleToEdit.id || '';
+            if (DOM['rule-name-input']) DOM['rule-name-input'].value = ruleToEdit.name || '';
+            if (DOM['rule-tags-input']) DOM['rule-tags-input'].value = (Array.isArray(ruleToEdit.tags) ? ruleToEdit.tags : []).map(t => sanitizeText(t)).join(', ');
 
-            // Normalize trigger to compound for editing
             let trigger = ruleToEdit.trigger;
             if (trigger && trigger.type !== 'compound') {
                 trigger = { type: 'compound', operator: 'and', conditions: [{ ...trigger }] };
             } else if (!trigger || !trigger.conditions) {
-                trigger = { type: 'compound', operator: 'and', conditions: [{ type: state.settings.defaultTriggerType || 'time' }] };
+                trigger = { type: 'compound', operator: 'and', conditions: [{ type: 'time' }] };
             }
             renderConditions(trigger.conditions || []);
 
-            // Normalize actions
             let actions = ruleToEdit.actions;
             if (!actions && ruleToEdit.action) {
-                actions = [{
-                    targetType: ruleToEdit.targetType || 'extension',
-                    type: ruleToEdit.action || 'enable',
-                    targetIds: ruleToEdit.targetIds || []
-                }];
+                actions = [{ targetType: ruleToEdit.targetType || 'extension', type: ruleToEdit.action || 'enable', targetIds: ruleToEdit.targetIds || [] }];
             } else if (!actions) {
                 actions = [{ targetType: 'extension', type: 'enable', targetIds: [] }];
             }
             renderActions(actions);
         } else {
-            DOM['form-panel-title'].textContent = 'Create New Rule';
-            const defaultType = state.settings.defaultTriggerType || 'time';
-            renderConditions([{ type: defaultType }]);
-            renderActions([{ targetType: state.settings.defaultTargetType || 'extension', type: 'enable', targetIds: [] }]);
+            if (DOM['form-panel-title']) DOM['form-panel-title'].textContent = 'Create New Rule';
+            renderConditions([{ type: 'time' }]);
+            renderActions([{ targetType: 'extension', type: 'enable', targetIds: [] }]);
         }
+
         setActivePanel('add-rule-panel');
+    }
+
+    // --- Filter Sheet ---
+    function openFilterSheet() {
+        DOM['filter-side-sheet']?.classList.add('active');
+        DOM['filter-btn']?.setAttribute('aria-expanded', 'true');
+        DOM['close-filter-sheet']?.focus();
+    }
+
+    function closeFilterSheet() {
+        DOM['filter-side-sheet']?.classList.remove('active');
+        DOM['filter-btn']?.setAttribute('aria-expanded', 'false');
+        DOM['filter-btn']?.focus();
+    }
+
+    function resetFiltersState() {
+        if (DOM['filter-status-select']) DOM['filter-status-select'].value = 'all';
+        if (DOM['filter-trigger-select']) DOM['filter-trigger-select'].value = 'all';
+        if (DOM['filter-target-type-select']) DOM['filter-target-type-select'].value = 'all';
+        state.currentFilters.status = 'all';
+        state.currentFilters.trigger = 'all';
+        state.currentFilters.targetType = 'all';
+        state.currentFilters.tag = 'all';
+        renderTagFilterInSheet();
     }
 
     // --- Dialogs ---
     function showConfirmDialog(message) {
-        return new Promise((resolve) => {
+        return new Promise(resolve => {
             const overlay = DOM['confirm-dialog-overlay'];
             const msgEl = DOM['confirm-dialog-message'];
             const okBtn = DOM['confirm-ok-btn'];
@@ -1233,17 +1234,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             const previouslyFocused = document.activeElement;
             okBtn.focus();
 
-            const cleanup = (result) => {
+            const cleanup = result => {
                 overlay.classList.remove('active');
                 okBtn.removeEventListener('click', onConfirm);
                 cancelBtn.removeEventListener('click', onCancel);
                 document.removeEventListener('keydown', onKey);
-                if (previouslyFocused && previouslyFocused.focus) previouslyFocused.focus();
+                if (previouslyFocused?.focus) previouslyFocused.focus();
                 resolve(result);
             };
             const onConfirm = () => cleanup(true);
             const onCancel = () => cleanup(false);
-            const onKey = (e) => {
+            const onKey = e => {
                 if (e.key === 'Escape') onCancel();
                 if (e.key === 'Tab') trapFocus(e, overlay);
             };
@@ -1267,12 +1268,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    function isTypingInInput() {
+        const tag = document.activeElement?.tagName;
+        return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable;
+    }
+
     // --- Event Listeners ---
     function initEventListeners() {
-        // Nav
+        // Nav buttons
         DOM.navButtons.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                if (btn.tagName === 'A') return;
+            btn.addEventListener('click', e => {
+                if (btn.tagName === 'A') return; // let anchor links behave normally
                 e.preventDefault();
                 const panelId = btn.getAttribute('aria-controls');
                 if (!panelId) return;
@@ -1296,8 +1302,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         DOM['add-trigger-condition-btn']?.addEventListener('click', () => {
             const container = DOM['trigger-conditions-container'];
             const cards = container?.querySelectorAll('.condition-card');
-            const lastType = cards?.length > 0 
-                ? cards[cards.length - 1].querySelector('.condition-type-select')?.value 
+            const lastType = cards?.length > 0
+                ? cards[cards.length - 1].querySelector('.condition-type-select')?.value
                 : 'time';
             container?.appendChild(createAndConnector());
             container?.appendChild(createConditionCard({ type: lastType }, cards?.length || 0));
@@ -1308,60 +1314,52 @@ document.addEventListener('DOMContentLoaded', async () => {
         DOM['add-action-btn']?.addEventListener('click', () => {
             const container = DOM['actions-container'];
             const cards = container?.querySelectorAll('.action-card');
-            container?.appendChild(createActionCard({
-                targetType: state.settings.defaultTargetType || 'extension',
-                type: 'enable',
-                targetIds: []
-            }, cards?.length || 0));
+            container?.appendChild(createActionCard({ targetType: 'extension', type: 'enable', targetIds: [] }, cards?.length || 0));
             updateActionNumbers();
         });
 
-        // Search & filters
+        // Search — debounced
         DOM['rule-search-input']?.addEventListener('input', () => {
             clearTimeout(state.searchDebounceTimer);
             state.searchDebounceTimer = setTimeout(() => {
                 state.currentFilters.query = DOM['rule-search-input']?.value || '';
                 applyFiltersAndRender();
-            }, 150);
+            }, 180);
         });
 
-        // Filter sheet
-        DOM['filter-btn']?.addEventListener('click', () => {
-            DOM['filter-side-sheet']?.classList.add('active');
-            DOM['filter-btn']?.setAttribute('aria-expanded', 'true');
-            DOM['close-filter-sheet']?.focus();
-        });
+        // Filter sheet open / close
+        DOM['filter-btn']?.addEventListener('click', openFilterSheet);
         DOM['close-filter-sheet']?.addEventListener('click', closeFilterSheet);
         DOM['filter-sheet-overlay']?.addEventListener('click', closeFilterSheet);
+
+        // Apply filters
         DOM['apply-filters-btn']?.addEventListener('click', () => {
             state.currentFilters.status = DOM['filter-status-select']?.value || 'all';
             state.currentFilters.trigger = DOM['filter-trigger-select']?.value || 'all';
             state.currentFilters.targetType = DOM['filter-target-type-select']?.value || 'all';
+            // tag filter is applied as chips are clicked; read current from rendered state
+            const activeChip = DOM['tag-chips-container']?.querySelector('.tag-chip.active');
+            state.currentFilters.tag = activeChip?.dataset.tag || 'all';
             applyFiltersAndRender();
             closeFilterSheet();
         });
+
+        // Reset filters (inside sheet)
         DOM['reset-filters-btn']?.addEventListener('click', () => {
-            DOM['filter-status-select'] && (DOM['filter-status-select'].value = 'all');
-            DOM['filter-trigger-select'] && (DOM['filter-trigger-select'].value = 'all');
-            DOM['filter-target-type-select'] && (DOM['filter-target-type-select'].value = 'all');
-            state.currentFilters = { query: state.currentFilters.query, status: 'all', trigger: 'all', targetType: 'all', tag: 'all' };
+            resetFiltersState();
             applyFiltersAndRender();
-            renderTagFilter();
         });
+
+        // Reset all filters (no-results CTA)
         DOM['reset-all-filters-btn']?.addEventListener('click', () => {
-            DOM['rule-search-input'] && (DOM['rule-search-input'].value = '');
-            state.currentFilters = { query: '', status: 'all', trigger: 'all', targetType: 'all', tag: 'all' };
+            if (DOM['rule-search-input']) DOM['rule-search-input'].value = '';
+            state.currentFilters.query = '';
+            resetFiltersState();
             applyFiltersAndRender();
-            renderTagFilter();
-        });
-        DOM['clear-tag-filter']?.addEventListener('click', () => {
-            state.currentFilters.tag = 'all';
-            applyFiltersAndRender();
-            renderTagFilter();
         });
 
         // Bulk actions
-        DOM['select-all-rules']?.addEventListener('change', (e) => handleSelectAllChange(e.target.checked));
+        DOM['select-all-rules']?.addEventListener('change', e => handleSelectAllChange(e.target.checked));
         DOM['bulk-enable-btn']?.addEventListener('click', () => bulkToggleSelected(true));
         DOM['bulk-disable-btn']?.addEventListener('click', () => bulkToggleSelected(false));
         DOM['bulk-delete-btn']?.addEventListener('click', bulkDeleteSelected);
@@ -1369,49 +1367,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         // List delegation
         DOM['rules-list-container']?.addEventListener('click', handleRulesListClick);
 
-        // Settings
-        DOM['setting-confirm-delete']?.addEventListener('change', (e) => {
-            state.settings.confirmBeforeDelete = e.target.checked;
-            saveSettings();
-        });
-        DOM['setting-default-target-type']?.addEventListener('change', (e) => {
-            state.settings.defaultTargetType = e.target.value;
-            saveSettings();
-        });
-        DOM['setting-default-trigger-type']?.addEventListener('change', (e) => {
-            state.settings.defaultTriggerType = e.target.value;
-            saveSettings();
-        });
-
         // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            if (e.key === '/' && !isTypingInInput() && document.getElementById('rules-list-panel')?.classList.contains('active')) {
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                if (DOM['filter-side-sheet']?.classList.contains('active')) { closeFilterSheet(); return; }
+            }
+            if (e.key === '/' && !isTypingInInput() && state.activePanelId === 'rules-list-panel') {
                 e.preventDefault();
                 DOM['rule-search-input']?.focus();
             } else if ((e.ctrlKey || e.metaKey) && e.key === 'n' && !isTypingInInput()) {
                 e.preventDefault();
                 showRuleForm();
-            } else if ((e.ctrlKey || e.metaKey) && e.key === 's' && document.getElementById('add-rule-panel')?.classList.contains('active')) {
+            } else if ((e.ctrlKey || e.metaKey) && e.key === 's' && state.activePanelId === 'add-rule-panel') {
                 e.preventDefault();
                 DOM['rule-form']?.requestSubmit();
             }
         });
-    }
 
-    function closeFilterSheet() {
-        DOM['filter-side-sheet']?.classList.remove('active');
-        DOM['filter-btn']?.setAttribute('aria-expanded', 'false');
-    }
-
-    function isTypingInInput() {
-        const tag = document.activeElement?.tagName;
-        return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable;
+        // Trap focus in filter sheet when open
+        DOM['filter-side-sheet']?.addEventListener('keydown', e => {
+            if (e.key === 'Tab') trapFocus(e, DOM['filter-side-sheet']);
+        });
     }
 
     // --- Init ---
     cacheDOM();
     initEventListeners();
-    await loadSettings();
     await refreshUI();
     setActivePanel('rules-list-panel');
 });
