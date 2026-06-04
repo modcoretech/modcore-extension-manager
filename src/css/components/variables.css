@@ -1,0 +1,356 @@
+/* ==========================================================================
+   variables.css
+   ========================================================================== */
+
+
+/* ==========================================================================
+   1. TYPOGRAPHY
+   ========================================================================== */
+:root {
+    --font-sans: 'modcore-inter-font-custom', -apple-system, BlinkMacSystemFont,
+        'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans',
+        'Helvetica Neue', sans-serif;
+
+    --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier,
+        monospace;
+
+    /* Scale */
+    --text-display-md:  38px;
+    --text-display-sm:  30px;
+    --text-headline-lg: 26px;
+    --text-headline-md: 22px;
+    --text-headline-sm: 18px;
+    --text-title-lg:    17px;
+    --text-title-md:    15px;
+    --text-title-sm:    13px;
+    --text-body-lg:     14px;
+    --text-body-md:     13px;
+    --text-body-sm:     12px;
+    --text-label-lg:    12px;
+    --text-label-md:    11px;
+    --text-label-sm:    10px;
+
+    /* Line heights */
+    --leading-normal: 1.5;
+    --leading-dense:  1.25;
+
+    /* Weights */
+    --weight-normal:   400;
+    --weight-medium:   500;
+    --weight-semibold: 600;
+    --weight-bold:     700;
+}
+
+
+/* ==========================================================================
+   2. SPACING
+   ========================================================================== */
+:root {
+    --space-1:  4px;
+    --space-2:  8px;
+    --space-3:  12px;
+    --space-4:  16px;
+    --space-5:  20px;
+    --space-6:  24px;
+    --space-8:  32px;
+    --space-10: 40px;
+    --space-12: 48px;
+    --space-16: 64px;
+
+    --container-padding: var(--space-5);
+    --sidebar-width: 280px;
+}
+
+
+/* ==========================================================================
+   3. BORDER & BORDER-RADIUS
+   ========================================================================== */
+:root {
+    --border-width: 1px;
+    --radius-sm:   10px;
+    --radius-md:   12px;
+    --radius-lg:   16px;
+    --radius-xl:   20px;
+    --radius-2xl:  24px; /* standard */
+    --radius-full: 9999px;
+}
+
+
+/* ==========================================================================
+   4. TRANSITIONS
+   ========================================================================== */
+:root {
+    --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+    --duration-fast:   160ms;
+    --duration-normal: 280ms;
+    --duration-slow:   400ms;
+
+    --transition-fast:   var(--duration-fast)   var(--ease-standard);
+    --transition-normal: var(--duration-normal) var(--ease-standard);
+}
+
+
+/* ==========================================================================
+   5. SHADOWS  (none)
+   ========================================================================== */
+:root {
+    --shadow-sm: none;
+    --shadow-md: none;
+    --shadow-lg: none;
+}
+
+
+/* ==========================================================================
+   6. SEMANTIC COLOR TOKENS  (light mode)
+   ========================================================================== */
+:root {
+    /* --- Background --- */
+    --color-bg: #ffffff;
+
+    /* --- Surfaces --- */
+    --color-surface:          #ffffff;
+    --color-surface-hover:    #f8f9fc;
+    --color-surface-selected: #e3eafd;
+
+    --color-surface-low:     #ffffff;
+    --color-surface-mid:     #f8f9fc;
+    --color-surface-high:    #e6eaf0;
+    --color-surface-highest: #e6eaf0;
+
+    /* --- Borders --- */
+    --color-border:        #e6eaf0;
+    --color-border-strong: #c9d1dc;
+
+    /* --- Text --- */
+    --color-text-primary:     #121317;
+    --color-text-secondary:   #45474d;
+    --color-text-placeholder: #6a6e7a;
+    --color-text-disabled:    #9da3ae;
+    --color-text-muted:       #6a6e7a;
+    --color-text-link:        #0b57d0;
+
+    /* --- Primary (accent blue) --- */
+    --color-primary:           #0b57d0;
+    --color-primary-hover:     #0944a8;
+    --color-primary-on:        #ffffff;
+    --color-primary-container: rgba(11, 87, 208, 0.10);
+    --color-primary-rgb:       11, 87, 208;
+
+    /* --- Secondary --- */
+    --color-secondary:        transparent;
+    --color-secondary-hover:  #e6eaf0;
+    --color-secondary-border: #c9d1dc;
+    --color-secondary-text:   #121317;
+
+    /* --- Danger / Error --- */
+    --color-danger:           #d93025;
+    --color-danger-hover:     #b52a1f;
+    --color-danger-container: rgba(217, 48, 37, 0.10);
+    --color-danger-on:        #ffffff;
+    --color-danger-rgb:       217, 48, 37;
+    --color-error:            var(--color-danger);
+
+    /* --- Success --- */
+    --color-success:           #1e8e3e;
+    --color-success-container: rgba(30, 142, 62, 0.10);
+
+    /* --- Warning --- */
+    --color-warning:           #f9ab00;
+    --color-warning-container: rgba(249, 171, 0, 0.10);
+    --color-warning-text:      #121317;
+    --color-warning-rgb:       249, 171, 0;
+
+    /* --- Info --- */
+    --color-info:           #0b57d0;
+    --color-info-container: rgba(11, 87, 208, 0.10);
+
+    /* --- Disabled --- */
+    --color-disabled-bg:     #f8f9fc;
+    --color-disabled-text:   #9da3ae;
+    --color-disabled-border: #e6eaf0;
+
+    /* --- Focus / Highlight --- */
+    --color-focus-ring:     rgba(11, 87, 208, 0.30);
+    --color-highlight-bg:   rgba(11, 87, 208, 0.12);
+    --color-highlight-text: #121317;
+
+    /* --- Modal / Overlay --- */
+    --color-backdrop: rgba(0, 0, 0, 0.40);
+    --color-modal-bg: #ffffff;
+
+    /* --- Action Feedback --- */
+    --color-feedback-text: #0b57d0;
+
+    /* --- Selection --- */
+    --color-selection-bg:   rgba(11, 87, 208, 0.15);
+    --color-selection-text: inherit;
+
+    /* --- Scrollbar --- */
+    --color-scrollbar-thumb:       #c9d1dc;
+    --color-scrollbar-thumb-hover: #9da3ae;
+
+    /* --- Icons --- */
+    --color-icon:        #6a6e7a;
+    --filter-icon:       invert(0%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(0%) contrast(100%);
+    --filter-icon-primary: invert(100%);
+
+    /* --- Tooltip --- */
+    --color-tooltip-bg:   #121317;
+    --color-tooltip-text: #ffffff;
+
+    /* --- Neutral --- */
+    --color-neutral:         #9da3ae;
+    --color-neutral-variant: #c9d1dc;
+
+    /* --- Inverse --- */
+    --color-inverse-surface:    #121317;
+    --color-inverse-on-surface: #ffffff;
+}
+
+
+/* ==========================================================================
+   7. RISK / STATUS PALETTE
+   ========================================================================== */
+:root {
+    /* Generic risk scale */
+    --color-risk-low:    #1e8e3e;
+    --color-risk-medium: #f9ab00;
+    --color-risk-high:   #d93025;
+
+    --color-risk-low-container:    rgba(30, 142, 62,  0.10);
+    --color-risk-medium-container: rgba(249, 171, 0,  0.10);
+    --color-risk-high-container:   rgba(217, 48, 37,  0.10);
+
+    /* Extended risk scale */
+    --color-risk-critical:           #d93025;
+    --color-risk-critical-container: rgba(217, 48, 37, 0.10);
+
+    /* Safety-center score palette */
+    --color-score-excellent:  #1e8e3e;
+    --color-score-good:       #00897b;
+    --color-score-moderate:   #f9ab00;
+    --color-score-concerning: #e8710a;
+    --color-score-high-risk:  #d93025;
+
+    /* Notes-specific */
+    --color-pin: #f9ab00;
+}
+
+
+/* ==========================================================================
+   8. DARK MODE OVERRIDES
+   ========================================================================== */
+@media (prefers-color-scheme: dark) {
+    :root {
+        /* Background */
+        --color-bg: #121317;
+
+        /* Surfaces */
+        --color-surface:          #121317;
+        --color-surface-hover:    #18191d;
+        --color-surface-selected: #1c2d45;
+
+        --color-surface-low:     #121317;
+        --color-surface-mid:     #121317;
+        --color-surface-high:    #18191d;
+        --color-surface-highest: #2f3034;
+
+        /* Borders */
+        --color-border:        #2f3034;
+        --color-border-strong: #3d4046;
+
+        /* Text */
+        --color-text-primary:     #f8f9fc;
+        --color-text-secondary:   #b2bbc5;
+        --color-text-placeholder: #6a6e7a;
+        --color-text-disabled:    #4a4e57;
+        --color-text-muted:       #7a8090;
+        --color-text-link:        #a8c7fa;
+
+        /* Primary */
+        --color-primary:           #a8c7fa;
+        --color-primary-hover:     #c4d8fb;
+        --color-primary-on:        #062e6f;
+        --color-primary-container: rgba(168, 199, 250, 0.15);
+        --color-primary-rgb:       168, 199, 250;
+
+        /* Secondary */
+        --color-secondary:        transparent;
+        --color-secondary-hover:  #2f3034;
+        --color-secondary-border: #3d4046;
+        --color-secondary-text:   #f8f9fc;
+
+        /* Danger */
+        --color-danger:           #f28b82;
+        --color-danger-hover:     #f5a49d;
+        --color-danger-container: rgba(242, 139, 130, 0.15);
+        --color-danger-rgb:       242, 139, 130;
+
+        /* Success */
+        --color-success:           #81c995;
+        --color-success-container: rgba(129, 201, 149, 0.15);
+
+        /* Warning */
+        --color-warning:           #fdd663;
+        --color-warning-container: rgba(253, 214, 99, 0.15);
+        --color-warning-text:      #121317;
+        --color-warning-rgb:       253, 214, 99;
+
+        /* Info */
+        --color-info:           #a8c7fa;
+        --color-info-container: rgba(168, 199, 250, 0.15);
+
+        /* Disabled */
+        --color-disabled-bg:     #18191d;
+        --color-disabled-text:   #4a4e57;
+        --color-disabled-border: #2f3034;
+
+        /* Focus / Highlight */
+        --color-focus-ring:     rgba(168, 199, 250, 0.30);
+        --color-highlight-bg:   rgba(168, 199, 250, 0.15);
+        --color-highlight-text: #f8f9fc;
+
+        /* Modal */
+        --color-backdrop: rgba(0, 0, 0, 0.75);
+        --color-modal-bg: #18191d;
+
+        /* Action Feedback */
+        --color-feedback-text: #a8c7fa;
+
+        /* Selection */
+        --color-selection-bg: rgba(168, 199, 250, 0.20);
+
+        /* Scrollbar */
+        --color-scrollbar-thumb:       #3d4046;
+        --color-scrollbar-thumb-hover: #5a5f6a;
+
+        /* Icons */
+        --color-icon:        #9da3ae;
+        --filter-icon:       invert(100%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%);
+
+        /* Tooltip */
+        --color-tooltip-bg:   #f8f9fc;
+        --color-tooltip-text: #121317;
+
+        /* Neutral */
+        --color-neutral:         #7a8090;
+        --color-neutral-variant: #4a4e57;
+
+        /* Inverse */
+        --color-inverse-surface:    #f8f9fc;
+        --color-inverse-on-surface: #121317;
+
+        /* Risk containers */
+        --color-risk-low-container:    rgba(129, 201, 149, 0.15);
+        --color-risk-medium-container: rgba(253, 214, 99,  0.15);
+        --color-risk-high-container:   rgba(242, 139, 130, 0.15);
+
+        /* Risk colors */
+        --color-risk-low:      #81c995;
+        --color-risk-medium:   #fdd663;
+        --color-risk-high:     #f28b82;
+        --color-risk-critical: #f28b82;
+        --color-risk-critical-container: rgba(242, 139, 130, 0.15);
+    }
+}

@@ -256,7 +256,7 @@ ${lines.join('\n')}
 function createReportDialog() {
     const style = createElement('style');
     style.textContent = `
-        @import url('${chrome.runtime.getURL('../../src/css/variables.css')}');
+        @import url('${chrome.runtime.getURL('../../src/css/main.css')}');
 
         @media (prefers-reduced-motion: reduce) {
             .modcore-dialog-overlay, .modcore-dialog-overlay * {
