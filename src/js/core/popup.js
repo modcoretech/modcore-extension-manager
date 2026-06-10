@@ -251,7 +251,7 @@ export async function saveSettingsToStore(newSettings) {
         applySettingsToUI();
         return true;
     } catch (e) {
-        Toaster.error('Could not save settings.');
+        Status.error('Could not save settings.');
         return false;
     }
 }
@@ -295,14 +295,14 @@ export async function handleSettingsSave() {
     };
     const saved = await saveSettingsToStore(newSettings);
     if (!saved) return;
-    Toaster.success('Settings saved.');
+    Status.success('Settings saved.');
     await refreshExtensionDataAndRender();
     closeSettingsModal();
 }
 
 export function handleSettingsReset() {
     populateSettingsForm();
-    Toaster.info('Form reset to saved values.');
+    Status.info('Form reset to saved values.');
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -514,7 +514,7 @@ function initExtensionSortable() {
             const newOrder = [...visibleOrder, ...remaining, ...extra];
             appSettings.extensionOrder = newOrder;
             await saveSettingsToStore(appSettings);
-            Toaster.success('Extension order saved.');
+            Status.success('Extension order saved.');
 
             const orderMap = new Map(newOrder.map((id, idx) => [id, idx]));
             allFetchedExtensions.sort((a, b) => {
@@ -607,7 +607,7 @@ export async function renderExtensionList() {
     } catch (e) {
         hideLoading();
         console.error('renderExtensionList error:', e);
-        Toaster.error('Error rendering extension list.');
+        Status.error('Error rendering extension list.');
     }
 }
 
@@ -625,7 +625,7 @@ export async function refreshExtensionDataAndRender() {
         await renderExtensionList();
     } catch (e) {
         hideLoading();
-        Toaster.error(`Error fetching extensions: ${e?.message ?? 'Unknown error'}`);
+        Status.bar(`Error fetching extensions: ${e?.message ?? 'Unknown error'}`);
         console.error('Extension fetch/render error:', e);
     }
 }
@@ -666,10 +666,10 @@ export function toggleExtension(extensionId, enable, buttonElement) {
     chrome.management.setEnabled(extensionId, enable, async () => {
         hideLoading();
         if (chrome.runtime.lastError) {
-            Toaster.error(`Error: ${chrome.runtime.lastError.message}`);
+            Status.error(`Error: ${chrome.runtime.lastError.message}`);
             return;
         }
-        Toaster.success(`Extension ${enable ? 'enabled' : 'disabled'}.`, 2000);
+        Status.success(`Extension ${enable ? 'enabled' : 'disabled'}.`, 2000);
 
         const cached = allFetchedExtensions.find(e => e.id === extensionId);
         if (cached) cached.enabled = enable;
@@ -712,9 +712,9 @@ export function uninstallExtension(extensionId, safeName) {
     chrome.management.uninstall(extensionId, { showConfirmDialog: false }, async () => {
         hideLoading();
         if (chrome.runtime.lastError) {
-            Toaster.error(`Error uninstalling "${safeName}": ${chrome.runtime.lastError.message}`);
+            Status.error(`Error uninstalling "${safeName}": ${chrome.runtime.lastError.message}`);
         } else {
-            Toaster.success(`"${safeName}" uninstalled.`);
+            Status.success(`"${safeName}" uninstalled.`);
             selectedExtensionIds.delete(extensionId);
             await refreshExtensionDataAndRender();
             await refreshProfileViews();
@@ -813,8 +813,8 @@ export async function performBulkAction(action) {
     });
 
     hideLoading();
-    if (errors) Toaster.error(`Done with errors. ${success} ${action}d, ${errors} failed.`);
-    else if (success) Toaster.success(`${success} extension(s) ${action}d.`);
+    if (errors) Status.error(`Done with errors. ${success} ${action}d, ${errors} failed.`);
+    else if (success) Status.success(`${success} extension(s) ${action}d.`);
 
     clearSelection();
     await refreshExtensionDataAndRender();
@@ -970,9 +970,9 @@ export async function showContextMenu(extensionId, event) {
 
     frag.appendChild(makeItem('Options', ICON.configure, () => {
         chrome.management.get(extensionId, ext => {
-            if (chrome.runtime.lastError) { Toaster.error(chrome.runtime.lastError.message); return; }
+            if (chrome.runtime.lastError) { Status.error(chrome.runtime.lastError.message); return; }
             chrome.tabs.create({ url: ext?.optionsUrl || `chrome://extensions/?id=${extensionId}` });
-            if (!ext?.optionsUrl) Toaster.info('No dedicated Options page; opened extension details.');
+            if (!ext?.optionsUrl) Status.info('No dedicated Options page; opened extension details.');
         });
     }));
     frag.appendChild(makeItem('Uninstall', ICON.delete, () => confirmAndDeleteExtension(extensionId, extension.name), true));
@@ -1196,7 +1196,7 @@ export async function initializePopup() {
         await populateBulkAssignMenu();
     } catch (e) {
         console.error('Initialization error:', e);
-        Toaster.error('Failed to initialize popup. Please reload.', 10000);
+        Status.error('Failed to initialize popup. Please reload.', 10000);
         hideLoading();
     }
 }
