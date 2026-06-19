@@ -371,34 +371,35 @@
 
         const sections = [
             {
-                title: 'Identity',
+                title: 'About',
+                icon: 'icon-info',
                 items: [
                     { key: 'Name', value: ext.name },
                     { key: 'Short Name', value: ext.shortName || '—' },
-                    { key: 'Description', value: ext.description || '—' },
-                    { key: 'Extension ID', value: ext.id, mono: true, copy: true }
+                    { key: 'Description', value: ext.description || '—' }
                 ]
             },
             {
-                title: 'Version & Type',
+                title: 'Technical',
+                icon: 'icon-code',
                 items: [
+                    { key: 'Extension ID', value: ext.id, mono: true, copy: true },
                     { key: 'Version', value: ext.version },
                     { key: 'Type', value: ext.type === 'extension' ? 'Extension' : ext.type },
-                    { key: 'Manifest Version', value: ext.manifestVersion ? `V${ext.manifestVersion}` : '—' },
                     { key: 'Install Type', value: ext.installType || 'Unknown' }
                 ]
             },
             {
                 title: 'Status',
+                icon: 'icon-check',
                 items: [
-                    { key: 'Enabled', value: ext.enabled ? 'Yes' : 'No', pill: true, enabled: ext.enabled },
-                    { key: 'May Disable', value: ext.mayDisable ? 'Yes' : 'No' },
-                    { key: 'Allow Access to File URLs', value: ext.allowFileAccess ? 'Yes' : 'No' },
-                    { key: 'Incognito Access', value: ext.incognitoAccess ? 'Allowed' : 'Not allowed' }
+                    { key: 'Enabled', value: ext.enabled ? 'Active' : 'Disabled', pill: true, enabled: ext.enabled },
+                    { key: 'May Disable', value: ext.mayDisable ? 'Yes' : 'No' }
                 ]
             },
             {
-                title: 'URLs',
+                title: 'Links',
+                icon: 'icon-link',
                 items: [
                     { key: 'Homepage', value: ext.homepageUrl, link: true },
                     { key: 'Update URL', value: ext.updateUrl, link: true, mono: true },
@@ -409,10 +410,17 @@
 
         sections.forEach(section => {
             const secEl = createEl('li', { className: 'metadata-section' });
-            secEl.appendChild(createEl('h3', {
+
+            const secHeader = createEl('div', { className: 'metadata-section-header' });
+            secHeader.appendChild(createEl('span', {
+                className: `icon ${section.icon}`,
+                attrs: { 'aria-hidden': 'true' }
+            }));
+            secHeader.appendChild(createEl('h3', {
                 className: 'metadata-section-title',
                 text: section.title
             }));
+            secEl.appendChild(secHeader);
 
             const list = createEl('ul', { className: 'metadata-section-list' });
             section.items.forEach(({ key, value, mono, pill, enabled, link, copy }) => {
@@ -447,7 +455,7 @@
                 if (copy && value) {
                     const copyBtn = createEl('button', {
                         className: 'metadata-copy-btn',
-                        attrs: { type: 'button', 'aria-label': `Copy ${key}` },
+                        attrs: { type: 'button', 'aria-label': `Copy ${key} to clipboard`, title: 'Copy to clipboard' },
                         events: {
                             click: () => {
                                 navigator.clipboard.writeText(value).catch(() => {});
@@ -473,10 +481,10 @@
        6. SUPPORT DEVELOPER (Enhanced)
        ======================================================================== */
     async function renderSupport(ext) {
-        // Reset all states
-        els.supportLoading.hidden = false;
-        els.supportData.hidden = true;
-        els.supportNotFound.hidden = true;
+        // Reset: show only loading
+        els.supportLoading.style.display = 'flex';
+        els.supportData.style.display = 'none';
+        els.supportNotFound.style.display = 'none';
 
         els.supportExtIcon.src = ext.icons?.[0]?.url || '../../public/icons/svg/code.svg';
         els.supportExtIcon.onerror = () => {
@@ -486,91 +494,89 @@
         setText(els.supportTitle, `Support ${ext.name}`);
         setText(els.supportTagline, 'Help the developer continue building great tools.');
 
+        let entry = null;
         try {
-            const data = await loadSupportData();
-            const entry = findSupportEntry(ext.id);
+            await loadSupportData();
+            entry = findSupportEntry(ext.id);
+        } catch (err) {
+            console.error('[sc-report] Support data load error:', err);
+        }
 
-            els.supportLoading.hidden = true;
+        // ALWAYS hide loading first
+        els.supportLoading.style.display = 'none';
 
-            if (!entry) {
-                els.supportNotFound.hidden = false;
-                return;
-            }
+        if (!entry) {
+            // Extension ID not found in support data
+            els.supportNotFound.style.display = 'flex';
+            return;
+        }
 
-            clearEl(els.supportData);
-            els.supportData.hidden = false;
+        clearEl(els.supportData);
+        els.supportData.style.display = 'block';
 
-            // Developer card
-            const devCard = createEl('div', { className: 'support-dev-card' });
-            const devHeader = createEl('div', { className: 'support-dev-header' });
-            const devInfo = createEl('div', { className: 'support-dev-info' });
-            devInfo.appendChild(createEl('h3', {
-                className: 'support-dev-name',
-                text: entry.developerName || ext.name
+        const devCard = createEl('div', { className: 'support-dev-card' });
+        const devHeader = createEl('div', { className: 'support-dev-header' });
+        const devInfo = createEl('div', { className: 'support-dev-info' });
+        devInfo.appendChild(createEl('h3', {
+            className: 'support-dev-name',
+            text: entry.developerName || ext.name
+        }));
+        devInfo.appendChild(createEl('p', {
+            className: 'support-dev-by',
+            text: `Developer of ${entry.name || ext.name}`
+        }));
+        devHeader.appendChild(devInfo);
+
+        if (entry.supportEmail) {
+            const emailLink = createEl('a', {
+                className: 'support-dev-email',
+                attrs: { href: `mailto:${entry.supportEmail}` },
+                children: [
+                    createEl('span', { className: 'icon icon-support', attrs: { 'aria-hidden': 'true' } }),
+                    document.createTextNode(entry.supportEmail)
+                ]
+            });
+            devHeader.appendChild(emailLink);
+        }
+        devCard.appendChild(devHeader);
+
+        if (entry.description) {
+            devCard.appendChild(createEl('p', {
+                className: 'support-desc',
+                text: entry.description
             }));
-            devInfo.appendChild(createEl('p', {
-                className: 'support-dev-by',
-                text: `Developer of ${entry.name || ext.name}`
-            }));
-            devHeader.appendChild(devInfo);
+        }
 
-            if (entry.supportEmail) {
-                const emailLink = createEl('a', {
-                    className: 'support-dev-email',
-                    attrs: { href: `mailto:${entry.supportEmail}` },
+        if (entry.support && Object.keys(entry.support).length > 0) {
+            devCard.appendChild(createEl('h4', {
+                className: 'support-links-title',
+                text: 'Support Options'
+            }));
+
+            const linksGrid = createEl('div', { className: 'support-links-grid' });
+            Object.entries(entry.support).forEach(([name, url]) => {
+                const linkCard = createEl('a', {
+                    className: 'support-link-card',
+                    attrs: { href: url, target: '_blank', rel: 'noopener noreferrer' },
                     children: [
-                        createEl('span', { className: 'icon icon-support', attrs: { 'aria-hidden': 'true' } }),
-                        document.createTextNode(entry.supportEmail)
+                        createEl('span', {
+                            className: 'icon icon-store support-link-icon',
+                            attrs: { 'aria-hidden': 'true' }
+                        }),
+                        createEl('span', { className: 'support-link-name', text: name }),
+                        createEl('span', {
+                            className: 'support-link-arrow',
+                            attrs: { 'aria-hidden': 'true' },
+                            text: '→'
+                        })
                     ]
                 });
-                devHeader.appendChild(emailLink);
-            }
-            devCard.appendChild(devHeader);
-
-            if (entry.description) {
-                devCard.appendChild(createEl('p', {
-                    className: 'support-desc',
-                    text: entry.description
-                }));
-            }
-
-            // Support links
-            if (entry.support && Object.keys(entry.support).length > 0) {
-                devCard.appendChild(createEl('h4', {
-                    className: 'support-links-title',
-                    text: 'Support Options'
-                }));
-
-                const linksGrid = createEl('div', { className: 'support-links-grid' });
-                Object.entries(entry.support).forEach(([name, url]) => {
-                    const linkCard = createEl('a', {
-                        className: 'support-link-card',
-                        attrs: { href: url, target: '_blank', rel: 'noopener noreferrer' },
-                        children: [
-                            createEl('span', {
-                                className: 'icon icon-store support-link-icon',
-                                attrs: { 'aria-hidden': 'true' }
-                            }),
-                            createEl('span', { className: 'support-link-name', text: name }),
-                            createEl('span', {
-                                className: 'support-link-arrow',
-                                attrs: { 'aria-hidden': 'true' },
-                                text: '→'
-                            })
-                        ]
-                    });
-                    linksGrid.appendChild(linkCard);
-                });
-                devCard.appendChild(linksGrid);
-            }
-
-            els.supportData.appendChild(devCard);
-
-        } catch (err) {
-            console.error('[sc-report] Support render error:', err);
-            els.supportLoading.hidden = true;
-            els.supportNotFound.hidden = false;
+                linksGrid.appendChild(linkCard);
+            });
+            devCard.appendChild(linksGrid);
         }
+
+        els.supportData.appendChild(devCard);
     }
 
     /* ========================================================================

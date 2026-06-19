@@ -35,7 +35,7 @@
             scoreMin: 50,
             class: 'risk-moderate',
             label: 'Moderate',
-            description: 'Requests permissions that warrant review. Verify the extension\'s purpose aligns with requested capabilities.'
+            description: 'Requests permissions that warrant review. Verify the extensions purpose aligns with requested capabilities.'
         },
         concerning: {
             scoreMin: 30,
@@ -296,7 +296,7 @@
             requiresHost: false,
             mv3Compatible: true,
             commonUseCases: [],
-            mitigationTips: ['Research this permission before granting'],
+            mitigationTips: [],
             displayName: permission
         };
     }

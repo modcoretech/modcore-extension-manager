@@ -992,6 +992,18 @@
       "commonUseCases": ["Window managers", "Productivity tools", "Presentation modes", "Multi-monitor support"]
 
     },
+    "favicon": {
+      "name": "favicon",
+      "shortDescription": "Access and update page favicons.",
+      "detailedDescription": "The Favicon permission allows extensions to retrieve and update the favicon associated with browser tabs and webpages. This is useful for tab decorators, bookmark utilities, and custom site indicators.",
+      "category": ["functionality", "privacy"],
+      "riskLevel": "low",
+      "requiresHostPermission": false,
+      "chromeLink": "https://developer.chrome.com/docs/extensions/how-to/ui/favicons",
+      "mv3Compatible": true,
+      "commonUseCases": ["Tab visual indicators", "Bookmark tools", "Custom favicon handlers"]
+
+    },
     "devtools": {
       "name": "devtools",
       "shortDescription": "Integrate with Chrome DevTools.",
