@@ -9,7 +9,7 @@ const GITHUB_REPO           = 'modcoretech/modcore-extension-manager';
 const GITHUB_API_URL        = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 const VERSION_CACHE_TTL_MS  = 24 * 60 * 60 * 1000; // 24 hours
 
-const DEFAULT_FEATURE_ORDER = ['inspect', 'safety', 'snapshot', 'timeline', 'automations', 'notes'];
+const DEFAULT_FEATURE_ORDER = ['inspect', 'safety', 'snapshot', 'timeline', 'automations'];
 
 // --- Feature Definitions ---
 const FEATURES = {
@@ -18,20 +18,140 @@ const FEATURES = {
     snapshot:    { id: 'snapshot',    name: 'Snapshot',    fullName: 'modcore Snapshot',    url: 'src/html/snapshot.html',      icon: '../../public/icons/svg/host.svg'    },
     timeline:    { id: 'timeline',    name: 'Timeline',    fullName: 'modcore Timeline',    url: 'src/html/timeline.html',      icon: '../../public/icons/svg/clock.svg'   },
     automations: { id: 'automations', name: 'Automations', fullName: 'modcore Automations', url: 'src/html/automations.html',   icon: '../../public/icons/svg/rules.svg'   },
-    notes:       { id: 'notes',       name: 'Notes',       fullName: 'Extension Notes',     url: 'src/html/notes.html',         icon: '../../public/icons/svg/edit.svg'    }
 };
-
-// --- Install Source Detection ---
-function isSideloaded() {
-    try {
-        return !chrome.runtime.getManifest().update_url;
-    } catch {
-        return false;
-    }
-}
 
 // --- CSS ---
 const DISCOVERY_CSS = `
+    /* ── Self-contained design tokens (no external variables.css needed) ── */
+    .modcore-discovery-ui,
+    .modcore-discovery-ui * {
+        --font-sans: 'modcore-inter-font-custom', -apple-system, BlinkMacSystemFont,
+            'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans',
+            'Helvetica Neue', sans-serif;
+        --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+
+        /* Typography scale */
+        --text-headline-sm: 18px;
+        --text-title-lg:    17px;
+        --text-title-md:    15px;
+        --text-body-lg:     14px;
+        --text-body-md:     13px;
+        --text-body-sm:     12px;
+        --text-label-lg:    12px;
+        --text-label-md:    11px;
+        --leading-normal:   1.5;
+        --weight-normal:    400;
+        --weight-medium:    500;
+        --weight-semibold:  600;
+        --weight-bold:      700;
+
+        /* Spacing */
+        --space-1:  4px;
+        --space-2:  8px;
+        --space-3:  12px;
+        --space-4:  16px;
+        --space-5:  20px;
+        --space-6:  24px;
+        --space-8:  32px;
+
+        /* Border & radius */
+        --border-width: 1px;
+        --radius-sm:   10px;
+        --radius-md:   12px;
+        --radius-lg:   16px;
+        --radius-xl:   20px;
+        --radius-2xl:  24px;
+        --radius-full: 9999px;
+
+        /* Transitions */
+        --ease-standard:  cubic-bezier(0.2, 0.8, 0.2, 1);
+        --ease-bounce:    cubic-bezier(0.34, 1.56, 0.64, 1);
+        --duration-fast:   160ms;
+        --duration-normal: 280ms;
+        --duration-slow:   400ms;
+        --transition-fast:   160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+        --transition-normal: 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+
+        /* Shadows */
+        --shadow-sm: none;
+
+        /* Light mode colours */
+        --color-bg:               #ffffff;
+        --color-surface:          #ffffff;
+        --color-surface-hover:    #f8f9fc;
+        --color-surface-selected: #e3eafd;
+        --color-surface-low:      #ffffff;
+        --color-surface-mid:      #f8f9fc;
+        --color-surface-high:     #e6eaf0;
+        --color-surface-highest:  #e6eaf0;
+        --color-border:           #e6eaf0;
+        --color-border-strong:    #c9d1dc;
+        --color-text-primary:     #121317;
+        --color-text-secondary:   #45474d;
+        --color-text-muted:       #6a6e7a;
+        --color-primary:          #0b57d0;
+        --color-primary-hover:    #0944a8;
+        --color-primary-on:       #ffffff;
+        --color-primary-container:rgba(11, 87, 208, 0.10);
+        --color-primary-rgb:      11, 87, 208;
+        --color-danger:           #d93025;
+        --color-danger-container: rgba(217, 48, 37, 0.10);
+        --color-danger-rgb:       217, 48, 37;
+        --color-success:          #1e8e3e;
+        --color-success-container:rgba(30, 142, 62, 0.10);
+        --color-warning:          #f9ab00;
+        --color-warning-container:rgba(249, 171, 0, 0.10);
+        --color-warning-rgb:      249, 171, 0;
+        --color-info-container:   rgba(11, 87, 208, 0.10);
+        --color-focus-ring:       rgba(11, 87, 208, 0.30);
+        --color-backdrop:         rgba(0, 0, 0, 0.40);
+        --color-modal-bg:         #ffffff;
+        --color-feedback-bg:      rgba(11, 87, 208, 0.06);
+        --color-feedback-border:  rgba(11, 87, 208, 0.20);
+        --color-feedback-text:    #0b57d0;
+        --filter-icon:            invert(0%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(0%) contrast(100%);
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .modcore-discovery-ui,
+        .modcore-discovery-ui * {
+            --color-bg:               #121317;
+            --color-surface:          #121317;
+            --color-surface-hover:    #18191d;
+            --color-surface-selected: #1c2d45;
+            --color-surface-low:      #121317;
+            --color-surface-mid:      #121317;
+            --color-surface-high:     #18191d;
+            --color-surface-highest:  #2f3034;
+            --color-border:           #2f3034;
+            --color-border-strong:    #3d4046;
+            --color-text-primary:     #f8f9fc;
+            --color-text-secondary:   #b2bbc5;
+            --color-text-muted:       #7a8090;
+            --color-primary:          #a8c7fa;
+            --color-primary-hover:    #c4d8fb;
+            --color-primary-on:       #062e6f;
+            --color-primary-container:rgba(168, 199, 250, 0.15);
+            --color-primary-rgb:      168, 199, 250;
+            --color-danger:           #f28b82;
+            --color-danger-container: rgba(242, 139, 130, 0.15);
+            --color-danger-rgb:       242, 139, 130;
+            --color-success:          #81c995;
+            --color-success-container:rgba(129, 201, 149, 0.15);
+            --color-warning:          #fdd663;
+            --color-warning-container:rgba(253, 214, 99, 0.15);
+            --color-warning-rgb:      253, 214, 99;
+            --color-info-container:   rgba(168, 199, 250, 0.15);
+            --color-focus-ring:       rgba(168, 199, 250, 0.30);
+            --color-backdrop:         rgba(0, 0, 0, 0.75);
+            --color-modal-bg:         #18191d;
+            --color-feedback-bg:      rgba(168, 199, 250, 0.08);
+            --color-feedback-border:  rgba(168, 199, 250, 0.20);
+            --color-feedback-text:    #a8c7fa;
+            --filter-icon:            invert(100%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%);
+        }
+    }
+
     .modcore-discovery-ui,
     .modcore-discovery-ui *,
     .modcore-discovery-ui button,
@@ -717,10 +837,11 @@ const DISCOVERY_CSS = `
 // --- Style Injection ---
 function injectStyles() {
     if (document.getElementById('modcore-discovery-styles')) return;
+    const target = document.head || document.documentElement;
     const style = document.createElement('style');
     style.id = 'modcore-discovery-styles';
     style.textContent = DISCOVERY_CSS;
-    document.head.appendChild(style);
+    target.appendChild(style);
 }
 
 // --- Storage ---
@@ -897,6 +1018,7 @@ function createFeatureItem(featureId, position, { isReordering = false } = {}) {
             'href':            isReordering ? '#' : feature.url,
             'draggable':       isReordering ? 'true' : 'false',
             'tabindex':        '0',
+            'role':            'listitem',
             'style':           `animation-delay: ${(position - 1) * 35}ms`
         },
         children: [iconWrapper, el('span', { className: 'mc-label', text: feature.name })]
@@ -1051,11 +1173,12 @@ function createHelpSheet() {
 
 // --- Close Discovery ---
 function closeDiscovery(overlay) {
+    if (!overlay) return;
     const trigger = document.getElementById('modcore-discovery-trigger');
     overlay.classList.remove('open');
 
     const cleanup = () => {
-        if (overlay.parentNode) overlay.remove();
+        overlay.parentNode?.removeChild(overlay);
         if (trigger) {
             trigger.classList.remove('active');
             trigger.setAttribute('aria-expanded', 'false');
@@ -1073,7 +1196,7 @@ function closeDiscovery(overlay) {
 }
 
 // --- Discovery Panel ---
-function createDiscoveryPanel(data, { sideloaded } = {}) {
+function createDiscoveryPanel(data) {
     let isReordering  = false;
     let draggedItem   = null;
     let swapCandidate = null;
@@ -1097,18 +1220,15 @@ function createDiscoveryPanel(data, { sideloaded } = {}) {
     // ── Header ─────────────────────────────────────────────────────
     const title = el('h3', { text: 'Discovery', attrs: { id: 'modcore-discovery-title' } });
 
-    let updateBtn = null;
-    if (sideloaded) {
-        updateBtn = el('button', {
-            className: 'mc-icon-btn mc-update-btn',
-            attrs: {
-                'aria-label': 'Check for updates',
-                'title':      'Check for updates',
-                type:         'button'
-            },
-            children: [makeImg('../../public/icons/svg/refresh.svg')]
-        });
-    }
+    const updateBtn = el('button', {
+        className: 'mc-icon-btn mc-update-btn',
+        attrs: {
+            'aria-label': 'Check for updates',
+            'title':      'Check for updates',
+            type:         'button'
+        },
+        children: [makeImg('../../public/icons/svg/refresh.svg')]
+    });
 
     const reorderBtn = el('button', {
         className: 'mc-icon-btn',
@@ -1134,7 +1254,7 @@ function createDiscoveryPanel(data, { sideloaded } = {}) {
     });
 
     const headerActions = el('div', { className: 'mc-header-actions' });
-    if (updateBtn) headerActions.appendChild(updateBtn);
+    headerActions.appendChild(updateBtn);
     headerActions.appendChild(reorderBtn);
     headerActions.appendChild(helpBtn);
 
@@ -1148,19 +1268,19 @@ function createDiscoveryPanel(data, { sideloaded } = {}) {
     panel.appendChild(statusBanner);
 
     // ── Reorder Bar ────────────────────────────────────────────────
+    const reorderDoneBtn = el('button', { className: 'mc-reorder-done-btn', text: 'Done', attrs: { type: 'button' } });
     const reorderBar = el('div', {
         className: 'mc-reorder-bar',
         attrs: { 'aria-live': 'polite' },
         children: [
             el('span', { className: 'mc-reorder-bar-hint', text: 'Drag to reorder, or tap two items to swap' }),
-            el('button', { className: 'mc-reorder-done-btn', text: 'Done', attrs: { type: 'button' } })
+            reorderDoneBtn
         ]
     });
-    const reorderDoneBtn = reorderBar.querySelector('.mc-reorder-done-btn');
     panel.appendChild(reorderBar);
 
     // ── Feature Grid ───────────────────────────────────────────────
-    const grid = el('div', { className: 'mc-grid', attrs: { 'aria-label': 'Features' } });
+    const grid = el('div', { className: 'mc-grid', attrs: { role: 'list', 'aria-label': 'Features' } });
     panel.appendChild(grid);
 
     function renderFeatures() {
@@ -1266,26 +1386,21 @@ function createDiscoveryPanel(data, { sideloaded } = {}) {
     const helpSheet = createHelpSheet();
     panel.appendChild(helpSheet);
 
-    // ── Confirm Dialog (sideloaded update check) ───────────────────
-    let confirmDialogInstance = null;
-    if (updateBtn) {
-        confirmDialogInstance = createConfirmDialog({
-            title:        'Internet Connection Required',
-            body:         'Checking for updates requires a connection to the GitHub API. Continue?',
-            confirmLabel: 'Check now',
-            cancelLabel:  'Cancel',
-            iconSrc:      '../../public/icons/svg/refresh.svg',
-            onConfirm:    () => runVersionCheck(),
-            onCancel:     () => {}
-        });
-        panel.appendChild(confirmDialogInstance.dialog);
-        updateBtn.addEventListener('click', () => confirmDialogInstance.show());
-    }
+    // ── Confirm Dialog (update check) ──────────────────────────────
+    const confirmDialogInstance = createConfirmDialog({
+        title:        'Internet Connection Required',
+        body:         'Checking for updates requires a connection to the GitHub API. Continue?',
+        confirmLabel: 'Check now',
+        cancelLabel:  'Cancel',
+        iconSrc:      '../../public/icons/svg/refresh.svg',
+        onConfirm:    () => runVersionCheck(),
+        onCancel:     () => {}
+    });
+    panel.appendChild(confirmDialogInstance.dialog);
+    updateBtn.addEventListener('click', () => confirmDialogInstance.show());
 
     // ── Version Check ──────────────────────────────────────────────
     async function runVersionCheck() {
-        if (!updateBtn) return;
-
         updateBtn.disabled = true;
         updateBtn.classList.remove('outdated', 'up-to-date');
         updateBtn.classList.add('checking');
@@ -1397,7 +1512,6 @@ async function initDiscovery() {
 
     injectStyles();
 
-    const sideloaded  = isSideloaded();
     const dataPromise = getDiscoveryData();
 
     const trigger = createTrigger();
@@ -1415,7 +1529,7 @@ async function initDiscovery() {
         setTimeout(() => trigger.classList.remove('pulse'), 500);
 
         const data = await dataPromise;
-        overlay = createDiscoveryPanel(data, { sideloaded });
+        overlay = createDiscoveryPanel(data);
         document.body.appendChild(overlay);
 
         requestAnimationFrame(() => requestAnimationFrame(() => {

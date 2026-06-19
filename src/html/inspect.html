@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>modcore Inspect</title>
+    <title>Extension Conflicts — modcore EM</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="../../public/fonts/fonts.css">
@@ -12,143 +12,141 @@
 
     <header class="header">
         <div class="header-left">
-            <h1>Safety Center — Inspect</h1>
-            <div id="header-meta" class="header-meta" role="button" tabindex="-1" aria-expanded="false" aria-haspopup="dialog" aria-label="No previous scans">
-                <span class="meta-text">No previous scans found</span>
-                <span class="icon icon-history" aria-hidden="true"></span>
+            <div class="header-brand">
+                <span class="icon icon-shield" aria-hidden="true"></span>
+                <h1>Extension Conflicts</h1>
             </div>
+            <p class="header-subtitle">modcore Extension Manager</p>
         </div>
-        <div class="actions">
-            <button id="settingsButton" class="btn tertiary icon-btn" aria-label="Open settings">
+        <div id="summaryBar" class="summary-bar"></div>
+        <div class="header-actions">
+            <button id="settingsButton" class="btn icon-btn" aria-label="Settings">
                 <span class="icon icon-settings" aria-hidden="true"></span>
             </button>
         </div>
     </header>
 
     <main id="results" class="content-area" role="main" aria-live="polite" aria-busy="false">
-        <div id="initial-scan-screen" class="placeholder" style="display: none;">
-            <div class="illustration-container" aria-hidden="true">
-                <img src="../../public/icons/svg/shield-illustrations.svg" alt="" class="illustration illustration-shield">
-                <img src="../../public/icons/svg/scan-illustrations.svg" alt="" class="illustration illustration-scan" style="display: none;">
+        <div id="initial-screen" class="initial-screen">
+            <div class="initial-illustration" aria-hidden="true">
+                <div class="shield-ring"></div>
+                <div class="shield-core">
+                    <span class="icon icon-shield-large" aria-hidden="true"></span>
+                </div>
             </div>
-            <div class="placeholder-title">Check Your Extensions</div>
-            <p class="placeholder-text">Scan your installed extensions to identify conflicts and deprecated items, and get recommendations for a safer browsing experience.</p>
-            <p class="placeholder-text">An internet connection is required. This allows modcore Inspect to verify the latest compatibility and safety data.<br>
-                <a href="https://sites.google.com/view/modcore-em-help/manage-extensions/trustguard/extension-conflict-scanner" target="_blank" rel="noopener">Learn more</a>
-            </p>
-            <button id="startScanButton" class="btn primary">Start Scan</button>
+            <h2 class="initial-title">Find Extension Conflicts</h2>
+            <p class="initial-desc">Scan your installed extensions to identify conflicting groups that may cause slowdowns, broken sites, or unexpected behavior.</p>
+            <div class="initial-meta">
+                <span class="icon icon-info" aria-hidden="true"></span>
+                <span>An internet connection is required to fetch the latest compatibility data.</span>
+            </div>
+            <button id="startScanButton" class="btn primary scan-btn">
+                <span class="icon icon-scan" aria-hidden="true"></span>
+                Scan Now
+            </button>
         </div>
     </main>
 
-    <div id="loading-spinner" class="loading-spinner" role="status" aria-label="Scanning extensions…"></div>
+    <div id="loading" class="loading-overlay" role="status" aria-label="Scanning extensions…">
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Checking for conflicts…</p>
+    </div>
 
     <footer id="footer" class="footer" role="contentinfo"></footer>
 
     <div id="liveRegion" class="sr-only" aria-live="polite" aria-atomic="true"></div>
-
-    <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
-
-    <!-- Scan History Popover -->
-    <div id="scanHistoryPopover" class="popover" role="dialog" aria-label="Scan history" aria-modal="false">
-        <div class="popover-header">
-            <h2 class="popover-title">Recent Scans</h2>
-            <button id="closeHistoryPopover" class="btn tertiary icon-btn" aria-label="Close scan history">
-                <span class="icon icon-close" aria-hidden="true"></span>
-            </button>
-        </div>
-        <div id="scanHistoryList" class="scan-history-list" role="list"></div>
-        <p class="popover-footer">
-            <a href="https://sites.google.com/view/modcore-em-help/manage-extensions/trustguard/extension-conflict-scanner#h.alalewy3l1o7" target="_blank" rel="noopener noreferrer">
-                About Scan History
-            </a>
-        </p>
-    </div>
 
     <!-- Settings Modal -->
     <div id="settingsModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
         <div class="modal-content settings-modal">
             <div class="modal-header">
                 <h2 id="settingsTitle">Settings</h2>
-                <button id="closeSettingsModal" class="btn tertiary icon-btn" aria-label="Close settings">
+                <button id="closeSettingsModal" class="btn icon-btn" aria-label="Close settings">
                     <span class="icon icon-close" aria-hidden="true"></span>
                 </button>
             </div>
-            <div class="settings-content">
-                <section class="settings-section" aria-labelledby="scanPrefsTitle">
-                    <h3 id="scanPrefsTitle" class="settings-section-title">
-                        <span class="icon icon-shield" aria-hidden="true"></span>
-                        Scanning
-                    </h3>
-                    <div class="setting-item">
-                        <div class="setting-info">
-                            <label for="autoScanSetting">Scan automatically on open</label>
-                            <p class="setting-description" id="autoScanDesc">Only runs if previous data has expired based on the cache duration below.</p>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="autoScanSetting" aria-describedby="autoScanDesc">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                </section>
-
-                <section class="settings-section" aria-labelledby="cacheTitle">
-                    <h3 id="cacheTitle" class="settings-section-title">
-                        <span class="icon icon-history" aria-hidden="true"></span>
-                        Cache
-                    </h3>
-                    <div class="setting-item">
-                        <div class="setting-info">
-                            <label for="cacheDurationSetting">Cache duration</label>
-                            <p class="setting-description" id="cacheDurationDesc">How long to keep scan data before requiring a fresh fetch.</p>
-                        </div>
-                        <select id="cacheDurationSetting" class="setting-select" aria-describedby="cacheDurationDesc">
-                            <option value="6">6 hours</option>
-                            <option value="12">12 hours</option>
-                            <option value="24" selected>24 hours</option>
-                            <option value="48">48 hours</option>
-                        </select>
-                    </div>
-                    <div class="setting-item">
-                        <div class="setting-info">
-                            <label>Refresh conflict data</label>
-                            <p class="setting-description">Download the latest extension compatibility data from the server.</p>
-                        </div>
-                        <button id="refreshCacheButton" class="btn">Refresh Now</button>
-                    </div>
-                </section>
+            <div class="settings-tabs" role="tablist">
+                <button class="settings-tab active" role="tab" aria-selected="true" aria-controls="settingsGeneral" id="tabGeneral">General</button>
+                <button class="settings-tab" role="tab" aria-selected="false" aria-controls="settingsIgnored" id="tabIgnored">Ignored</button>
             </div>
-        </div>
-    </div>
-
-    <!-- Fix All Confirmation Modal -->
-    <div id="fixAllModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="fixAllTitle" aria-describedby="fixAllMessage">
-        <div class="modal-content fix-all-modal-content">
-            <div class="modal-icon" aria-hidden="true">
-                <span class="icon icon-warning-large"></span>
-            </div>
-            <h2 id="fixAllTitle">Fix All Issues?</h2>
-            <p id="fixAllMessage">Review the actions below before confirming. This will disable conflicting extensions (keeping one per group) and all deprecated extensions.</p>
-            <div class="fix-all-summary" id="fixAllSummary" role="list" aria-label="Actions to be performed"></div>
-            <div class="modal-actions">
-                <button id="cancelFixAllButton" class="btn tertiary">Cancel</button>
-                <button id="confirmFixAllButton" class="btn primary">Fix All Issues</button>
+            <div class="settings-body">
+                <div id="settingsGeneral" class="settings-panel active" role="tabpanel" aria-labelledby="tabGeneral">
+                    <section class="settings-section">
+                        <h3 class="settings-section-title">
+                            <span class="icon icon-shield" aria-hidden="true"></span>
+                            Scanning
+                        </h3>
+                        <div class="setting-row">
+                            <div class="setting-labels">
+                                <label for="autoScanSetting">Auto-scan on open</label>
+                                <p class="setting-hint">Automatically scan when you open this page if cached data is still valid.</p>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="autoScanSetting">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </section>
+                    <section class="settings-section">
+                        <h3 class="settings-section-title">
+                            <span class="icon icon-settings" aria-hidden="true"></span>
+                            Cache
+                        </h3>
+                        <div class="setting-row">
+                            <div class="setting-labels">
+                                <label for="cacheDurationSetting">Cache duration</label>
+                                <p class="setting-hint">How long to keep compatibility data before refreshing from the server.</p>
+                            </div>
+                            <select id="cacheDurationSetting" class="setting-select">
+                                <option value="6">6 hours</option>
+                                <option value="12">12 hours</option>
+                                <option value="24" selected>24 hours</option>
+                                <option value="48">48 hours</option>
+                            </select>
+                        </div>
+                        <div class="setting-row">
+                            <div class="setting-labels">
+                                <label>Refresh data</label>
+                                <p class="setting-hint">Clear cache and download the latest compatibility data immediately.</p>
+                            </div>
+                            <button id="refreshCacheButton" class="btn">Refresh Now</button>
+                        </div>
+                    </section>
+                </div>
+                <div id="settingsIgnored" class="settings-panel" role="tabpanel" aria-labelledby="tabIgnored">
+                    <section class="settings-section">
+                        <h3 class="settings-section-title">
+                            <span class="icon icon-info" aria-hidden="true"></span>
+                            Ignored Extensions
+                        </h3>
+                        <p class="setting-hint" style="margin-bottom: var(--space-3);">
+                            These extensions are excluded from conflict detection. They will not appear in scan results even if they belong to a conflicting category.
+                        </p>
+                        <div id="ignoredListContainer" class="ignored-list-container">
+                            <p class="setting-hint empty-ignored">No extensions are currently ignored.</p>
+                        </div>
+                    </section>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- Confirmation Modal -->
-    <div id="confirmationModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalMessage">
+    <div id="confirmModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
         <div class="modal-content">
-            <h2 id="modalTitle">Confirm Action</h2>
-            <p id="modalMessage">Are you sure you want to proceed?</p>
+            <div class="modal-icon" aria-hidden="true">
+                <span class="icon icon-warning-large"></span>
+            </div>
+            <h2 id="confirmTitle">Confirm Action</h2>
+            <p id="confirmMessage">Are you sure?</p>
             <div class="modal-actions">
-                <button id="cancelButton" class="btn tertiary">Cancel</button>
-                <button id="confirmButton" class="btn primary">Confirm</button>
+                <button id="confirmCancel" class="btn">Cancel</button>
+                <button id="confirmAction" class="btn primary">Confirm</button>
             </div>
         </div>
     </div>
 
+    <script src="../js/features/modcore-status.js"></script>
     <script src="../js/core/inspect.js"></script>
-    <script src="../js/features/report.js"></script>
 </body>
 </html>

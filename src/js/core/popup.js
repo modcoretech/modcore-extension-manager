@@ -694,7 +694,7 @@ export function toggleExtension(extensionId, enable, buttonElement) {
 }
 
 export function openDetailsPage(extensionId) {
-    chrome.tabs.create({ url: `src/html/details.html?id=${extensionId}` });
+    chrome.tabs.create({ url: `src/html/safety-center.html?id=${extensionId}` });
 }
 
 export async function confirmAndDeleteExtension(extensionId, extensionName) {

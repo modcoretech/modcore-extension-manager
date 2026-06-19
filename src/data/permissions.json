@@ -11,8 +11,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/alarms/",
       "mv3Compatible": true,
-      "commonUseCases": ["Background syncing", "Periodic data updates", "Scheduled notifications"],
-      "mitigationTips": ["Use reasonable intervals to avoid excessive resource usage", "Clear alarms when extension is disabled"]
+      "commonUseCases": ["Background syncing", "Periodic data updates", "Scheduled notifications"]
+
     },
     "bookmarks": {
       "name": "bookmarks",
@@ -23,8 +23,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/bookmarks/",
       "mv3Compatible": true,
-      "commonUseCases": ["Bookmark managers", "Bookmark sync tools", "Quick access tools"],
-      "mitigationTips": ["Backup bookmarks before making bulk changes", "Confirm destructive actions with users"]
+      "commonUseCases": ["Bookmark managers", "Bookmark sync tools", "Quick access tools"]
+
     },
     "browsingData": {
       "name": "browsingData",
@@ -35,8 +35,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/browsingData/",
       "mv3Compatible": true,
-      "commonUseCases": ["Privacy cleaners", "Session managers", "Data removal tools"],
-      "mitigationTips": ["Always confirm with user before clearing data", "Provide granular options for what to clear", "Show clear warnings about irreversible actions"]
+      "commonUseCases": ["Privacy cleaners", "Session managers", "Data removal tools"]
+
     },
     "contentSettings": {
       "name": "contentSettings",
@@ -47,8 +47,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/contentSettings/",
       "mv3Compatible": true,
-      "commonUseCases": ["Privacy controls", "Security enhancements", "Parental controls"],
-      "mitigationTips": ["Respect user preferences", "Provide clear UI for settings changes", "Allow easy reset to defaults"]
+      "commonUseCases": ["Privacy controls", "Security enhancements", "Parental controls"]
+
     },
     "contextMenus": {
       "name": "contextMenus",
@@ -59,8 +59,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/contextMenus/",
       "mv3Compatible": true,
-      "commonUseCases": ["Quick actions", "Text processing", "Link handling"],
-      "mitigationTips": ["Don't overcrowd the context menu", "Group related items into submenus", "Use clear, concise labels"]
+      "commonUseCases": ["Quick actions", "Text processing", "Link handling"]
+
     },
     "cookies": {
       "name": "cookies",
@@ -71,8 +71,8 @@
       "requiresHostPermission": true,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/cookies/",
       "mv3Compatible": true,
-      "commonUseCases": ["Session managers", "Cookie editors", "Multi-account tools"],
-      "mitigationTips": ["Only access cookies for necessary domains", "Secure cookie storage if caching locally", "Respect SameSite and Secure attributes"]
+      "commonUseCases": ["Session managers", "Cookie editors", "Multi-account tools"]
+
     },
     "debugger": {
       "name": "debugger",
@@ -83,8 +83,8 @@
       "requiresHostPermission": true,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/debugger/",
       "mv3Compatible": true,
-      "commonUseCases": ["Developer tools", "Page automation", "Advanced debugging"],
-      "mitigationTips": ["Only use when absolutely necessary", "Clearly inform users of the power this grants", "Implement strict access controls", "Consider less powerful alternatives first"]
+      "commonUseCases": ["Developer tools", "Page automation", "Advanced debugging"]
+
     },
     "declarativeContent": {
       "name": "declarativeContent",
@@ -95,8 +95,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/declarativeContent/",
       "mv3Compatible": true,
-      "commonUseCases": ["Conditional UI", "Page-specific features", "Content-aware tools"],
-      "mitigationTips": ["Use specific conditions to minimize performance impact", "Combine with activeTab for content access when needed"]
+      "commonUseCases": ["Conditional UI", "Page-specific features", "Content-aware tools"]
+
     },
     "declarativeNetRequest": {
       "name": "declarativeNetRequest",
@@ -107,8 +107,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest/",
       "mv3Compatible": true,
-      "commonUseCases": ["Ad blockers", "Privacy filters", "Request modification"],
-      "mitigationTips": ["Keep rule sets reasonable in size", "Test thoroughly to avoid breaking sites", "Provide user controls for rule enablement"]
+      "commonUseCases": ["Ad blockers", "Privacy filters", "Request modification"]
+
     },
     "declarativeNetRequestWithHostAccess": {
       "name": "declarativeNetRequestWithHostAccess",
@@ -119,8 +119,8 @@
       "requiresHostPermission": true,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequestWithHostAccess/",
       "mv3Compatible": true,
-      "commonUseCases": ["Advanced ad blockers", "Request modification", "Header injection"],
-      "mitigationTips": ["Validate all redirects carefully", "Avoid modifying security headers", "Implement strict origin checks"]
+      "commonUseCases": ["Advanced ad blockers", "Request modification", "Header injection"]
+
     },
     "desktopCapture": {
       "name": "desktopCapture",
@@ -131,8 +131,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/desktopCapture/",
       "mv3Compatible": true,
-      "commonUseCases": ["Screen recorders", "Video conferencing", "Screenshot tools"],
-      "mitigationTips": ["Always show the native picker UI", "Clearly indicate when recording is active", "Provide easy stop controls", "Handle stream cleanup properly"]
+      "commonUseCases": ["Screen recorders", "Video conferencing", "Screenshot tools"]
+
     },
     "downloads": {
       "name": "downloads",
@@ -143,8 +143,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/downloads/",
       "mv3Compatible": true,
-      "commonUseCases": ["Download managers", "Bulk downloaders", "Download organizers"],
-      "mitigationTips": ["Validate download URLs", "Warn users before downloading multiple files", "Respect user's download folder preferences"]
+      "commonUseCases": ["Download managers", "Bulk downloaders", "Download organizers"]
+
     },
     "geolocation": {
       "name": "geolocation",
@@ -155,8 +155,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/develop/concepts/geolocation",
       "mv3Compatible": true,
-      "commonUseCases": ["Location-based services", "Maps integration", "Local search"],
-      "mitigationTips": ["Only request location when needed", "Explain why location is required", "Provide option to manually enter location", "Handle permission denials gracefully"]
+      "commonUseCases": ["Location-based services", "Maps integration", "Local search"]
+
     },
     "history": {
       "name": "history",
@@ -167,8 +167,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/history/",
       "mv3Compatible": true,
-      "commonUseCases": ["History managers", "Analytics tools", "Privacy cleaners"],
-      "mitigationTips": ["Minimize history queries", "Never transmit history data externally without explicit consent", "Provide clear privacy policies", "Allow users to disable history access"]
+      "commonUseCases": ["History managers", "Analytics tools", "Privacy cleaners"]
+
     },
     "identity": {
       "name": "identity",
@@ -179,8 +179,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/identity/",
       "mv3Compatible": true,
-      "commonUseCases": ["Google service integration", "User authentication", "Cloud sync"],
-      "mitigationTips": ["Request minimal OAuth scopes", "Securely store tokens", "Implement proper token refresh", "Handle authentication failures gracefully"]
+      "commonUseCases": ["Google service integration", "User authentication", "Cloud sync"]
+
     },
     "management": {
       "name": "management",
@@ -191,8 +191,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/management/",
       "mv3Compatible": true,
-      "commonUseCases": ["Extension managers", "Security scanners", "Enterprise tools"],
-      "mitigationTips": ["This permission is required for modcore EM to function", "Be cautious when enabling/disabling other extensions", "Verify actions with users before execution"]
+      "commonUseCases": ["Extension managers", "Security scanners", "Enterprise tools"]
+
     },
     "nativeMessaging": {
       "name": "nativeMessaging",
@@ -203,8 +203,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/nativeMessaging/",
       "mv3Compatible": true,
-      "commonUseCases": ["Password managers", "VPN clients", "System integration"],
-      "mitigationTips": ["Only communicate with trusted native hosts", "Validate all messages from native apps", "Implement message authentication", "Handle connection failures gracefully"]
+      "commonUseCases": ["Password managers", "VPN clients", "System integration"]
+
     },
     "notifications": {
       "name": "notifications",
@@ -215,8 +215,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/notifications/",
       "mv3Compatible": true,
-      "commonUseCases": ["Alerts", "Progress updates", "Reminders"],
-      "mitigationTips": ["Don't spam users with notifications", "Use appropriate notification priorities", "Always include relevant context", "Respect user's Do Not Disturb settings"]
+      "commonUseCases": ["Alerts", "Progress updates", "Reminders"]
+
     },
     "proxy": {
       "name": "proxy",
@@ -227,8 +227,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/proxy/",
       "mv3Compatible": true,
-      "commonUseCases": ["VPN extensions", "Proxy managers", "Network routing"],
-      "mitigationTips": ["Clearly explain proxy changes to users", "Provide easy way to disable proxy", "Handle proxy authentication securely", "Test fallback for proxy failures"]
+      "commonUseCases": ["VPN extensions", "Proxy managers", "Network routing"]
+
     },
     "scripting": {
       "name": "scripting",
@@ -239,8 +239,8 @@
       "requiresHostPermission": true,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/scripting/",
       "mv3Compatible": true,
-      "commonUseCases": ["Content blockers", "Page modifiers", "Automation tools", "UI enhancements"],
-      "mitigationTips": ["Only inject on necessary pages", "Use specific host permissions", "Minimize injected code size", "Avoid interfering with page functionality", "Clean up injected content when done"]
+      "commonUseCases": ["Content blockers", "Page modifiers", "Automation tools", "UI enhancements"]
+
     },
     "storage": {
       "name": "storage",
@@ -251,8 +251,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/storage/",
       "mv3Compatible": true,
-      "commonUseCases": ["Settings persistence", "Data caching", "Cross-device sync"],
-      "mitigationTips": ["Don't store sensitive data unencrypted", "Implement data migration strategies", "Handle storage quota exceeded errors", "Use appropriate storage area (local vs sync)"]
+      "commonUseCases": ["Settings persistence", "Data caching", "Cross-device sync"]
+
     },
     "tabs": {
       "name": "tabs",
@@ -263,8 +263,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/tabs/",
       "mv3Compatible": true,
-      "commonUseCases": ["Tab managers", "Session savers", "Productivity tools"],
-      "mitigationTips": ["Respect user's tab organization", "Don't close tabs without confirmation", "Handle tab permission errors gracefully", "Use activeTab for temporary access"]
+      "commonUseCases": ["Tab managers", "Session savers", "Productivity tools"]
+
     },
     "newTabPageOverride": {
       "name": "newTabPageOverride",
@@ -275,8 +275,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/develop/ui/override-chrome-pages",
       "mv3Compatible": true,
-      "commonUseCases": ["Custom new tab pages", "Dashboards", "Quick access tools"],
-      "mitigationTips": ["Provide useful content on the new tab page", "Allow users to easily revert to default if desired", "Keep the new tab page lightweight for performance"]
+      "commonUseCases": ["Custom new tab pages", "Dashboards", "Quick access tools"]
+
     },
     "webNavigation": {
       "name": "webNavigation",
@@ -287,8 +287,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/webNavigation/",
       "mv3Compatible": true,
-      "commonUseCases": ["Page load monitors", "Navigation tracking", "Timing analysis"],
-      "mitigationTips": ["Filter events to necessary URLs", "Be aware this reveals browsing patterns", "Clean up event listeners when not needed", "Handle frame hierarchy correctly"]
+      "commonUseCases": ["Page load monitors", "Navigation tracking", "Timing analysis"]
+
     },
     "webRequest": {
       "name": "webRequest",
@@ -299,8 +299,8 @@
       "requiresHostPermission": true,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/webRequest/",
       "mv3Compatible": true,
-      "commonUseCases": ["Ad blockers", "Privacy tools", "Request modifiers", "Security scanners"],
-      "mitigationTips": ["Consider declarativeNetRequest for MV3", "Minimize blocking operations", "Handle large numbers of requests efficiently", "Be careful with header modifications"]
+      "commonUseCases": ["Ad blockers", "Privacy tools", "Request modifiers", "Security scanners"]
+
     },
     "webRequestBlocking": {
       "name": "webRequestBlocking",
@@ -311,8 +311,8 @@
       "requiresHostPermission": true,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/webRequest/#blocking",
       "mv3Compatible": false,
-      "commonUseCases": ["Ad blockers", "URL redirection", "Critical request modification"],
-      "mitigationTips": ["Use declarativeNetRequest when possible in MV3", "Minimize blocking time to avoid performance issues", "Handle edge cases to prevent breaking sites"]
+      "commonUseCases": ["Ad blockers", "URL redirection", "Critical request modification"]
+
     },
     "webRequestAuthProvider": {
       "name": "webRequestAuthProvider",
@@ -323,8 +323,8 @@
       "requiresHostPermission": true,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/webRequest?#permissions",
       "mv3Compatible": true,
-      "commonUseCases": ["Password managers", "Custom auth flows", "Enterprise authentication"],
-      "mitigationTips": ["Securely handle credentials", "Only provide credentials for necessary domains", "Implement proper error handling for auth failures"]
+      "commonUseCases": ["Password managers", "Custom auth flows", "Enterprise authentication"]
+
     },
     "activeTab": {
       "name": "activeTab",
@@ -335,8 +335,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/develop/concepts/activeTab/",
       "mv3Compatible": true,
-      "commonUseCases": ["One-time page modifications", "Content extraction", "Quick actions"],
-      "mitigationTips": ["This is the safest way to access page content", "Combine with scripting for content modifications", "Access expires when navigation occurs", "Clearly indicate when extension is active"]
+      "commonUseCases": ["One-time page modifications", "Content extraction", "Quick actions"]
+
     },
     "background": {
       "name": "background",
@@ -347,8 +347,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/mv3/service_workers/",
       "mv3Compatible": true,
-      "commonUseCases": ["Event handling", "Background processing", "State management"],
-      "mitigationTips": ["Keep service workers lean", "Use offscreen documents for DOM APIs", "Implement proper event listener registration", "Handle service worker lifecycle correctly"]
+      "commonUseCases": ["Event handling", "Background processing", "State management"]
+
     },
     "clipboardRead": {
       "name": "clipboardRead",
@@ -359,8 +359,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/clipboard/",
       "mv3Compatible": true,
-      "commonUseCases": ["Clipboard managers", "Paste assistants", "Content processors"],
-      "mitigationTips": ["Only read clipboard when user initiates action", "Handle permission denials gracefully", "Don't store clipboard content unnecessarily", "Clear sensitive clipboard data promptly"]
+      "commonUseCases": ["Clipboard managers", "Paste assistants", "Content processors"]
+
     },
     "clipboardWrite": {
       "name": "clipboardWrite",
@@ -371,8 +371,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/clipboard/",
       "mv3Compatible": true,
-      "commonUseCases": ["Copy buttons", "Share features", "Code snippets"],
-      "mitigationTips": ["Provide clear feedback when copying", "Handle write failures gracefully", "Respect user's clipboard content", "Support multiple clipboard formats when appropriate"]
+      "commonUseCases": ["Copy buttons", "Share features", "Code snippets"]
+
     },
     "host": {
       "name": "host",
@@ -384,7 +384,7 @@
       "chromeLink": "https://developer.chrome.com/docs/extensions/mv3/match_patterns/",
       "mv3Compatible": true,
       "commonUseCases": ["Site-specific enhancements", "Content blockers", "Form fillers", "Site integrations"],
-      "mitigationTips": ["Use specific patterns instead of broad wildcards", "Avoid <all_urls> unless absolutely necessary", "Use activeTab for temporary access", "Clearly explain why each site is needed", "Consider optional permissions for additional sites"],
+      
       "riskVariations": {
         "all_urls": "Grants access to ALL websites - highest risk",
         "broad_wildcard": "Access to many sites via wildcard patterns - high risk",
@@ -401,8 +401,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/storage/#unlimited-storage-and-service-workers",
       "mv3Compatible": true,
-      "commonUseCases": ["Large data caching", "Offline storage", "Media libraries"],
-      "mitigationTips": ["Still implement reasonable storage limits", "Provide data cleanup options", "Monitor actual storage usage", "Consider IndexedDB for very large data"]
+      "commonUseCases": ["Large data caching", "Offline storage", "Media libraries"]
+
     },
     "sidePanel": {
       "name": "sidePanel",
@@ -413,8 +413,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/sidePanel/",
       "mv3Compatible": true,
-      "commonUseCases": ["Persistent tools", "Note-taking", "Reference panels", "Companion apps"],
-      "mitigationTips": ["Respect user's screen space", "Make panel content useful when open", "Handle panel open/close events", "Consider responsive design for narrow width"]
+      "commonUseCases": ["Persistent tools", "Note-taking", "Reference panels", "Companion apps"]
+
     },
     "offscreen": {
       "name": "offscreen",
@@ -425,8 +425,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/offscreen/",
       "mv3Compatible": true,
-      "commonUseCases": ["DOM parsing", "Audio playback", "Clipboard access", "Printing"],
-      "mitigationTips": ["Close offscreen documents when not needed", "Minimize resource usage", "Handle document lifecycle properly", "Use only when service worker APIs are insufficient"]
+      "commonUseCases": ["DOM parsing", "Audio playback", "Clipboard access", "Printing"]
+
     },
     "userScripts": {
       "name": "userScripts",
@@ -437,8 +437,8 @@
       "requiresHostPermission": true,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/userScripts/",
       "mv3Compatible": true,
-      "commonUseCases": ["User customization", "User styles", "Site-specific fixes", "Automation"],
-      "mitigationTips": ["Validate user-provided scripts", "Run in isolated worlds", "Respect host permission boundaries", "Provide clear security warnings to users"]
+      "commonUseCases": ["User customization", "User styles", "Site-specific fixes", "Automation"]
+
     },
     "tabCapture": {
       "name": "tabCapture",
@@ -449,8 +449,8 @@
       "requiresHostPermission": true,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/tabCapture/",
       "mv3Compatible": true,
-      "commonUseCases": ["Tab recording", "Streaming", "Screenshots", "Video processing"],
-      "mitigationTips": ["Clearly indicate when capture is active", "Provide easy stop controls", "Handle stream cleanup properly", "Respect user's privacy expectations"]
+      "commonUseCases": ["Tab recording", "Streaming", "Screenshots", "Video processing"]
+
     },
     "tabGroups": {
       "name": "tabGroups",
@@ -461,8 +461,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/tabGroups/",
       "mv3Compatible": true,
-      "commonUseCases": ["Tab organizers", "Workspace managers", "Productivity tools"],
-      "mitigationTips": ["Respect user's existing groups", "Provide clear group naming", "Handle group collapse/expand appropriately", "Don't over-organize without user consent"]
+      "commonUseCases": ["Tab organizers", "Workspace managers", "Productivity tools"]
+
     },
     "topSites": {
       "name": "topSites",
@@ -473,8 +473,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/topSites/",
       "mv3Compatible": true,
-      "commonUseCases": ["New tab pages", "Quick access tools", "Analytics"],
-      "mitigationTips": ["This reveals browsing patterns - handle carefully", "Don't transmit this data externally", "Provide clear privacy policies", "Allow users to disable this feature"]
+      "commonUseCases": ["New tab pages", "Quick access tools", "Analytics"]
+
     },
     "sessions": {
       "name": "sessions",
@@ -485,8 +485,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/sessions/",
       "mv3Compatible": true,
-      "commonUseCases": ["Session managers", "Undo close features", "Crash recovery"],
-      "mitigationTips": ["Handle session data carefully", "Verify restoration actions", "Respect user's session privacy", "Provide clear restoration feedback"]
+      "commonUseCases": ["Session managers", "Undo close features", "Crash recovery"]
+
     },
     "readingList": {
       "name": "readingList",
@@ -497,8 +497,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/readingList/",
       "mv3Compatible": true,
-      "commonUseCases": ["Read-later tools", "Article savers", "Reading managers"],
-      "mitigationTips": ["Respect user's reading list organization", "Provide clear add/remove feedback", "Handle duplicate entries appropriately"]
+      "commonUseCases": ["Read-later tools", "Article savers", "Reading managers"]
+
     },
     "printerProvider": {
       "name": "printerProvider",
@@ -509,8 +509,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/printerProvider/",
       "mv3Compatible": true,
-      "commonUseCases": ["Cloud printing", "Virtual printers", "Network printing"],
-      "mitigationTips": ["Implement proper printer discovery", "Handle print job errors gracefully", "Respect print queue management", "Provide clear printer status information"]
+      "commonUseCases": ["Cloud printing", "Virtual printers", "Network printing"]
+
     },
     "printing": {
       "name": "printing",
@@ -521,8 +521,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/printing/",
       "mv3Compatible": true,
-      "commonUseCases": ["Automated printing", "Custom print workflows", "Receipt printing"],
-      "mitigationTips": ["Confirm print jobs with users", "Handle printer errors gracefully", "Respect user's default printer settings", "Provide print preview when possible"]
+      "commonUseCases": ["Automated printing", "Custom print workflows", "Receipt printing"]
+
     },
     "privacy": {
       "name": "privacy",
@@ -533,8 +533,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/privacy/",
       "mv3Compatible": true,
-      "commonUseCases": ["Privacy enhancers", "Security tools", "Enterprise policies"],
-      "mitigationTips": ["Clearly explain setting changes", "Provide easy restoration of defaults", "Respect user's privacy preferences", "Handle setting conflicts appropriately"]
+      "commonUseCases": ["Privacy enhancers", "Security tools", "Enterprise policies"]
+
     },
     "processes": {
       "name": "processes",
@@ -545,8 +545,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/processes/",
       "mv3Compatible": false,
-      "commonUseCases": ["Task managers", "Performance monitors", "System tools"],
-      "mitigationTips": ["Use process information responsibly", "Don't expose sensitive process details", "Handle process ID changes", "Minimize performance impact of monitoring"]
+      "commonUseCases": ["Task managers", "Performance monitors", "System tools"]
+
     },
     "system.cpu": {
       "name": "system.cpu",
@@ -557,8 +557,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/system_cpu/",
       "mv3Compatible": true,
-      "commonUseCases": ["System information", "Hardware detection", "Compatibility checks"],
-      "mitigationTips": ["This is read-only information", "Use for compatibility decisions", "Don't use for fingerprinting"]
+      "commonUseCases": ["System information", "Hardware detection", "Compatibility checks"]
+
     },
     "system.memory": {
       "name": "system.memory",
@@ -569,8 +569,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/system_memory/",
       "mv3Compatible": true,
-      "commonUseCases": ["Resource management", "Performance adaptation", "System monitors"],
-      "mitigationTips": ["Use memory info for optimization decisions", "Handle memory pressure gracefully", "Don't rely on exact memory values", "Respect system resources"]
+      "commonUseCases": ["Resource management", "Performance adaptation", "System monitors"]
+
     },
     "system.storage": {
       "name": "system.storage",
@@ -581,8 +581,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/system_storage/",
       "mv3Compatible": true,
-      "commonUseCases": ["Storage managers", "Download organizers", "System tools"],
-      "mitigationTips": ["Handle removable storage appropriately", "Respect storage privacy", "Provide clear storage information", "Handle storage changes dynamically"]
+      "commonUseCases": ["Storage managers", "Download organizers", "System tools"]
+
     },
     "system.display": {
       "name": "system.display",
@@ -593,8 +593,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/system_display/",
       "mv3Compatible": true,
-      "commonUseCases": ["Multi-monitor tools", "Display managers", "Presentation tools"],
-      "mitigationTips": ["Handle display configuration changes", "Respect user's display layout", "Use for UI positioning decisions", "Handle display disconnections gracefully"]
+      "commonUseCases": ["Multi-monitor tools", "Display managers", "Presentation tools"]
+
     },
     "tts": {
       "name": "tts",
@@ -605,8 +605,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/tts/",
       "mv3Compatible": true,
-      "commonUseCases": ["Screen readers", "Audio assistants", "Accessibility tools", "Language learning"],
-      "mitigationTips": ["Respect user's audio settings", "Provide speech controls", "Handle voice loading errors", "Consider user environment before speaking"]
+      "commonUseCases": ["Screen readers", "Audio assistants", "Accessibility tools", "Language learning"]
+
     },
     "ttsEngine": {
       "name": "ttsEngine",
@@ -617,8 +617,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/ttsEngine/",
       "mv3Compatible": true,
-      "commonUseCases": ["Custom voices", "Specialized speech engines", "Voice assistants"],
-      "mitigationTips": ["Implement proper voice registration", "Handle speech queue management", "Provide voice metadata accurately", "Optimize for performance"]
+      "commonUseCases": ["Custom voices", "Specialized speech engines", "Voice assistants"]
+
     },
     "vpnProvider": {
       "name": "vpnProvider",
@@ -629,8 +629,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/vpnProvider/",
       "mv3Compatible": true,
-      "commonUseCases": ["VPN clients", "Secure browsing", "Network privacy"],
-      "mitigationTips": ["Implement secure tunnel protocols", "Handle connection failures gracefully", "Provide clear connection status", "Respect user's network preferences", "Ensure no DNS leaks"]
+      "commonUseCases": ["VPN clients", "Secure browsing", "Network privacy"]
+
     },
     "certificateProvider": {
       "name": "certificateProvider",
@@ -641,8 +641,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/certificateProvider/",
       "mv3Compatible": true,
-      "commonUseCases": ["Smart card integration", "Enterprise authentication", "Client certificates"],
-      "mitigationTips": ["Securely handle private keys", "Implement proper certificate selection UI", "Handle authentication timeouts", "Respect certificate policies"]
+      "commonUseCases": ["Smart card integration", "Enterprise authentication", "Client certificates"]
+
     },
     "fileSystemProvider": {
       "name": "fileSystemProvider",
@@ -653,8 +653,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/fileSystemProvider/",
       "mv3Compatible": true,
-      "commonUseCases": ["Cloud storage", "Network drives", "Virtual file systems"],
-      "mitigationTips": ["Implement proper file operations", "Handle large files efficiently", "Provide clear error messages", "Respect file system permissions", "Optimize for performance"]
+      "commonUseCases": ["Cloud storage", "Network drives", "Virtual file systems"]
+
     },
     "platformKeys": {
       "name": "platformKeys",
@@ -665,8 +665,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/platformKeys/",
       "mv3Compatible": true,
-      "commonUseCases": ["Enterprise authentication", "Digital signatures", "Secure communications"],
-      "mitigationTips": ["Handle cryptographic operations securely", "Implement proper key selection UI", "Respect key usage policies", "Securely handle sensitive operations"]
+      "commonUseCases": ["Enterprise authentication", "Digital signatures", "Secure communications"]
+
     },
     "enterprise.platformKeys": {
       "name": "enterprise.platformKeys",
@@ -677,8 +677,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/enterprise_platformKeys/",
       "mv3Compatible": true,
-      "commonUseCases": ["Enterprise authentication", "Managed device access", "Corporate PKI"],
-      "mitigationTips": ["Respect enterprise policies", "Handle certificate access appropriately", "Implement secure operations", "Work with enterprise administrators"]
+      "commonUseCases": ["Enterprise authentication", "Managed device access", "Corporate PKI"]
+
     },
     "hid": {
       "name": "hid",
@@ -689,8 +689,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/hid/",
       "mv3Compatible": true,
-      "commonUseCases": ["Custom device support", "Game controllers", "Specialized input", "Hardware integration"],
-      "mitigationTips": ["Only connect to necessary devices", "Handle device permissions appropriately", "Implement proper device enumeration", "Secure device communications", "Handle disconnections gracefully"]
+      "commonUseCases": ["Custom device support", "Game controllers", "Specialized input", "Hardware integration"]
+
     },
     "usb": {
       "name": "usb",
@@ -701,8 +701,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/usb/",
       "mv3Compatible": true,
-      "commonUseCases": ["Hardware integration", "Device programming", "Custom peripherals", "Industrial equipment"],
-      "mitigationTips": ["Only access necessary devices", "Implement proper permission flows", "Handle USB errors gracefully", "Secure device communications", "Respect device ownership"]
+      "commonUseCases": ["Hardware integration", "Device programming", "Custom peripherals", "Industrial equipment"]
+
     },
     "serial": {
       "name": "serial",
@@ -713,8 +713,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/serial/",
       "mv3Compatible": true,
-      "commonUseCases": ["Hardware integration", "Microcontroller programming", "Industrial equipment", "Legacy device support"],
-      "mitigationTips": ["Handle serial port permissions", "Implement proper connection management", "Handle baud rate and protocol settings", "Secure serial communications", "Handle disconnections gracefully"]
+      "commonUseCases": ["Hardware integration", "Microcontroller programming", "Industrial equipment", "Legacy device support"]
+
     },
     "networking.config": {
       "name": "networking.config",
@@ -725,8 +725,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/networking_config/",
       "mv3Compatible": false,
-      "commonUseCases": ["Proxy configuration", "Network routing", "VPN integration"],
-      "mitigationTips": ["Clearly explain network changes", "Provide easy restoration", "Handle configuration errors", "Respect enterprise policies", "Test network connectivity after changes"]
+      "commonUseCases": ["Proxy configuration", "Network routing", "VPN integration"]
+
     },
     "idle": {
       "name": "idle",
@@ -737,8 +737,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/idle/",
       "mv3Compatible": true,
-      "commonUseCases": ["Power management", "Activity tracking", "Auto-pause features"],
-      "mitigationTips": ["Use reasonable idle detection thresholds", "Respect user's privacy", "Handle state changes efficiently", "Don't use for invasive tracking"]
+      "commonUseCases": ["Power management", "Activity tracking", "Auto-pause features"]
+
     },
     "power": {
       "name": "power",
@@ -749,8 +749,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/power/",
       "mv3Compatible": true,
-      "commonUseCases": ["Presentation mode", "Long-running tasks", "Kiosk mode", "Screen keeping"],
-      "mitigationTips": ["Only keep system awake when necessary", "Clearly indicate power override is active", "Provide easy way to release power lock", "Respect battery status on mobile devices"]
+      "commonUseCases": ["Presentation mode", "Long-running tasks", "Kiosk mode", "Screen keeping"]
+
     },
     "gcm": {
       "name": "gcm",
@@ -761,8 +761,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/gcm/",
       "mv3Compatible": true,
-      "commonUseCases": ["Push notifications", "Real-time sync", "Server-initiated updates", "Messaging"],
-      "mitigationTips": ["Handle message delivery failures", "Implement proper message validation", "Secure message handling", "Respect message priority", "Handle large message volumes efficiently"]
+      "commonUseCases": ["Push notifications", "Real-time sync", "Server-initiated updates", "Messaging"]
+
     },
     "mdns": {
       "name": "mdns",
@@ -773,8 +773,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/mdns/",
       "mv3Compatible": false,
-      "commonUseCases": ["Device discovery", "Local service browsing", "IoT integration", "Network tools"],
-      "mitigationTips": ["Handle discovery results efficiently", "Respect network privacy", "Implement proper service filtering", "Handle network changes dynamically"]
+      "commonUseCases": ["Device discovery", "Local service browsing", "IoT integration", "Network tools"]
+
     },
     "dns": {
       "name": "dns",
@@ -785,8 +785,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/dns/",
       "mv3Compatible": false,
-      "commonUseCases": ["Network diagnostics", "DNS tools", "Custom resolution", "Service discovery"],
-      "mitigationTips": ["Handle DNS failures gracefully", "Respect DNS caching", "Implement proper timeout handling", "Don't use for DNS flooding"]
+      "commonUseCases": ["Network diagnostics", "DNS tools", "Custom resolution", "Service discovery"]
+
     },
     "wallpaper": {
       "name": "wallpaper",
@@ -797,8 +797,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/wallpaper/",
       "mv3Compatible": true,
-      "commonUseCases": ["Wallpaper apps", "Dynamic wallpapers", "Theme tools", "Wallpaper management"],
-      "mitigationTips": ["Respect user's wallpaper preferences", "Provide wallpaper previews", "Handle different screen resolutions", "Optimize image sizes for performance"]
+      "commonUseCases": ["Wallpaper apps", "Dynamic wallpapers", "Theme tools", "Wallpaper management"]
+
     },
     "input.ime": {
       "name": "input.ime",
@@ -809,8 +809,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/input_ime/",
       "mv3Compatible": true,
-      "commonUseCases": ["Virtual keyboards", "Handwriting input", "Specialized input methods", "Accessibility input"],
-      "mitigationTips": ["Implement smooth input experience", "Handle different input contexts", "Respect system input settings", "Provide clear input feedback", "Optimize for performance"]
+      "commonUseCases": ["Virtual keyboards", "Handwriting input", "Specialized input methods", "Accessibility input"]
+
     },
     "accessibilityFeatures.read": {
       "name": "accessibilityFeatures.read",
@@ -821,8 +821,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/accessibilityFeatures/",
       "mv3Compatible": true,
-      "commonUseCases": ["Accessibility-aware apps", "Adaptive interfaces", "Assistive technology integration"],
-      "mitigationTips": ["Use to adapt UI for accessibility needs", "Respect user's accessibility settings", "Don't use for tracking", "Handle settings changes dynamically"]
+      "commonUseCases": ["Accessibility-aware apps", "Adaptive interfaces", "Assistive technology integration"]
+
     },
     "accessibilityFeatures.modify": {
       "name": "accessibilityFeatures.modify",
@@ -833,8 +833,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/accessibilityFeatures/",
       "mv3Compatible": true,
-      "commonUseCases": ["Accessibility tools", "Visual aids", "Assistive technology", "Adaptive interfaces"],
-      "mitigationTips": ["Confirm changes with users", "Provide easy restoration", "Clearly explain what will change", "Respect user's preferences", "Handle setting conflicts appropriately"]
+      "commonUseCases": ["Accessibility tools", "Visual aids", "Assistive technology", "Adaptive interfaces"]
+
     },
     "loginState": {
       "name": "loginState",
@@ -845,8 +845,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/loginState/",
       "mv3Compatible": true,
-      "commonUseCases": ["Authentication-aware features", "Account-specific functionality", "ChromeOS integration"],
-      "mitigationTips": ["This is read-only login state", "Use for UI adaptation only", "Don't use for security decisions", "Handle both logged in and out states"]
+      "commonUseCases": ["Authentication-aware features", "Account-specific functionality", "ChromeOS integration"]
+
     },
     "documentScan": {
       "name": "documentScan",
@@ -857,8 +857,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/documentScan/",
       "mv3Compatible": true,
-      "commonUseCases": ["Document scanning", "Digital archiving", "Paperless workflows"],
-      "mitigationTips": ["Handle scanner permissions appropriately", "Implement proper scan quality settings", "Handle large scan files efficiently", "Provide scan preview when possible"]
+      "commonUseCases": ["Document scanning", "Digital archiving", "Paperless workflows"]
+
     },
     "fileBrowserHandler": {
       "name": "fileBrowserHandler",
@@ -869,8 +869,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/fileBrowserHandler/",
       "mv3Compatible": true,
-      "commonUseCases": ["Cloud storage integration", "File processing", "Custom file operations"],
-      "mitigationTips": ["Provide clear action labels", "Handle file operations securely", "Implement progress feedback", "Handle errors gracefully"]
+      "commonUseCases": ["Cloud storage integration", "File processing", "Custom file operations"]
+
     },
     "fontSettings": {
       "name": "fontSettings",
@@ -881,8 +881,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/fontSettings/",
       "mv3Compatible": true,
-      "commonUseCases": ["Font customization", "Accessibility enhancements", "Reading aids", "Typography tools"],
-      "mitigationTips": ["Respect user's font preferences", "Provide preview of changes", "Allow easy restoration", "Handle font loading appropriately"]
+      "commonUseCases": ["Font customization", "Accessibility enhancements", "Reading aids", "Typography tools"]
+
     },
     "pageCapture": {
       "name": "pageCapture",
@@ -893,8 +893,8 @@
       "requiresHostPermission": true,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/pageCapture/",
       "mv3Compatible": true,
-      "commonUseCases": ["Page archiving", "Offline reading", "Documentation saving", "Snapshot tools"],
-      "mitigationTips": ["Handle large page captures efficiently", "Respect copyright when saving pages", "Provide progress feedback for large pages", "Handle capture failures gracefully"]
+      "commonUseCases": ["Page archiving", "Offline reading", "Documentation saving", "Snapshot tools"]
+
     },
     "searchProvider": {
       "name": "searchProvider",
@@ -905,8 +905,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/search/",
       "mv3Compatible": true,
-      "commonUseCases": ["Search customization", "Privacy-focused search", "Regional search engines"],
-      "mitigationTips": ["Clearly explain search engine changes", "Provide easy way to revert", "Respect user's search preferences", "Handle search URL patterns correctly", "Don't change without explicit consent"]
+      "commonUseCases": ["Search customization", "Privacy-focused search", "Regional search engines"]
+
     },
     "storageManaged": {
       "name": "storageManaged",
@@ -917,8 +917,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/storage/#property-managed",
       "mv3Compatible": true,
-      "commonUseCases": ["Enterprise configuration", "Policy compliance", "Managed deployments"],
-      "mitigationTips": ["This is read-only enterprise storage", "Handle missing configuration gracefully", "Respect enterprise policies", "Don't expose managed data unnecessarily"]
+      "commonUseCases": ["Enterprise configuration", "Policy compliance", "Managed deployments"]
+
     },
     "system.network": {
       "name": "system.network",
@@ -929,8 +929,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/system_network/",
       "mv3Compatible": true,
-      "commonUseCases": ["Network diagnostics", "System information", "Network configuration tools"],
-      "mitigationTips": ["This reveals network configuration details", "Handle sensitive network information carefully", "Use for diagnostics only", "Don't transmit network details externally without consent"]
+      "commonUseCases": ["Network diagnostics", "System information", "Network configuration tools"]
+
     },
     "webAuthenticationProxy": {
       "name": "webAuthenticationProxy",
@@ -941,8 +941,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/webAuthenticationProxy/",
       "mv3Compatible": true,
-      "commonUseCases": ["Hardware security keys", "Enterprise authentication", "Custom authenticators", "FIDO integration"],
-      "mitigationTips": ["Handle authentication credentials securely", "Implement proper user verification", "Respect WebAuthn standards", "Secure credential storage", "Handle authentication timeouts appropriately"]
+      "commonUseCases": ["Hardware security keys", "Enterprise authentication", "Custom authenticators", "FIDO integration"]
+
     },
     "printingMetrics": {
       "name": "printingMetrics",
@@ -953,8 +953,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/printingMetrics/",
       "mv3Compatible": true,
-      "commonUseCases": ["Print monitoring", "Usage statistics", "Print accounting", "Cost tracking"],
-      "mitigationTips": ["Respect print privacy", "Aggregate statistics appropriately", "Handle printer access errors", "Provide clear statistics presentation"]
+      "commonUseCases": ["Print monitoring", "Usage statistics", "Print accounting", "Cost tracking"]
+
     },
     "runtime": {
       "name": "runtime",
@@ -965,8 +965,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/runtime/",
       "mv3Compatible": true,
-      "commonUseCases": ["Extension lifecycle", "Message passing", "Update handling", "Platform detection"],
-      "mitigationTips": ["This is automatically available", "Use for core extension communication", "Handle runtime errors gracefully", "Implement proper message validation"]
+      "commonUseCases": ["Extension lifecycle", "Message passing", "Update handling", "Platform detection"]
+
     },
     "search": {
       "name": "search",
@@ -977,8 +977,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/search/",
       "mv3Compatible": true,
-      "commonUseCases": ["Quick searches", "Search integration", "Query execution"],
-      "mitigationTips": ["Respect user's search preferences", "Handle search errors gracefully", "Don't perform unexpected searches", "Consider privacy implications"]
+      "commonUseCases": ["Quick searches", "Search integration", "Query execution"]
+
     },
     "windows": {
       "name": "windows",
@@ -989,8 +989,8 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api/windows/",
       "mv3Compatible": true,
-      "commonUseCases": ["Window managers", "Productivity tools", "Presentation modes", "Multi-monitor support"],
-      "mitigationTips": ["Respect user's window layout", "Don't disrupt user's workflow", "Handle window state appropriately", "Consider screen boundaries", "Provide window management controls"]
+      "commonUseCases": ["Window managers", "Productivity tools", "Presentation modes", "Multi-monitor support"]
+
     },
     "devtools": {
       "name": "devtools",
@@ -1001,66 +1001,54 @@
       "requiresHostPermission": false,
       "chromeLink": "https://developer.chrome.com/docs/extensions/reference/api",
       "mv3Compatible": true,
-      "commonUseCases": ["Development tools", "Debugging aids", "Performance analyzers", "Custom inspectors"],
-      "mitigationTips": ["Use for development purposes only", "Don't expose sensitive information in DevTools panels", "Handle DevTools events efficiently", "Respect developer workflow"]
+      "commonUseCases": ["Development tools", "Debugging aids", "Performance analyzers", "Custom inspectors"]
+
     }
   },
   "categories": {
     "privacy": {
       "name": "Privacy",
       "description": "Permissions that affect user privacy and data handling",
-      "color": "#8e44ad",
       "icon": "shield-privacy"
     },
     "security": {
       "name": "Security",
       "description": "Permissions related to browser and system security",
-      "color": "#e74c3c",
       "icon": "lock"
     },
     "functionality": {
       "name": "Functionality",
       "description": "Permissions that enable core extension features",
-      "color": "#3498db",
       "icon": "cog"
     },
     "accessibility": {
       "name": "Accessibility",
       "description": "Permissions for assistive technologies and accessibility features",
-      "color": "#27ae60",
       "icon": "universal-access"
     },
     "data": {
       "name": "Data Access",
       "description": "Permissions that provide access to user data",
-      "color": "#f39c12",
       "icon": "database"
     }
   },
   "riskLevels": {
     "low": {
       "name": "Low Risk",
-      "description": "Minimal access to non-sensitive features",
-      "color": "#34a853",
-      "containerColor": "rgba(52, 168, 83, 0.1)"
+      "description": "Minimal access to non-sensitive features"
     },
     "medium": {
       "name": "Medium Risk",
-      "description": "May access sensitive data or browser functions",
-      "color": "#fbbc04",
-      "containerColor": "rgba(251, 188, 4, 0.1)"
+      "description": "May access sensitive data or browser functions"
     },
     "high": {
       "name": "High Risk",
-      "description": "Grants extensive access to data and browser behavior",
-      "color": "#ff3b30",
-      "containerColor": "rgba(255, 59, 48, 0.1)"
+      "description": "Grants extensive access to data and browser behavior"
+      
     },
     "varies": {
       "name": "Varies",
-      "description": "Risk depends on the specific implementation",
-      "color": "#8e8e93",
-      "containerColor": "rgba(142, 142, 147, 0.1)"
+      "description": "Risk depends on the specific implementation"
     }
   }
 }

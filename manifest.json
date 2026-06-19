@@ -54,16 +54,6 @@
     "page": "src/html/snapshot.html",
     "open_in_tab": true
   },
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "src/html/details.html"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
-    }
-  ],
   "browser_specific_settings": {
     "gecko": {
       "id": "modcoretech@proton.me",

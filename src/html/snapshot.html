@@ -258,7 +258,7 @@
                             <input type="file"
                                    id="wiz-restore-file"
                                    class="wizard-upload-input"
-                                   accept=".json,.snapshot"
+                                   accept=".json"
                                    aria-describedby="wiz-restore-file-hint">
                             <label for="wiz-restore-file" class="wizard-upload-label">
                                 <span class="icon icon-upload wizard-upload-icon" aria-hidden="true"></span>
@@ -371,7 +371,7 @@
                     </div>
                     <div class="wizard-body">
                         <h3 class="wizard-title">Confirm Restore</h3>
-                        <p class="wizard-subtitle">This will overwrite your current data. This action cannot be undone.</p>
+                        <p class="wizard-subtitle">Review the details below, then confirm to restore.</p>
 
                         <div class="wizard-review">
                             <div class="wizard-review-item">
@@ -420,7 +420,7 @@
             <div id="data-management-panel" class="content-panel" role="tabpanel" aria-labelledby="data-management-tab" tabindex="0" hidden>
                 <div class="panel-header">
                     <h2>Data Management</h2>
-                    <p>Inspect, edit, and manage stored extension data across all storage areas.</p>
+                    <p>View storage usage, then back up or clear data for each storage area.</p>
                 </div>
                 <div class="panel-content">
 
@@ -465,19 +465,17 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="details-actions-grid" style="margin-top: var(--space-4);">
-                            <button id="viewDataModalBtn" class="btn primary">
-                                <span class="icon icon-list" aria-hidden="true"></span> Open Data Viewer
-                            </button>
+
+                        <div class="devtools-note">
+                            <span class="icon icon-help" aria-hidden="true"></span>
+                            <p>To inspect or edit individual stored values, open <strong>Chrome DevTools</strong> (F12) and check the <strong>Application</strong> tab's <strong>Storage</strong> section.</p>
                         </div>
                     </section>
 
                     <!-- Clear Data -->
                     <section class="content-section" id="clear-data-section" aria-labelledby="clear-data-title">
                         <h3 class="section-title" id="clear-data-title">Clear Storage</h3>
-                        <p class="detail-description-text">Permanently delete data from selected areas.
-                            <strong>This cannot be undone.</strong> Create a backup first.
-                        </p>
+                        <p class="detail-description-text">Permanently delete data from the selected storage areas.</p>
                         <div class="checkbox-group" style="margin: var(--space-4) 0;" role="group" aria-labelledby="clear-data-label">
                             <p class="detail-label" id="clear-data-label">Select areas to clear:</p>
                             <label class="checkbox-container">
@@ -530,68 +528,6 @@
                 </div>
             </div>
 
-            <!-- ============================================================
-                 DATA VIEWER PANEL (Full page)
-                 ============================================================ -->
-            <div id="data-viewer-panel" class="content-panel data-viewer-page" role="tabpanel" aria-labelledby="data-viewer-title" tabindex="0" hidden>
-                <div class="panel-header data-viewer-header">
-                    <div class="data-viewer-header-left">
-                        <h2 id="data-viewer-title">Data Viewer</h2>
-                        <p>Inspect, search, copy, and edit stored extension data across all storage areas.</p>
-                    </div>
-                    <button id="closeDataViewerBtn" class="btn secondary" aria-label="Close data viewer and return to Data Management">
-                        <span class="icon icon-close" aria-hidden="true"></span> Close Viewer
-                    </button>
-                </div>
-
-                <div class="viewer-toolbar">
-                    <div class="viewer-search-wrap">
-                        <span class="icon icon-search viewer-search-icon" aria-hidden="true"></span>
-                        <input type="search"
-                               id="data-viewer-search"
-                               class="text-input viewer-search-input"
-                               placeholder="Search keys or values..."
-                               aria-label="Search data">
-                        <button class="btn-icon viewer-search-clear" id="data-viewer-search-clear" aria-label="Clear search" hidden>
-                            <span class="icon icon-close" aria-hidden="true"></span>
-                        </button>
-                    </div>
-
-                    <div class="viewer-filter-chips" id="viewer-filter-chips" role="group" aria-label="Filter by storage area">
-                        <button class="chip active" data-filter="all">All</button>
-                        <button class="chip" data-filter="chromeLocal">Local</button>
-                        <button class="chip" data-filter="chromeSync">Sync</button>
-                        <button class="chip" data-filter="webLocal">Web</button>
-                        <button class="chip" data-filter="webSession">Session</button>
-                    </div>
-
-                    <div class="viewer-actions">
-                        <span class="tooltip-trigger" aria-label="Copy visible data">
-                            <button class="btn-icon" id="data-viewer-copy" aria-label="Copy visible data">
-                                <span class="icon icon-copy" aria-hidden="true"></span>
-                            </button>
-                            <span class="tooltip-content" role="tooltip">Copy visible data</span>
-                        </span>
-                        <span class="tooltip-trigger" aria-label="Expand all keys">
-                            <button class="btn-icon" id="data-viewer-expand-all" aria-label="Expand all keys">
-                                <span class="icon icon-list" aria-hidden="true"></span>
-                            </button>
-                            <span class="tooltip-content" role="tooltip">Expand all</span>
-                        </span>
-                    </div>
-                </div>
-
-                <div class="viewer-stats" id="viewer-stats" aria-live="polite"></div>
-
-                <div class="data-viewer-body">
-                    <div id="data-viewer-tree" class="data-tree" role="tree" aria-label="Storage data tree"></div>
-                    <div id="data-viewer-empty" class="viewer-empty-state" hidden>
-                        <span class="icon icon-search" aria-hidden="true" style="width:2em;height:2em;opacity:.3;"></span>
-                        <p>No matching data found.</p>
-                    </div>
-                </div>
-            </div>
-
             <!-- Loading Overlay -->
             <div class="loading-overlay" id="loading-overlay" hidden role="status" aria-live="polite">
                 <div class="spinner" aria-hidden="true"></div>
@@ -611,46 +547,6 @@
             <div class="modal-actions">
                 <button class="btn secondary" id="modal-cancel">Cancel</button>
                 <button class="btn danger" id="modal-confirm">Confirm</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Key Edit Modal -->
-    <div class="modal-overlay" id="key-edit-modal" role="dialog" aria-modal="true" aria-labelledby="key-edit-title">
-        <div class="modal-content modal-edit">
-            <div class="modal-header">
-                <h3 id="key-edit-title">Edit Value</h3>
-                <button class="btn-icon" id="key-edit-close" aria-label="Close editor">
-                    <span class="icon icon-close" aria-hidden="true"></span>
-                </button>
-            </div>
-            <div class="modal-body">
-                <div class="details-grid">
-                    <div class="detail-item detail-item-full-width">
-                        <label class="detail-label">Storage Area</label>
-                        <p class="detail-value" id="key-edit-storage"></p>
-                    </div>
-                    <div class="detail-item detail-item-full-width">
-                        <label for="key-edit-key" class="detail-label">Key</label>
-                        <input type="text" id="key-edit-key" class="text-input" readonly aria-readonly="true">
-                    </div>
-                    <div class="detail-item detail-item-full-width">
-                        <label for="key-edit-value" class="detail-label">Value
-                            <span class="tooltip-trigger" aria-label="Value format info">
-                                <span class="icon icon-help" aria-hidden="true"></span>
-                                <span class="tooltip-content" role="tooltip">Enter a valid JSON value (string, number, boolean, object, array) or a plain string.</span>
-                            </span>
-                        </label>
-                        <textarea id="key-edit-value" class="text-input key-edit-textarea" rows="8" spellcheck="false" aria-describedby="key-edit-error-msg"></textarea>
-                        <small id="key-edit-error-msg" class="detail-description-text" style="color:var(--color-danger);display:none;"></small>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-actions" style="padding: 0 var(--space-4) var(--space-4);">
-                <button class="btn secondary" id="key-edit-cancel">Cancel</button>
-                <button class="btn primary" id="key-edit-save">
-                    <span class="icon icon-check" aria-hidden="true"></span> Save
-                </button>
             </div>
         </div>
     </div>

@@ -105,20 +105,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearSelectedDataBtn = document.getElementById('clearSelectedDataBtn');
     const dataManagementError  = document.getElementById('dataManagementError');
 
-    // Data Viewer
-    const dataManagementPanel   = document.getElementById('data-management-panel');
-    const dataViewerPanel       = document.getElementById('data-viewer-panel');
-    const closeDataViewerBtn    = document.getElementById('closeDataViewerBtn');
-    const dataViewerSearch      = document.getElementById('data-viewer-search');
-    const dataViewerSearchClear = document.getElementById('data-viewer-search-clear');
-    const dataViewerCopy        = document.getElementById('data-viewer-copy');
-    const dataViewerExpandAll   = document.getElementById('data-viewer-expand-all');
-    const dataViewerTree        = document.getElementById('data-viewer-tree');
-    const dataViewerEmpty       = document.getElementById('data-viewer-empty');
-    const dataViewerStats       = document.getElementById('viewer-stats');
-    const filterChips           = document.querySelectorAll('.chip[data-filter]');
-    const viewDataModalBtn      = document.getElementById('viewDataModalBtn');
-
     // Modals
     const loadingOverlay  = document.getElementById('loading-overlay');
     const modalOverlay    = document.getElementById('confirmation-modal');
@@ -127,31 +113,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalCancelBtn  = document.getElementById('modal-cancel');
     const modalConfirmBtn = document.getElementById('modal-confirm');
 
-    // Key Edit Modal
-    const keyEditModal    = document.getElementById('key-edit-modal');
-    const keyEditClose    = document.getElementById('key-edit-close');
-    const keyEditCancel   = document.getElementById('key-edit-cancel');
-    const keyEditSave     = document.getElementById('key-edit-save');
-    const keyEditStorage  = document.getElementById('key-edit-storage');
-    const keyEditKey      = document.getElementById('key-edit-key');
-    const keyEditValue    = document.getElementById('key-edit-value');
-    const keyEditErrorMsg = document.getElementById('key-edit-error-msg');
-
     // =====================================================================
     // STATE
     // =====================================================================
-    let allStoredData = {};
     let currentBackup = null;
-    let currentFilter = 'all';
-    let allExpanded   = false;
-    let editContext   = null;
-    let lastFocusedEl = null;
 
-    // Wizard state
     let wizardState = {
         backupAreas: [],
         backupFilename: '',
-        backupData: null,
         restoreFile: null,
         restoreAreas: [],
     };
@@ -165,10 +134,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function formatBytes(bytes) {
-        if (bytes === 0) return '0 B';
+        if (!bytes) return '0 B';
         const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
         return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
     }
 
@@ -176,14 +145,26 @@ document.addEventListener('DOMContentLoaded', () => {
         try { return new Blob([JSON.stringify(data)]).size; } catch { return 0; }
     }
 
-    function generateBackupFilename() {
-        const now = new Date();
+    // Returns a filesystem-safe "YYYY-MM-DD_HHMMSS" timestamp for the given date.
+    // Shared by both the review-step preview and the actual downloaded file name,
+    // so the two always stay in sync.
+    function formatTimestamp(date) {
         const p = (n) => String(n).padStart(2, '0');
-        return `extension_backup_${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}_${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
+        return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}_${p(date.getHours())}${p(date.getMinutes())}${p(date.getSeconds())}`;
     }
 
     function storageDisplayName(type) {
         return STORAGE_NAMES[type] || type;
+    }
+
+    function renderBadges(container, types) {
+        container.textContent = '';
+        types.forEach(type => {
+            const badge = document.createElement('span');
+            badge.className = 'badge';
+            badge.textContent = storageDisplayName(type);
+            container.appendChild(badge);
+        });
     }
 
     // =====================================================================
@@ -338,21 +319,9 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('.storage-size, .wizard-option-size').forEach(el => {
                 const t = el.getAttribute('data-storage');
                 const d = data[t];
-                const size = (d && typeof d === 'object' && !d.__error)
+                el.textContent = (d && typeof d === 'object' && !d.__error)
                     ? formatBytes(estimateSize(d))
                     : '0 B';
-                el.textContent = size;
-            });
-            document.querySelectorAll('.storage-size-inline').forEach(el => {
-                const t = el.getAttribute('data-storage');
-                const d = data[t];
-                if (d && typeof d === 'object' && !d.__error) {
-                    el.textContent = ` · ${formatBytes(estimateSize(d))}`;
-                    el.style.color = 'var(--color-text-muted)';
-                    el.style.fontSize = 'var(--text-body-sm)';
-                } else {
-                    el.textContent = '';
-                }
             });
         } catch (err) {
             console.error('updateStorageSizes error:', err);
@@ -426,13 +395,12 @@ document.addEventListener('DOMContentLoaded', () => {
         wizardState = {
             backupAreas: [],
             backupFilename: '',
-            backupData: null,
             restoreFile: null,
             restoreAreas: [],
         };
         currentBackup = null;
 
-        // Reset backup checkboxes
+        // Reset backup checkboxes to their default selection
         Object.values(backupCheckboxes).forEach(cb => { cb.checked = cb.value !== 'webSession'; });
         backupFilename.value = '';
 
@@ -492,24 +460,17 @@ document.addEventListener('DOMContentLoaded', () => {
     backupNextS2.addEventListener('click', async () => {
         hideError(backupS2Error);
         const rawName = backupFilename.value.trim();
-        const fileName = rawName || 'extension_backup';
-        wizardState.backupFilename = fileName;
+        wizardState.backupFilename = rawName || 'extension_backup';
 
         showLoading('Calculating backup size...');
         try {
-            wizardState.backupData = await getAllStorageData(wizardState.backupAreas);
-            const totalSize = Object.values(wizardState.backupData).reduce((acc, d) => {
+            const previewData = await getAllStorageData(wizardState.backupAreas);
+            const totalSize = Object.values(previewData).reduce((acc, d) => {
                 return acc + (d && typeof d === 'object' && !d.__error ? estimateSize(d) : 0);
             }, 0);
 
-            setText(reviewBackupName, `${fileName}_${generateBackupFilename().split('_').slice(1).join('_')}.json`);
-            reviewBackupAreas.textContent = '';
-            wizardState.backupAreas.forEach(type => {
-                const badge = document.createElement('span');
-                badge.className = 'badge';
-                badge.textContent = storageDisplayName(type);
-                reviewBackupAreas.appendChild(badge);
-            });
+            setText(reviewBackupName, `${wizardState.backupFilename}_${formatTimestamp(new Date())}.json`);
+            renderBadges(reviewBackupAreas, wizardState.backupAreas);
             setText(reviewBackupSize, formatBytes(totalSize));
 
             showWizardStep(backupStep3);
@@ -529,21 +490,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         showLoading('Creating backup...');
         try {
-            const timestamp = new Date().toISOString();
+            // Fetch fresh data at the moment of creation rather than reusing the
+            // snapshot taken during the review step, so the backup always reflects
+            // the latest values even if time has passed since the review screen.
+            const backupData = await getAllStorageData(wizardState.backupAreas);
+            const timestamp = new Date();
+
             const backupObj = {
                 snapshot_version: '3.0',
-                timestamp,
+                timestamp: timestamp.toISOString(),
                 storageTypes: wizardState.backupAreas,
-                data: wizardState.backupData,
+                data: backupData,
             };
 
             const blob = new Blob([JSON.stringify(backupObj, null, 2)], { type: 'application/json' });
             const url  = URL.createObjectURL(blob);
             const a    = document.createElement('a');
             a.href     = url;
-            const now = new Date();
-            const p = (n) => String(n).padStart(2, '0');
-            a.download = `${wizardState.backupFilename}_${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}_${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}.json`;
+            a.download = `${wizardState.backupFilename}_${formatTimestamp(timestamp)}.json`;
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -642,33 +606,31 @@ document.addEventListener('DOMContentLoaded', () => {
         // Populate metadata
         restoreMeta.hidden = false;
         restoreMeta.textContent = '';
-        const metaWrap = document.createElement('div');
-        const rows = [
-            ['Created', new Date(currentBackup.timestamp).toLocaleString()],
-            ['Version', currentBackup.snapshot_version || currentBackup.version || '-'],
-        ];
-        rows.forEach(([label, value]) => {
-            const p = document.createElement('p');
-            const s = document.createElement('strong');
-            s.textContent = label + ': ';
-            p.appendChild(s);
-            p.appendChild(document.createTextNode(value));
-            metaWrap.appendChild(p);
-        });
+
+        const createdRow = document.createElement('p');
+        const createdLabel = document.createElement('strong');
+        createdLabel.textContent = 'Created: ';
+        createdRow.appendChild(createdLabel);
+        createdRow.appendChild(document.createTextNode(new Date(currentBackup.timestamp).toLocaleString()));
+        restoreMeta.appendChild(createdRow);
+
+        const versionRow = document.createElement('p');
+        const versionLabel = document.createElement('strong');
+        versionLabel.textContent = 'Version: ';
+        versionRow.appendChild(versionLabel);
+        versionRow.appendChild(document.createTextNode(currentBackup.snapshot_version || currentBackup.version || '-'));
+        restoreMeta.appendChild(versionRow);
+
         if (currentBackup.storageTypes?.length) {
-            const p = document.createElement('p');
-            const s = document.createElement('strong');
-            s.textContent = 'Areas: ';
-            p.appendChild(s);
-            currentBackup.storageTypes.forEach(t => {
-                const badge = document.createElement('span');
-                badge.className = 'badge';
-                badge.textContent = storageDisplayName(t);
-                p.appendChild(badge);
-            });
-            metaWrap.appendChild(p);
+            const areasRow = document.createElement('p');
+            const areasLabel = document.createElement('strong');
+            areasLabel.textContent = 'Areas: ';
+            areasRow.appendChild(areasLabel);
+            const badgeWrap = document.createElement('span');
+            renderBadges(badgeWrap, currentBackup.storageTypes);
+            areasRow.appendChild(badgeWrap);
+            restoreMeta.appendChild(areasRow);
         }
-        restoreMeta.appendChild(metaWrap);
 
         // Populate checkboxes
         const availableTypes = currentBackup.storageTypes || [];
@@ -677,7 +639,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cb.disabled = !has;
             cb.checked = has;
             restoreStatuses[type].textContent = has
-                ? `${formatBytes(estimateSize(currentBackup.data[type] || {}))}`
+                ? formatBytes(estimateSize(currentBackup.data[type] || {}))
                 : 'Not in backup';
         });
 
@@ -702,13 +664,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Populate review
         setText(reviewRestoreFile, wizardState.restoreFile?.name || '-');
-        reviewRestoreAreas.textContent = '';
-        selected.forEach(type => {
-            const badge = document.createElement('span');
-            badge.className = 'badge';
-            badge.textContent = storageDisplayName(type);
-            reviewRestoreAreas.appendChild(badge);
-        });
+        renderBadges(reviewRestoreAreas, selected);
         setText(reviewRestoreDate, currentBackup?.timestamp
             ? new Date(currentBackup.timestamp).toLocaleString()
             : '-');
@@ -828,409 +784,12 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast(`Cleared ${count} storage area(s)!`, 'success');
             await updateStorageSizes();
 
-            if (!dataViewerPanel.hidden) await loadDataIntoViewer();
-
         } catch (err) {
             console.error('Clear error:', err);
             showError(dataManagementError, `Clear failed: ${err.message}`);
             showToast('Clear failed!', 'error');
         } finally {
             hideLoading();
-        }
-    });
-
-    // =====================================================================
-    // DATA VIEWER
-    // =====================================================================
-
-    async function loadDataIntoViewer() {
-        showLoading('Loading storage data...');
-        try {
-            allStoredData = await getAllStorageData();
-            renderViewer();
-        } catch (err) {
-            console.error('Load error:', err);
-            showToast('Failed to load data!', 'error');
-        } finally {
-            hideLoading();
-        }
-    }
-
-    viewDataModalBtn.addEventListener('click', async () => {
-        lastFocusedEl = document.activeElement;
-        dataManagementPanel.hidden = true;
-        dataViewerPanel.hidden = false;
-        dataViewerSearch.value = '';
-        dataViewerSearchClear.hidden = true;
-        await loadDataIntoViewer();
-        dataViewerSearch.focus();
-    });
-
-    closeDataViewerBtn.addEventListener('click', () => {
-        dataViewerPanel.hidden = true;
-        dataManagementPanel.hidden = false;
-        if (lastFocusedEl) {
-            lastFocusedEl.focus();
-            lastFocusedEl = null;
-        }
-    });
-
-    dataViewerSearch.addEventListener('input', (e) => {
-        dataViewerSearchClear.hidden = !e.target.value;
-        renderViewer();
-    });
-
-    dataViewerSearchClear.addEventListener('click', () => {
-        dataViewerSearch.value = '';
-        dataViewerSearchClear.hidden = true;
-        renderViewer();
-        dataViewerSearch.focus();
-    });
-
-    filterChips.forEach(chip => {
-        chip.addEventListener('click', () => {
-            filterChips.forEach(c => c.classList.remove('active'));
-            chip.classList.add('active');
-            currentFilter = chip.getAttribute('data-filter');
-            renderViewer();
-        });
-    });
-
-    dataViewerExpandAll.addEventListener('click', () => {
-        allExpanded = !allExpanded;
-        dataViewerTree.querySelectorAll('.tree-children').forEach(el => {
-            el.hidden = !allExpanded;
-        });
-        dataViewerTree.querySelectorAll('.tree-toggle').forEach(el => {
-            el.setAttribute('aria-expanded', String(allExpanded));
-        });
-    });
-
-    dataViewerCopy.addEventListener('click', () => {
-        const text = JSON.stringify(getFilteredData(), null, 2);
-        navigator.clipboard.writeText(text)
-            .then(() => showToast('Copied to clipboard!', 'success'))
-            .catch(() => showToast('Copy failed!', 'error'));
-    });
-
-    // =====================================================================
-    // DATA VIEWER - Rendering
-    // =====================================================================
-
-    function getFilteredData() {
-        const q = dataViewerSearch.value.toLowerCase().trim();
-        const result = {};
-
-        for (const storageType in allStoredData) {
-            if (currentFilter !== 'all' && storageType !== currentFilter) continue;
-
-            const storageData = allStoredData[storageType];
-            const isObj = typeof storageData === 'object' && storageData !== null && !storageData.__error;
-
-            if (!isObj) {
-                if (!q || storageType.toLowerCase().includes(q) || String(storageData).toLowerCase().includes(q)) {
-                    result[storageType] = storageData;
-                }
-                continue;
-            }
-
-            const filtered = {};
-            for (const key in storageData) {
-                const valStr = JSON.stringify(storageData[key]).toLowerCase();
-                if (!q || key.toLowerCase().includes(q) || valStr.includes(q)) {
-                    filtered[key] = storageData[key];
-                }
-            }
-            if (Object.keys(filtered).length > 0) result[storageType] = filtered;
-        }
-        return result;
-    }
-
-    function renderViewer() {
-        const filtered = getFilteredData();
-        const totalKeys = Object.values(filtered).reduce((acc, v) => {
-            const isObj = typeof v === 'object' && v !== null && !v.__error;
-            return acc + (isObj ? Object.keys(v).length : 1);
-        }, 0);
-
-        dataViewerStats.textContent = `${Object.keys(filtered).length} area(s) · ${totalKeys} key(s)`;
-
-        const hasData = Object.keys(filtered).length > 0;
-        dataViewerEmpty.hidden = hasData;
-        dataViewerTree.hidden = !hasData;
-
-        if (hasData) renderTree(filtered);
-    }
-
-    function renderTree(data) {
-        dataViewerTree.textContent = '';
-        const q = dataViewerSearch.value.toLowerCase().trim();
-
-        for (const storageType in data) {
-            const storageData = data[storageType];
-            const isObj = typeof storageData === 'object' && storageData !== null && !storageData.__error;
-            const keyCount = isObj ? Object.keys(storageData).length : 0;
-
-            const group = document.createElement('div');
-            group.className = 'tree-group';
-            group.setAttribute('role', 'treeitem');
-
-            const header = document.createElement('div');
-            header.className = 'tree-group-header';
-
-            const toggle = document.createElement('button');
-            toggle.className = 'btn-icon tree-toggle';
-            toggle.setAttribute('aria-expanded', 'false');
-            toggle.setAttribute('aria-label', `Toggle ${storageDisplayName(storageType)}`);
-            const toggleIcon = document.createElement('span');
-            toggleIcon.className = 'icon icon-list';
-            toggleIcon.setAttribute('aria-hidden', 'true');
-            toggle.appendChild(toggleIcon);
-            header.appendChild(toggle);
-
-            const labelSpan = document.createElement('span');
-            labelSpan.className = 'tree-group-name';
-            labelSpan.textContent = storageDisplayName(storageType);
-            header.appendChild(labelSpan);
-
-            const countBadge = document.createElement('span');
-            countBadge.className = 'badge';
-            countBadge.textContent = keyCount + ' keys';
-            countBadge.style.marginLeft = 'var(--space-2)';
-            header.appendChild(countBadge);
-
-            group.appendChild(header);
-
-            const children = document.createElement('div');
-            children.className = 'tree-children';
-            children.setAttribute('role', 'group');
-            children.hidden = true;
-
-            toggle.addEventListener('click', () => {
-                children.hidden = !children.hidden;
-                toggle.setAttribute('aria-expanded', String(!children.hidden));
-            });
-
-            if (!isObj) {
-                children.appendChild(buildErrorRow(String(storageData)));
-            } else {
-                for (const key in storageData) {
-                    children.appendChild(buildKeyRow(storageType, key, storageData[key], q));
-                }
-            }
-
-            group.appendChild(children);
-            dataViewerTree.appendChild(group);
-        }
-    }
-
-    function buildErrorRow(message) {
-        const row = document.createElement('div');
-        row.className = 'tree-row tree-row-error';
-        const msg = document.createElement('span');
-        msg.className = 'tree-value-error';
-        msg.textContent = message;
-        row.appendChild(msg);
-        return row;
-    }
-
-    function buildKeyRow(storageType, key, value, query) {
-        const row = document.createElement('div');
-        row.className = 'tree-row';
-        row.setAttribute('role', 'treeitem');
-        row.setAttribute('tabindex', '0');
-
-        const keyEl = document.createElement('span');
-        keyEl.className = 'tree-key';
-        keyEl.textContent = key;
-        if (query && key.toLowerCase().includes(query)) {
-            keyEl.classList.add('tree-highlight');
-        }
-        row.appendChild(keyEl);
-
-        const valueEl = document.createElement('span');
-        valueEl.className = 'tree-value';
-        const preview = formatValuePreview(value);
-        valueEl.textContent = preview;
-        if (query && JSON.stringify(value).toLowerCase().includes(query) && !key.toLowerCase().includes(query)) {
-            valueEl.classList.add('tree-highlight');
-        }
-        row.appendChild(valueEl);
-
-        const typeBadge = document.createElement('span');
-        typeBadge.className = 'badge badge-type';
-        typeBadge.textContent = getValueType(value);
-        row.appendChild(typeBadge);
-
-        const actions = document.createElement('div');
-        actions.className = 'tree-row-actions';
-
-        actions.appendChild(buildActionBtn('Copy value', 'icon-copy', () => {
-            const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
-            navigator.clipboard.writeText(text)
-                .then(() => showToast(`"${key}" copied!`, 'success'))
-                .catch(() => showToast('Copy failed!', 'error'));
-        }));
-
-        actions.appendChild(buildActionBtn('Edit value', 'icon-settings', () => {
-            openKeyEditModal(storageType, key, value);
-        }));
-
-        const delBtn = buildActionBtn('Delete key', 'icon-trash', async () => {
-            const confirmed = await showConfirmation(
-                'Delete Key',
-                `Delete "${key}" from ${storageDisplayName(storageType)}? This cannot be undone.`
-            );
-            if (confirmed) await deleteKey(storageType, key);
-        });
-        delBtn.classList.add('tree-action-danger');
-        actions.appendChild(delBtn);
-
-        row.appendChild(actions);
-        return row;
-    }
-
-    function buildActionBtn(label, iconClass, onClick) {
-        const btn = document.createElement('button');
-        btn.className = 'btn-icon tree-action-btn';
-        btn.setAttribute('aria-label', label);
-        btn.title = label;
-        const icon = document.createElement('span');
-        icon.className = `icon ${iconClass}`;
-        icon.setAttribute('aria-hidden', 'true');
-        btn.appendChild(icon);
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            onClick();
-        });
-        return btn;
-    }
-
-    function formatValuePreview(value) {
-        if (value === null) return 'null';
-        if (value === undefined) return 'undefined';
-        if (typeof value === 'boolean') return String(value);
-        if (typeof value === 'number') return String(value);
-        if (typeof value === 'string') {
-            return value.length > 80 ? value.slice(0, 80) + '...' : value;
-        }
-        if (Array.isArray(value)) return `[${value.length} items]`;
-        if (typeof value === 'object') return `{${Object.keys(value).length} keys}`;
-        return String(value);
-    }
-
-    function getValueType(value) {
-        if (value === null) return 'null';
-        if (Array.isArray(value)) return 'array';
-        return typeof value;
-    }
-
-    // =====================================================================
-    // KEY OPERATIONS
-    // =====================================================================
-
-    async function deleteKey(storageType, key) {
-        showLoading(`Deleting "${key}"...`);
-        try {
-            switch (storageType) {
-                case 'chromeLocal': await chrome.storage.local.remove(key); break;
-                case 'chromeSync':  await chrome.storage.sync.remove(key); break;
-                case 'webLocal':    localStorage.removeItem(key); break;
-                case 'webSession':  sessionStorage.removeItem(key); break;
-                default: throw new Error('Cannot delete from this storage area.');
-            }
-            if (allStoredData[storageType]) delete allStoredData[storageType][key];
-            renderViewer();
-            await updateStorageSizes();
-            showToast(`"${key}" deleted!`, 'success');
-        } catch (err) {
-            showToast(`Delete failed: ${err.message}`, 'error');
-        } finally {
-            hideLoading();
-        }
-    }
-
-    function openKeyEditModal(storageType, key, value) {
-        editContext = { storageType, key };
-        keyEditStorage.textContent = storageDisplayName(storageType);
-        keyEditKey.value = key;
-        keyEditValue.value = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
-        keyEditErrorMsg.style.display = 'none';
-        keyEditErrorMsg.textContent = '';
-        keyEditModal.classList.add('visible');
-        keyEditValue.focus();
-    }
-
-    function closeKeyEditModal() {
-        keyEditModal.classList.remove('visible');
-        editContext = null;
-    }
-
-    keyEditClose.addEventListener('click', closeKeyEditModal);
-    keyEditCancel.addEventListener('click', closeKeyEditModal);
-    keyEditModal.addEventListener('click', (e) => {
-        if (e.target === keyEditModal) closeKeyEditModal();
-    });
-
-    keyEditSave.addEventListener('click', async () => {
-        if (!editContext) return;
-        const { storageType, key } = editContext;
-        const rawValue = keyEditValue.value;
-
-        let parsedValue;
-        try {
-            parsedValue = JSON.parse(rawValue);
-        } catch {
-            parsedValue = rawValue;
-        }
-
-        showLoading(`Saving "${key}"...`);
-        try {
-            switch (storageType) {
-                case 'chromeLocal':
-                    await chrome.storage.local.set({ [key]: parsedValue });
-                    break;
-                case 'chromeSync':
-                    await chrome.storage.sync.set({ [key]: parsedValue });
-                    break;
-                case 'webLocal':
-                    localStorage.setItem(key, typeof parsedValue === 'string' ? parsedValue : JSON.stringify(parsedValue));
-                    break;
-                case 'webSession':
-                    sessionStorage.setItem(key, typeof parsedValue === 'string' ? parsedValue : JSON.stringify(parsedValue));
-                    break;
-                default:
-                    throw new Error('Cannot edit this storage area.');
-            }
-            if (allStoredData[storageType]) allStoredData[storageType][key] = parsedValue;
-            renderViewer();
-            await updateStorageSizes();
-            showToast(`"${key}" saved!`, 'success');
-            closeKeyEditModal();
-        } catch (err) {
-            keyEditErrorMsg.textContent = `Save failed: ${err.message}`;
-            keyEditErrorMsg.style.display = 'block';
-            showToast(`Save failed: ${err.message}`, 'error');
-        } finally {
-            hideLoading();
-        }
-    });
-
-    keyEditValue.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) keyEditSave.click();
-    });
-
-    // =====================================================================
-    // GLOBAL KEYBOARD
-    // =====================================================================
-
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            if (keyEditModal.classList.contains('visible')) {
-                closeKeyEditModal();
-            } else if (!dataViewerPanel.hidden) {
-                closeDataViewerBtn.click();
-            }
         }
     });
 
