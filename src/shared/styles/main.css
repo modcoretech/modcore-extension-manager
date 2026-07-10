@@ -1,0 +1,9 @@
+/* main.css */
+
+
+/* Base styles */
+@import 'base/variables.css';
+@import 'base/fonts.css';
+
+/* Component styles */
+@import 'components/icons.css';

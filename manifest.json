@@ -15,11 +15,10 @@
     "tabs",
     "downloads",
     "contextMenus",
-    "sidePanel",
-    "notifications"
+    "sidePanel"
   ],
   "background": {
-    "service_worker": "src/js/core/service-worker.js",
+    "service_worker": "src/js/entry/service-worker.js",
     "type": "module"
   },
   "host_permissions": [
@@ -28,11 +27,11 @@
     "https://clients2.google.com/"
   ],
   "side_panel": {
-    "default_path": "src/html/popup.html"
+    "default_path": "src/views/popup/popup.html"
   },
   "action": {
     "default_title": "modcore Extension Manager",
-    "default_popup": "src/html/popup.html",
+    "default_popup": "src/views/popup/popup.html",
     "default_icon": {
       "128": "public/icons/png/modcore-em.png"
     }
@@ -40,25 +39,9 @@
   "icons": {
     "128": "public/icons/png/modcore-em.png"
   },
-  "content_scripts": [
-    {
-      "matches": [
-        "<all_urls>"
-      ],
-      "js": [
-        "src/js/core/content.js"
-      ]
-    }
-  ],
   "options_ui": {
-    "page": "src/html/snapshot.html",
+    "page": "src/views/snapshot/snapshot.html",
     "open_in_tab": true
-  },
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "modcoretech@proton.me",
-      "strict_min_version": "128.0"
-    }
   },
   "default_locale": "en",
   "content_security_policy": {
