@@ -185,16 +185,6 @@ input[type="text"]:read-only:focus-visible {
   box-shadow: none;
 }
 
-.label-inline {
-  display: flex;
-  align-items: center;
-  white-space: nowrap;
-  color: var(--color-text-secondary);
-  font-size: 0.85em;
-  font-weight: var(--weight-medium);
-  flex-shrink: 0;
-}
-
 .button-small {
   font-family: var(--font-sans);
   display: inline-flex;

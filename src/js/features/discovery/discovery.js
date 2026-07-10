@@ -369,7 +369,6 @@
 
     /**
      * Safely constructs a DocumentFragment with highlighted text based on Fuse.js indices.
-     * Prevents XSS by avoiding innerHTML entirely.
      */
     function highlightText(text, indices) {
         const frag = document.createDocumentFragment();

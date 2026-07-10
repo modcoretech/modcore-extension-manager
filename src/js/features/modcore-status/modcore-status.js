@@ -235,7 +235,7 @@
         return _statusBar;
     }
 
-    // ─── Build toast element (zero innerHTML) ──────────────────────────────
+    // ─── Build toast element  ──────────────────────────────
     function _buildToast(id, message, type) {
         const meta = TYPE_META[type] || TYPE_META.info;
         const el = document.createElement('div');

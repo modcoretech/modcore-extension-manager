@@ -14,16 +14,11 @@ import {
 const DEFAULT_ICON_PLACEHOLDER = '../../../public/icons/svg/updatelogo.svg';
 
 const ICON = {
-    profiles:  '../../../public/icons/svg/profiles.svg',
     configure: '../../../public/icons/svg/settings.svg',
-    save:      '../../../public/icons/svg/save.svg',
     duplicate: '../../../public/icons/svg/copy.svg',
     delete:    '../../../public/icons/svg/trash.svg',
-    current:   '../../../public/icons/svg/current.svg',
     shortcut:  '../../../public/icons/svg/keyboard.svg',
     arrowLeft: '../../../public/icons/svg/arrow-left.svg',
-    power:     '../../../public/icons/svg/power.svg',
-    close:     '../../../public/icons/svg/close.svg',
 };
 
 // ─── DOM References (populated in init) ─────────────────────────────────────
@@ -35,10 +30,8 @@ let currentConfiguringId = null;
 let allFetchedExtensions = [];
 let extensionMap         = new Map();
 let profileListSortable  = null;
-let profileConfigClusterize = null;
 let profileConfigAllExts = [];
 let profileConfigState   = new Map();
-let profileConfigSearchTimer = null;
 let dialogResolve        = null;
 let dialogType           = null;
 let isRecordingShortcut  = false;
@@ -55,11 +48,6 @@ let extensionFuse        = null;
 // UTILITIES
 // ═════════════════════════════════════════════════════════════════════════════
 
-function escapeHtml(str) {
-    if (str == null) return '';
-    return String(str).replace(/[&<>"']/g, ch => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[ch]));
-}
-
 function sanitizeText(str) {
     return str == null ? '' : String(str);
 }
@@ -70,17 +58,6 @@ function makeImg(src, alt = '') {
     img.alt = alt;
     img.setAttribute('aria-hidden', 'true');
     return img;
-}
-
-function makeButton({ className = '', title = '', icon = null, text = null, ariaLabel = null, disabled = false } = {}) {
-    const btn = document.createElement('button');
-    btn.className = className;
-    if (title)     btn.title = title;
-    if (ariaLabel) btn.setAttribute('aria-label', ariaLabel);
-    if (disabled)  btn.disabled = true;
-    if (icon)      btn.appendChild(makeImg(icon));
-    if (text)      btn.appendChild(document.createTextNode(text));
-    return btn;
 }
 
 function announceToScreenReader(message) {
@@ -376,7 +353,11 @@ async function renderProfileList() {
     } else if (profileFuse) {
         // Rebuild Fuse index when profiles change
         const profileArray = orderedIds.map(id => ({ id, ...profiles[id] })).filter(p => p.name);
-        profileFuse.setCollection(profileArray);
+        profileFuse = new Fuse(profileArray, {
+            keys: ['name'],
+            threshold: 0.3,
+            ignoreLocation: true,
+        });
     }
 
     orderedIds = getFilteredProfiles(profiles, orderedIds);
@@ -546,11 +527,14 @@ function updateProfileBulkUI() {
 
     bulkDelete.classList.toggle('visible', count > 0);
     bulkDelete.disabled = count === 0;
+    bulkDelete.replaceChildren();
     if (count > 0) {
-        bulkDelete.innerHTML = `<img src="${ICON.delete}" alt="" aria-hidden="true"> Delete (${count})`;
+        bulkDelete.appendChild(makeImg(ICON.delete, ''));
+        bulkDelete.appendChild(document.createTextNode(` Delete (${count})`));
         bulkDelete.setAttribute('aria-label', `Delete ${count} selected profiles`);
     } else {
-        bulkDelete.innerHTML = `<img src="${ICON.delete}" alt="" aria-hidden="true"> Delete Selected`;
+        bulkDelete.appendChild(makeImg(ICON.delete, ''));
+        bulkDelete.appendChild(document.createTextNode(' Delete Selected'));
         bulkDelete.setAttribute('aria-label', 'Delete selected profiles');
     }
 
@@ -644,7 +628,7 @@ async function deleteProfiles(idsSet, allowUndo = true) {
         .join(', ');
 
     const confirmed = await showCustomConfirm(
-        `Delete ${idsSet.size} profile(s)?\\n\\n${profileNames}\\n\\nThis cannot be undone.`,
+        `Delete ${idsSet.size} profile(s)?\n\n${profileNames}\n\nThis cannot be undone.`,
         'Delete Profiles'
     );
     if (!confirmed) {
@@ -690,7 +674,8 @@ function showUndoButton() {
     const btn = document.createElement('button');
     btn.id = 'undo-delete-btn';
     btn.className = 'button-small undo-button';
-    btn.innerHTML = `<img src="${ICON.arrowLeft}" alt="" aria-hidden="true"> Undo Delete`;
+    btn.appendChild(makeImg(ICON.arrowLeft, ''));
+    btn.appendChild(document.createTextNode(' Undo Delete'));
     btn.setAttribute('aria-label', 'Undo last profile deletion');
     btn.addEventListener('click', undoLastDelete);
 
@@ -852,20 +837,24 @@ function updateConfigSummary(profile) {
     const enabledCount = managedIds.filter(id => states[id]).length;
     const totalCount = managedIds.length;
 
-    el.configSummaryContent.innerHTML = `
-        <div class="summary-stat">
-            <span class="summary-number">${enabledCount}</span>
-            <span class="summary-label">Enabled</span>
-        </div>
-        <div class="summary-stat">
-            <span class="summary-number">${totalCount - enabledCount}</span>
-            <span class="summary-label">Disabled</span>
-        </div>
-        <div class="summary-stat">
-            <span class="summary-number">${totalCount}</span>
-            <span class="summary-label">Total</span>
-        </div>
-    `;
+    el.configSummaryContent.replaceChildren();
+    const createStat = (number, label) => {
+        const div = document.createElement('div');
+        div.className = 'summary-stat';
+        const numSpan = document.createElement('span');
+        numSpan.className = 'summary-number';
+        numSpan.textContent = String(number);
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'summary-label';
+        labelSpan.textContent = label;
+        div.append(numSpan, labelSpan);
+        return div;
+    };
+    el.configSummaryContent.append(
+        createStat(enabledCount, 'Enabled'),
+        createStat(totalCount - enabledCount, 'Disabled'),
+        createStat(totalCount, 'Total')
+    );
 
     const emptyWarning = document.getElementById('config-empty-warning');
     if (emptyWarning) {
@@ -889,28 +878,53 @@ function markConfigDirty() {
     }
 }
 
-function getProfileConfigRowHTML(ext, checked) {
-    const cbId = `profile-cfg-ext-${ext.id}`;
-    const iconUrl = ext.icons?.find(i => i.size >= 16)?.url || DEFAULT_ICON_PLACEHOLDER;
-    const search = (el.profileConfigSearch?.value ?? '').toLowerCase().trim();
-    let nameHtml = escapeHtml(ext.name);
+function createProfileConfigRow(ext, checked, searchTerm) {
+    const item = document.createElement('div');
+    item.className = 'profile-config-extension-item';
+    item.dataset.extensionId = ext.id;
+    item.setAttribute('role', 'listitem');
 
-    if (search) {
-        const idx = ext.name.toLowerCase().indexOf(search);
-        if (idx >= 0) {
-            const before = escapeHtml(ext.name.slice(0, idx));
-            const match = escapeHtml(ext.name.slice(idx, idx + search.length));
-            const after = escapeHtml(ext.name.slice(idx + search.length));
-            nameHtml = `${before}<mark>${match}</mark>${after}`;
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = `profile-cfg-ext-${ext.id}`;
+    cb.className = 'profile-config-ext-checkbox';
+    cb.dataset.extensionId = ext.id;
+    cb.checked = checked;
+
+    const icon = document.createElement('img');
+    icon.src = ext.icons?.find(i => i.size >= 16)?.url || DEFAULT_ICON_PLACEHOLDER;
+    icon.alt = '';
+    icon.className = 'extension-icon-small';
+    icon.loading = 'lazy';
+    icon.onerror = function() {
+        if (this.src !== DEFAULT_ICON_PLACEHOLDER) {
+            this.src = DEFAULT_ICON_PLACEHOLDER;
+            this.onerror = null;
         }
+    };
+
+    const label = document.createElement('label');
+    label.htmlFor = cb.id;
+    label.title = ext.name || '';
+
+    if (searchTerm) {
+        const lowerName = (ext.name || '').toLowerCase();
+        const idx = lowerName.indexOf(searchTerm);
+        if (idx >= 0) {
+            label.append(
+                document.createTextNode(ext.name.slice(0, idx)),
+                Object.assign(document.createElement('mark'), { textContent: ext.name.slice(idx, idx + searchTerm.length) }),
+                document.createTextNode(ext.name.slice(idx + searchTerm.length))
+            );
+        } else {
+            label.textContent = ext.name || '';
+        }
+    } else {
+        label.textContent = ext.name || '';
     }
 
-    return `
-    <div class="profile-config-extension-item" data-extension-id="${ext.id}" role="listitem">
-        <input type="checkbox" id="${cbId}" class="profile-config-ext-checkbox" data-extension-id="${ext.id}" ${checked ? 'checked' : ''}>
-        <img src="${iconUrl}" alt="" class="extension-icon-small" loading="lazy" onerror="if(this.src!=='${DEFAULT_ICON_PLACEHOLDER}'){this.src='${DEFAULT_ICON_PLACEHOLDER}';this.onerror=null;}">
-        <label for="${cbId}">${nameHtml}</label>
-    </div>`;
+    item.append(cb, icon, label);
+    return item;
 }
 
 async function renderProfileConfigList() {
@@ -931,29 +945,19 @@ async function renderProfileConfigList() {
     const { profiles } = await loadProfileStore();
     const states = profiles[currentConfiguringId]?.extensionStates ?? {};
 
-    const rows = exts.map(ext => {
+    const frag = document.createDocumentFragment();
+    for (const ext of exts) {
         const checked = profileConfigState.has(ext.id)
             ? profileConfigState.get(ext.id)
             : (states[ext.id] ?? ext.enabled);
-        return getProfileConfigRowHTML(ext, checked);
-    });
-
-    if (!profileConfigClusterize) {
-        profileConfigClusterize = new Clusterize({
-            rows,
-            scrollElem: el.profileConfigScroll,
-            contentElem: el.profileConfigExtList,
-            rows_in_block: 10,
-            blocks_in_cluster: 2,
-            show_no_data_row: false
-        });
-    } else {
-        profileConfigClusterize.update(rows);
+        frag.appendChild(createProfileConfigRow(ext, checked, search));
     }
+
+    el.profileConfigExtList.replaceChildren(frag);
 
     const noResults = el.profileConfigSection?.querySelector('.config-no-results');
     if (noResults) {
-        noResults.style.display = rows.length === 0 ? 'block' : 'none';
+        noResults.style.display = exts.length === 0 ? 'block' : 'none';
     }
 }
 
@@ -1039,7 +1043,9 @@ function startRecordingShortcut() {
     }
     if (btn) {
         btn.classList.add('recording');
-        btn.innerHTML = `<img src="${ICON.shortcut}" alt="" aria-hidden="true"> Stop`;
+        btn.replaceChildren();
+        btn.appendChild(makeImg(ICON.shortcut, ''));
+        btn.appendChild(document.createTextNode(' Stop'));
         btn.setAttribute('aria-pressed', 'true');
     }
     showShortcutMessage('Press a combination like Ctrl+Shift+P. Press Esc to cancel.', 'info');
@@ -1055,7 +1061,9 @@ function stopRecordingShortcut() {
     }
     if (btn) {
         btn.classList.remove('recording');
-        btn.innerHTML = `<img src="${ICON.shortcut}" alt="" aria-hidden="true"> Record`;
+        btn.replaceChildren();
+        btn.appendChild(makeImg(ICON.shortcut, ''));
+        btn.appendChild(document.createTextNode(' Record'));
         btn.setAttribute('aria-pressed', 'false');
     }
 }
