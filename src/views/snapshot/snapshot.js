@@ -10,22 +10,34 @@ document.addEventListener('DOMContentLoaded', () => {
         webLocal:    'Web Local',
         webSession:  'Web Session',
     };
+    const STORAGE_DESCS = {
+        chromeLocal: 'Device-only storage for this extension.',
+        chromeSync:  'Synced across all your signed-in Chrome profiles.',
+        webLocal:    'Standard web localStorage data.',
+        webSession:  'Temporary sessionStorage. Cleared when browser closes.',
+    };
+    const STORAGE_ICONS = {
+        chromeLocal: 'icon-host',
+        chromeSync:  'icon-link',
+        webLocal:    'icon-code',
+        webSession:  'icon-power',
+    };
     const TOAST_DURATION = 4000;
+    const ENC = new TextEncoder();
 
     // =====================================================================
-    // DOM REFERENCES
+    // DOM REFERENCES (cached once)
     // =====================================================================
-
-    // Navigation
     const sidebarButtons = document.querySelectorAll('.sidebar-button');
     const contentPanels  = document.querySelectorAll('.content-panel');
+    const wizardSteps    = document.querySelectorAll('.wizard-step');
 
     // Wizard: Welcome
     const wizardWelcome     = document.getElementById('br-welcome');
     const cardBackup        = document.getElementById('card-backup');
     const cardRestore       = document.getElementById('card-restore');
 
-    // Wizard: Backup Step 1 (Storage areas)
+    // Wizard: Backup Step 1 (Select areas)
     const backupStep1       = document.getElementById('br-backup-step1');
     const backupBackWelcome = document.getElementById('backup-back-welcome');
     const backupCancelS1    = document.getElementById('backup-cancel-step1');
@@ -38,20 +50,12 @@ document.addEventListener('DOMContentLoaded', () => {
         webSession:   document.getElementById('wiz-backup-webSession'),
     };
 
-    // Wizard: Backup Step 2 (File name)
+    // Wizard: Backup Step 2 (Review & Create — was step 3)
     const backupStep2       = document.getElementById('br-backup-step2');
     const backupBackS1      = document.getElementById('backup-back-step1');
     const backupCancelS2    = document.getElementById('backup-cancel-step2');
-    const backupNextS2      = document.getElementById('backup-next-step2');
-    const backupS2Error     = document.getElementById('backup-step2-error');
-    const backupFilename    = document.getElementById('wiz-backup-filename');
-
-    // Wizard: Backup Step 3 (Review)
-    const backupStep3       = document.getElementById('br-backup-step3');
-    const backupBackS2      = document.getElementById('backup-back-step2');
-    const backupCancelS3    = document.getElementById('backup-cancel-step3');
     const backupCreateFinal = document.getElementById('backup-create-final');
-    const backupS3Error     = document.getElementById('backup-step3-error');
+    const backupS2Error     = document.getElementById('backup-step2-error');
     const reviewBackupName  = document.getElementById('review-backup-filename');
     const reviewBackupAreas = document.getElementById('review-backup-areas');
     const reviewBackupSize  = document.getElementById('review-backup-size');
@@ -102,8 +106,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const backupRestoreError = document.getElementById('backupRestoreError');
 
     // Data Management
-    const clearSelectedDataBtn = document.getElementById('clearSelectedDataBtn');
-    const dataManagementError  = document.getElementById('dataManagementError');
+    const storageTableBody  = document.getElementById('storage-table-body');
+    const dataManagementError = document.getElementById('dataManagementError');
 
     // Modals
     const loadingOverlay  = document.getElementById('loading-overlay');
@@ -120,7 +124,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let wizardState = {
         backupAreas: [],
-        backupFilename: '',
         restoreFile: null,
         restoreAreas: [],
     };
@@ -142,12 +145,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function estimateSize(data) {
-        try { return new Blob([JSON.stringify(data)]).size; } catch { return 0; }
+        try { return ENC.encode(JSON.stringify(data)).length; } catch { return 0; }
     }
 
-    // Returns a filesystem-safe "YYYY-MM-DD_HHMMSS" timestamp for the given date.
-    // Shared by both the review-step preview and the actual downloaded file name,
-    // so the two always stay in sync.
     function formatTimestamp(date) {
         const p = (n) => String(n).padStart(2, '0');
         return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}_${p(date.getHours())}${p(date.getMinutes())}${p(date.getSeconds())}`;
@@ -159,12 +159,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderBadges(container, types) {
         container.textContent = '';
-        types.forEach(type => {
+        for (const type of types) {
             const badge = document.createElement('span');
             badge.className = 'badge';
             badge.textContent = storageDisplayName(type);
             container.appendChild(badge);
-        });
+        }
     }
 
     // =====================================================================
@@ -177,7 +177,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
         toast.setAttribute('role', 'alert');
-        toast.setAttribute('aria-live', 'polite');
         toast.textContent = message;
         container.appendChild(toast);
         requestAnimationFrame(() => toast.classList.add('show'));
@@ -269,46 +268,49 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =====================================================================
-    // STORAGE ACCESS
+    // STORAGE ACCESS (parallel reads for speed)
     // =====================================================================
 
-    async function getAllStorageData(types = STORAGE_TYPES) {
-        const result = {};
-        for (const type of types) {
-            try {
-                switch (type) {
-                    case 'chromeLocal':
-                        result.chromeLocal = (typeof chrome !== 'undefined' && chrome.storage?.local)
-                            ? await chrome.storage.local.get(null)
-                            : { __error: 'Chrome Local Storage not available' };
-                        break;
-                    case 'chromeSync':
-                        result.chromeSync = (typeof chrome !== 'undefined' && chrome.storage?.sync)
-                            ? await chrome.storage.sync.get(null)
-                            : { __error: 'Chrome Sync Storage not available' };
-                        break;
-                    case 'webLocal': {
-                        const d = {};
-                        for (let i = 0; i < localStorage.length; i++) {
-                            const k = localStorage.key(i);
-                            d[k] = localStorage.getItem(k);
-                        }
-                        result.webLocal = d;
-                        break;
+    async function getStorageData(type) {
+        try {
+            switch (type) {
+                case 'chromeLocal':
+                    return (typeof chrome !== 'undefined' && chrome.storage?.local)
+                        ? await chrome.storage.local.get(null)
+                        : { __error: 'Chrome Local Storage not available' };
+                case 'chromeSync':
+                    return (typeof chrome !== 'undefined' && chrome.storage?.sync)
+                        ? await chrome.storage.sync.get(null)
+                        : { __error: 'Chrome Sync Storage not available' };
+                case 'webLocal': {
+                    const d = {};
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const k = localStorage.key(i);
+                        d[k] = localStorage.getItem(k);
                     }
-                    case 'webSession': {
-                        const d = {};
-                        for (let i = 0; i < sessionStorage.length; i++) {
-                            const k = sessionStorage.key(i);
-                            d[k] = sessionStorage.getItem(k);
-                        }
-                        result.webSession = d;
-                        break;
-                    }
+                    return d;
                 }
-            } catch (err) {
-                result[type] = { __error: `Error: ${err.message}` };
+                case 'webSession': {
+                    const d = {};
+                    for (let i = 0; i < sessionStorage.length; i++) {
+                        const k = sessionStorage.key(i);
+                        d[k] = sessionStorage.getItem(k);
+                    }
+                    return d;
+                }
+                default:
+                    return { __error: `Unknown storage type: ${type}` };
             }
+        } catch (err) {
+            return { __error: `Error: ${err.message}` };
+        }
+    }
+
+    async function getAllStorageData(types = STORAGE_TYPES) {
+        const results = await Promise.all(types.map(t => getStorageData(t)));
+        const result = {};
+        for (let i = 0; i < types.length; i++) {
+            result[types[i]] = results[i];
         }
         return result;
     }
@@ -329,21 +331,101 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =====================================================================
+    // DATA MANAGEMENT TABLE
+    // =====================================================================
+
+    function buildStorageTable() {
+        if (!storageTableBody) return;
+        storageTableBody.textContent = '';
+
+        for (const type of STORAGE_TYPES) {
+            const tr = document.createElement('tr');
+            tr.setAttribute('data-storage', type);
+
+            // Name cell
+            const nameTd = document.createElement('td');
+            const nameWrap = document.createElement('div');
+            nameWrap.className = 'storage-name-wrap';
+            const icon = document.createElement('span');
+            icon.className = `icon ${STORAGE_ICONS[type]}`;
+            icon.setAttribute('aria-hidden', 'true');
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = STORAGE_NAMES[type];
+            nameWrap.append(icon, nameSpan);
+            const descSmall = document.createElement('small');
+            descSmall.textContent = STORAGE_DESCS[type];
+            nameTd.append(nameWrap, descSmall);
+
+            // Usage cell
+            const usageTd = document.createElement('td');
+            const sizeCode = document.createElement('code');
+            sizeCode.className = 'storage-size';
+            sizeCode.setAttribute('data-storage', type);
+            sizeCode.textContent = '…';
+            usageTd.appendChild(sizeCode);
+
+            // Actions cell
+            const actionTd = document.createElement('td');
+            const clearBtn = document.createElement('button');
+            clearBtn.className = 'btn danger btn-small';
+            clearBtn.innerHTML = '<span class="icon icon-trash" aria-hidden="true"></span> Clear';
+            clearBtn.setAttribute('data-action', 'clear');
+            clearBtn.setAttribute('data-storage', type);
+            clearBtn.addEventListener('click', () => handleClearSingle(type));
+            actionTd.appendChild(clearBtn);
+
+            tr.append(nameTd, usageTd, actionTd);
+            storageTableBody.appendChild(tr);
+        }
+    }
+
+    async function handleClearSingle(type) {
+        hideError(dataManagementError);
+
+        const confirmed = await showConfirmation(
+            'Confirm Clear',
+            `Permanently delete all data from ${storageDisplayName(type)}. This cannot be undone.`
+        );
+        if (!confirmed) {
+            showToast('Clear cancelled.', 'info');
+            return;
+        }
+
+        showLoading('Clearing data...');
+        try {
+            switch (type) {
+                case 'chromeLocal': await chrome.storage.local.clear(); break;
+                case 'chromeSync':  await chrome.storage.sync.clear(); break;
+                case 'webLocal':    localStorage.clear(); break;
+                case 'webSession':  sessionStorage.clear(); break;
+            }
+            showToast(`Cleared ${storageDisplayName(type)}!`, 'success');
+            await updateStorageSizes();
+        } catch (err) {
+            console.error('Clear error:', err);
+            showError(dataManagementError, `Clear failed: ${err.message}`);
+            showToast('Clear failed!', 'error');
+        } finally {
+            hideLoading();
+        }
+    }
+
+    // =====================================================================
     // SIDEBAR NAVIGATION - ARIA Tabs
     // =====================================================================
 
     function activateTab(btn) {
         const target = btn.getAttribute('data-panel');
-        sidebarButtons.forEach(b => {
+        for (const b of sidebarButtons) {
             b.classList.remove('active');
             b.setAttribute('aria-selected', 'false');
             b.setAttribute('tabindex', '-1');
-        });
+        }
         btn.classList.add('active');
         btn.setAttribute('aria-selected', 'true');
         btn.setAttribute('tabindex', '0');
 
-        contentPanels.forEach(p => { p.hidden = true; });
+        for (const p of contentPanels) { p.hidden = true; }
         const panel = document.getElementById(`${target}-panel`);
         if (panel) {
             panel.hidden = false;
@@ -353,18 +435,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    sidebarButtons.forEach((btn, index) => {
+    for (let i = 0; i < sidebarButtons.length; i++) {
+        const btn = sidebarButtons[i];
         btn.setAttribute('tabindex', btn.classList.contains('active') ? '0' : '-1');
         btn.addEventListener('click', () => activateTab(btn));
         btn.addEventListener('keydown', (e) => {
             const buttons = Array.from(sidebarButtons);
-            let nextIndex = index;
+            let nextIndex = i;
             if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
                 e.preventDefault();
-                nextIndex = (index + 1) % buttons.length;
+                nextIndex = (i + 1) % buttons.length;
             } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
                 e.preventDefault();
-                nextIndex = (index - 1 + buttons.length) % buttons.length;
+                nextIndex = (i - 1 + buttons.length) % buttons.length;
             } else if (e.key === 'Home') {
                 e.preventDefault();
                 nextIndex = 0;
@@ -377,16 +460,15 @@ document.addEventListener('DOMContentLoaded', () => {
             buttons[nextIndex].focus();
             activateTab(buttons[nextIndex]);
         });
-    });
+    }
 
     // =====================================================================
     // WIZARD - Navigation Helpers
     // =====================================================================
 
     function showWizardStep(stepEl) {
-        document.querySelectorAll('.wizard-step').forEach(el => { el.hidden = true; });
+        for (const el of wizardSteps) { el.hidden = true; }
         stepEl.hidden = false;
-        // Focus first interactive element for accessibility
         const focusable = stepEl.querySelector('button, input, [tabindex]:not([tabindex="-1"])');
         if (focusable) focusable.focus();
     }
@@ -394,29 +476,28 @@ document.addEventListener('DOMContentLoaded', () => {
     function resetWizard() {
         wizardState = {
             backupAreas: [],
-            backupFilename: '',
             restoreFile: null,
             restoreAreas: [],
         };
         currentBackup = null;
 
-        // Reset backup checkboxes to their default selection
-        Object.values(backupCheckboxes).forEach(cb => { cb.checked = cb.value !== 'webSession'; });
-        backupFilename.value = '';
+        for (const cb of Object.values(backupCheckboxes)) {
+            cb.checked = cb.value !== 'webSession';
+        }
 
-        // Reset restore
         restoreFileInput.value = '';
         restoreFileInfo.hidden = true;
         restoreNextS1.disabled = true;
-        Object.values(restoreCheckboxes).forEach(cb => {
+        for (const cb of Object.values(restoreCheckboxes)) {
             cb.checked = false;
             cb.disabled = true;
-        });
-        Object.values(restoreStatuses).forEach(s => { s.textContent = 'Not in backup'; });
+        }
+        for (const s of Object.values(restoreStatuses)) {
+            s.textContent = 'Not in backup';
+        }
         restoreMeta.hidden = true;
         restoreMeta.textContent = '';
 
-        // Hide all errors
         document.querySelectorAll('.wizard-validation').forEach(el => { el.hidden = true; });
         hideError(backupRestoreError);
     }
@@ -427,7 +508,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =====================================================================
-    // WIZARD - Backup Flow
+    // WIZARD - Backup Flow (2 steps: Select → Review/Create)
     // =====================================================================
 
     cardBackup.addEventListener('click', () => {
@@ -439,11 +520,12 @@ document.addEventListener('DOMContentLoaded', () => {
     backupBackWelcome.addEventListener('click', goToWelcome);
     backupCancelS1.addEventListener('click', goToWelcome);
 
-    backupNextS1.addEventListener('click', () => {
+    backupNextS1.addEventListener('click', async () => {
         hideError(backupS1Error);
-        const selected = Object.entries(backupCheckboxes)
-            .filter(([, cb]) => cb.checked)
-            .map(([type]) => type);
+        const selected = [];
+        for (const [type, cb] of Object.entries(backupCheckboxes)) {
+            if (cb.checked) selected.push(type);
+        }
 
         if (selected.length === 0) {
             showError(backupS1Error, 'Select at least one storage area to back up.');
@@ -451,48 +533,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         wizardState.backupAreas = selected;
-        showWizardStep(backupStep2);
-    });
-
-    backupBackS1.addEventListener('click', () => showWizardStep(backupStep1));
-    backupCancelS2.addEventListener('click', goToWelcome);
-
-    backupNextS2.addEventListener('click', async () => {
-        hideError(backupS2Error);
-        const rawName = backupFilename.value.trim();
-        wizardState.backupFilename = rawName || 'extension_backup';
 
         showLoading('Calculating backup size...');
         try {
-            const previewData = await getAllStorageData(wizardState.backupAreas);
-            const totalSize = Object.values(previewData).reduce((acc, d) => {
-                return acc + (d && typeof d === 'object' && !d.__error ? estimateSize(d) : 0);
-            }, 0);
+            const previewData = await getAllStorageData(selected);
+            let totalSize = 0;
+            for (const d of Object.values(previewData)) {
+                if (d && typeof d === 'object' && !d.__error) {
+                    totalSize += estimateSize(d);
+                }
+            }
 
-            setText(reviewBackupName, `${wizardState.backupFilename}_${formatTimestamp(new Date())}.json`);
-            renderBadges(reviewBackupAreas, wizardState.backupAreas);
+            const timestamp = new Date();
+            setText(reviewBackupName, `extension_backup_${formatTimestamp(timestamp)}.json`);
+            renderBadges(reviewBackupAreas, selected);
             setText(reviewBackupSize, formatBytes(totalSize));
 
-            showWizardStep(backupStep3);
+            showWizardStep(backupStep2);
         } catch (err) {
-            showError(backupS2Error, `Failed to prepare backup: ${err.message}`);
+            showError(backupS1Error, `Failed to prepare backup: ${err.message}`);
         } finally {
             hideLoading();
         }
     });
 
-    backupBackS2.addEventListener('click', () => showWizardStep(backupStep2));
-    backupCancelS3.addEventListener('click', goToWelcome);
+    backupBackS1.addEventListener('click', () => showWizardStep(backupStep1));
+    backupCancelS2.addEventListener('click', goToWelcome);
 
     backupCreateFinal.addEventListener('click', async () => {
-        hideError(backupS3Error);
+        hideError(backupS2Error);
         hideError(backupRestoreError);
 
         showLoading('Creating backup...');
         try {
-            // Fetch fresh data at the moment of creation rather than reusing the
-            // snapshot taken during the review step, so the backup always reflects
-            // the latest values even if time has passed since the review screen.
             const backupData = await getAllStorageData(wizardState.backupAreas);
             const timestamp = new Date();
 
@@ -507,7 +580,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const url  = URL.createObjectURL(blob);
             const a    = document.createElement('a');
             a.href     = url;
-            a.download = `${wizardState.backupFilename}_${formatTimestamp(timestamp)}.json`;
+            a.download = `extension_backup_${formatTimestamp(timestamp)}.json`;
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -515,10 +588,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             showToast('Backup created successfully!', 'success');
             goToWelcome();
-
         } catch (err) {
             console.error('Backup error:', err);
-            showError(backupS3Error, `Backup failed: ${err.message || err}`);
+            showError(backupS2Error, `Backup failed: ${err.message || err}`);
             showToast('Backup failed!', 'error');
         } finally {
             hideLoading();
@@ -537,7 +609,6 @@ document.addEventListener('DOMContentLoaded', () => {
     restoreBackWelcome.addEventListener('click', goToWelcome);
     restoreCancelS1.addEventListener('click', goToWelcome);
 
-    // File upload handling with drag & drop
     restoreFileInput.addEventListener('change', (e) => handleRestoreFile(e.target.files[0]));
 
     restoreUploadZone.addEventListener('dragover', (e) => {
@@ -570,6 +641,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(restoreFileName, file.name);
         restoreFileInfo.hidden = false;
         restoreNextS1.disabled = true;
+        currentBackup = null;
 
         showLoading('Reading backup file...');
         try {
@@ -586,7 +658,6 @@ document.addEventListener('DOMContentLoaded', () => {
             currentBackup = backupData;
             restoreNextS1.disabled = false;
             showToast('File loaded successfully!', 'success');
-
         } catch (err) {
             console.error('File read error:', err);
             showError(restoreS1Error, `Cannot read backup file: ${err.message}`);
@@ -594,6 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
             restoreFileInput.value = '';
             restoreFileInfo.hidden = true;
             wizardState.restoreFile = null;
+            currentBackup = null;
         } finally {
             hideLoading();
         }
@@ -603,45 +675,40 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentBackup) return;
         hideError(restoreS1Error);
 
-        // Populate metadata
         restoreMeta.hidden = false;
         restoreMeta.textContent = '';
 
         const createdRow = document.createElement('p');
         const createdLabel = document.createElement('strong');
         createdLabel.textContent = 'Created: ';
-        createdRow.appendChild(createdLabel);
-        createdRow.appendChild(document.createTextNode(new Date(currentBackup.timestamp).toLocaleString()));
+        createdRow.append(createdLabel, document.createTextNode(new Date(currentBackup.timestamp).toLocaleString()));
         restoreMeta.appendChild(createdRow);
 
         const versionRow = document.createElement('p');
         const versionLabel = document.createElement('strong');
         versionLabel.textContent = 'Version: ';
-        versionRow.appendChild(versionLabel);
-        versionRow.appendChild(document.createTextNode(currentBackup.snapshot_version || currentBackup.version || '-'));
+        versionRow.append(versionLabel, document.createTextNode(currentBackup.snapshot_version || currentBackup.version || '-'));
         restoreMeta.appendChild(versionRow);
 
         if (currentBackup.storageTypes?.length) {
             const areasRow = document.createElement('p');
             const areasLabel = document.createElement('strong');
             areasLabel.textContent = 'Areas: ';
-            areasRow.appendChild(areasLabel);
             const badgeWrap = document.createElement('span');
             renderBadges(badgeWrap, currentBackup.storageTypes);
-            areasRow.appendChild(badgeWrap);
+            areasRow.append(areasLabel, badgeWrap);
             restoreMeta.appendChild(areasRow);
         }
 
-        // Populate checkboxes
         const availableTypes = currentBackup.storageTypes || [];
-        Object.entries(restoreCheckboxes).forEach(([type, cb]) => {
+        for (const [type, cb] of Object.entries(restoreCheckboxes)) {
             const has = availableTypes.includes(type);
             cb.disabled = !has;
             cb.checked = has;
             restoreStatuses[type].textContent = has
                 ? formatBytes(estimateSize(currentBackup.data[type] || {}))
                 : 'Not in backup';
-        });
+        }
 
         showWizardStep(restoreStep2);
     });
@@ -651,9 +718,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     restoreNextS2.addEventListener('click', () => {
         hideError(restoreS2Error);
-        const selected = Object.entries(restoreCheckboxes)
-            .filter(([, cb]) => cb.checked && !cb.disabled)
-            .map(([type]) => type);
+        const selected = [];
+        for (const [type, cb] of Object.entries(restoreCheckboxes)) {
+            if (cb.checked && !cb.disabled) selected.push(type);
+        }
 
         if (selected.length === 0) {
             showError(restoreS2Error, 'Select at least one storage area to restore.');
@@ -662,7 +730,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         wizardState.restoreAreas = selected;
 
-        // Populate review
         setText(reviewRestoreFile, wizardState.restoreFile?.name || '-');
         renderBadges(reviewRestoreAreas, selected);
         setText(reviewRestoreDate, currentBackup?.timestamp
@@ -712,11 +779,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             break;
                         case 'webLocal':
                             localStorage.clear();
-                            Object.entries(src[type]).forEach(([k, v]) => localStorage.setItem(k, v));
+                            for (const [k, v] of Object.entries(src[type])) {
+                                localStorage.setItem(k, v);
+                            }
                             break;
                         case 'webSession':
                             sessionStorage.clear();
-                            Object.entries(src[type]).forEach(([k, v]) => sessionStorage.setItem(k, v));
+                            for (const [k, v] of Object.entries(src[type])) {
+                                sessionStorage.setItem(k, v);
+                            }
                             break;
                     }
                     count++;
@@ -728,7 +799,6 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast(`Restored ${count} storage area(s)!`, 'success');
             goToWelcome();
             await updateStorageSizes();
-
         } catch (err) {
             console.error('Restore error:', err);
             showError(restoreS3Error, `Restore failed: ${err.message}`);
@@ -739,62 +809,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // =====================================================================
-    // CLEAR DATA
-    // =====================================================================
-
-    clearSelectedDataBtn.addEventListener('click', async () => {
-        hideError(dataManagementError);
-
-        const selectedTypes = Array.from(
-            document.querySelectorAll('#clear-data-section .checkbox-group input:checked')
-        ).map(cb => cb.value);
-
-        if (selectedTypes.length === 0) {
-            showError(dataManagementError, 'Select at least one storage area to clear.');
-            return;
-        }
-
-        const confirmed = await showConfirmation(
-            'Confirm Clear',
-            `Permanently delete data from: ${selectedTypes.map(storageDisplayName).join(', ')}. This cannot be undone.`
-        );
-        if (!confirmed) {
-            showToast('Clear cancelled.', 'info');
-            return;
-        }
-
-        showLoading('Clearing data...');
-        try {
-            let count = 0;
-            for (const type of selectedTypes) {
-                try {
-                    switch (type) {
-                        case 'chromeLocal': await chrome.storage.local.clear(); break;
-                        case 'chromeSync':  await chrome.storage.sync.clear(); break;
-                        case 'webLocal':    localStorage.clear(); break;
-                        case 'webSession':  sessionStorage.clear(); break;
-                    }
-                    count++;
-                } catch (err) {
-                    showToast(`Failed clearing ${storageDisplayName(type)}: ${err.message}`, 'error');
-                }
-            }
-
-            document.querySelectorAll('#clear-data-section .checkbox-group input').forEach(cb => { cb.checked = false; });
-            showToast(`Cleared ${count} storage area(s)!`, 'success');
-            await updateStorageSizes();
-
-        } catch (err) {
-            console.error('Clear error:', err);
-            showError(dataManagementError, `Clear failed: ${err.message}`);
-            showToast('Clear failed!', 'error');
-        } finally {
-            hideLoading();
-        }
-    });
-
-    // =====================================================================
-    // TOOLTIP POSITIONING
+    // TOOLTIP POSITIONING (delegated, no memory leak)
     // =====================================================================
 
     function positionTooltips() {
@@ -828,26 +843,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =====================================================================
-    // COPYRIGHT
-    // =====================================================================
-
-    const copyrightEl = document.querySelector('.sidebar-footer p');
-    if (copyrightEl) {
-        copyrightEl.textContent = `© ${new Date().getFullYear()} modcore`;
-    }
-
-    // =====================================================================
     // INITIALIZATION
     // =====================================================================
 
     function init() {
-        sidebarButtons.forEach(b => {
-            b.setAttribute('tabindex', b.classList.contains('active') ? '0' : '-1');
-        });
         const activeBtn = document.querySelector('.sidebar-button.active');
         if (activeBtn) activateTab(activeBtn);
+        buildStorageTable();
         updateStorageSizes();
         positionTooltips();
+
+        const copyrightEl = document.querySelector('.sidebar-footer p');
+        if (copyrightEl) {
+            copyrightEl.textContent = `\u00a9 ${new Date().getFullYear()} modcore`;
+        }
     }
 
     init();

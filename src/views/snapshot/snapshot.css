@@ -1,5 +1,5 @@
 /* ==========================================================================
-   modcore Snapshot - Lean Stylesheet
+   modcore Snapshot
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
@@ -68,7 +68,6 @@ strong { font-weight: var(--weight-semibold); }
 /* ---------------------------------------------------------------------------
    2. Icons
    -------------------------------------------------------------------------- */
-
 
 .sidebar-button .icon { width: 1.5em; height: 1.5em; margin-right: var(--space-2); opacity: 0.9; vertical-align: middle; }
 .btn .icon            { width: 1.1em; height: 1.1em; vertical-align: middle; }
@@ -369,6 +368,12 @@ button.btn-icon {
 button.btn-icon:not(:disabled):hover { background-color: var(--color-surface-mid); color: var(--color-primary); }
 button.btn-icon:disabled { opacity: 0.5; cursor: not-allowed; }
 
+.btn-small {
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--text-body-md);
+    min-height: 32px;
+}
+
 
 /* --------------------------------------------------------------------------
    7. Form Elements
@@ -459,29 +464,8 @@ button.btn-icon:disabled { opacity: 0.5; cursor: not-allowed; }
 
 
 /* --------------------------------------------------------------------------
-   8. Details Grid & Metadata
+   8. Metadata & Description
    -------------------------------------------------------------------------- */
-.details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-3) var(--space-4); }
-.detail-item { display: flex; flex-direction: column; gap: var(--space-1); }
-.detail-item.detail-item-full-width { grid-column: 1 / -1; }
-
-.detail-label {
-    font-size: var(--text-label-lg);
-    font-weight: var(--weight-medium);
-    color: var(--color-text-muted);
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    margin-bottom: var(--space-1);
-}
-.detail-value {
-    font-size: var(--text-body-lg);
-    color: var(--color-text-primary);
-    word-break: break-word;
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-}
 .detail-description-text {
     color: var(--color-text-secondary);
     white-space: pre-wrap;
@@ -489,7 +473,6 @@ button.btn-icon:disabled { opacity: 0.5; cursor: not-allowed; }
     margin-top: var(--space-1);
     display: block;
 }
-.details-actions-grid { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-3); }
 
 .storage-size {
     font-size: var(--text-body-sm);
@@ -513,51 +496,7 @@ button.btn-icon:disabled { opacity: 0.5; cursor: not-allowed; }
 
 
 /* --------------------------------------------------------------------------
-   9. Tooltips - Smart positioning
-   -------------------------------------------------------------------------- */
-.tooltip-trigger {
-    position: relative;
-    display: inline-flex;
-    cursor: help;
-}
-.tooltip-trigger .icon-help { color: var(--color-text-muted); }
-.tooltip-trigger:hover .icon-help,
-.tooltip-trigger:focus .icon-help { color: var(--color-primary); }
-
-.tooltip-content {
-    position: fixed;
-    background-color: var(--color-surface-highest);
-    color: var(--color-text-primary);
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-md);
-    font-size: var(--text-body-sm);
-    width: max-content;
-    max-width: 260px;
-    z-index: 1000;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity .2s, visibility .2s;
-    pointer-events: none;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    line-height: var(--leading-normal);
-    left: 0;
-    top: 0;
-}
-
-.tooltip-trigger:hover .tooltip-content,
-.tooltip-trigger:focus .tooltip-content,
-.tooltip-trigger:focus-within .tooltip-content {
-    opacity: 1;
-    visibility: visible;
-}
-
-@media (prefers-color-scheme: dark) {
-    .tooltip-content { box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
-}
-
-
-/* --------------------------------------------------------------------------
-   10. Toast Notifications
+   9. Toast Notifications
    -------------------------------------------------------------------------- */
 #toast-container {
     position: fixed;
@@ -591,7 +530,7 @@ button.btn-icon:disabled { opacity: 0.5; cursor: not-allowed; }
 
 
 /* --------------------------------------------------------------------------
-   11. Modals
+   10. Modals
    -------------------------------------------------------------------------- */
 .modal-overlay {
     position: fixed;
@@ -627,7 +566,7 @@ button.btn-icon:disabled { opacity: 0.5; cursor: not-allowed; }
 
 
 /* --------------------------------------------------------------------------
-   12. Wizard - Backup & Restore Flow
+   11. Wizard - Backup & Restore Flow
    -------------------------------------------------------------------------- */
 .wizard-step {
     display: flex;
@@ -1070,41 +1009,81 @@ button.btn-icon:disabled { opacity: 0.5; cursor: not-allowed; }
 
 
 /* --------------------------------------------------------------------------
-   13. Storage Overview Cards
+   12. Data Table
    -------------------------------------------------------------------------- */
-.storage-overview-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: var(--space-3);
-    margin-bottom: var(--space-4);
-}
-
-.storage-card {
-    background-color: var(--color-surface-low);
+.table-wrapper {
+    overflow-x: auto;
     border: var(--border-width) solid var(--color-border);
     border-radius: var(--radius-md);
-    padding: var(--space-3) var(--space-4);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    transition: border-color var(--duration-fast), transform var(--duration-fast);
+    background-color: var(--color-surface-low);
 }
-.storage-card:hover { border-color: var(--color-border-strong); transform: translateY(-1px); }
 
-.storage-card-header {
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-body-lg);
+}
+
+.data-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.data-table th {
+    text-align: left;
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--text-label-lg);
+    font-weight: var(--weight-semibold);
+    color: var(--color-text-muted);
+    border-bottom: 2px solid var(--color-border);
+    background-color: var(--color-surface);
+    white-space: nowrap;
+}
+
+.data-table td {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: var(--border-width) solid var(--color-border);
+    vertical-align: middle;
+}
+
+.data-table tbody tr {
+    transition: background-color var(--duration-fast);
+}
+
+.data-table tbody tr:hover {
+    background-color: var(--color-surface-hover);
+}
+
+.data-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.storage-name-wrap {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--text-body-md);
     font-weight: var(--weight-medium);
-    color: var(--color-text-secondary);
-}
-.storage-card-header .icon { width: 1.1em; height: 1.1em; }
-
-.storage-card-size code.storage-size {
-    font-size: var(--text-title-md);
-    font-weight: var(--weight-semibold);
     color: var(--color-text-primary);
+    margin-bottom: var(--space-1);
+}
+
+.storage-name-wrap .icon {
+    width: 1.2em;
+    height: 1.2em;
+    color: var(--color-primary);
+}
+
+.data-table td small {
+    color: var(--color-text-secondary);
+    font-size: var(--text-body-sm);
+    display: block;
+}
+
+.data-table .storage-size {
+    font-size: var(--text-body-lg);
+    color: var(--color-text-primary);
+    font-weight: var(--weight-medium);
     background: none;
     border: none;
     padding: 0;
@@ -1112,7 +1091,7 @@ button.btn-icon:disabled { opacity: 0.5; cursor: not-allowed; }
 
 
 /* --------------------------------------------------------------------------
-   14. DevTools Note
+   13. DevTools Note
    -------------------------------------------------------------------------- */
 .devtools-note {
     display: flex;
@@ -1135,7 +1114,7 @@ button.btn-icon:disabled { opacity: 0.5; cursor: not-allowed; }
 
 
 /* --------------------------------------------------------------------------
-   15. Accessibility & Focus
+   14. Accessibility & Focus
    -------------------------------------------------------------------------- */
 *:focus-visible {
     outline: var(--space-1) solid var(--color-focus-ring);
@@ -1171,7 +1150,7 @@ input[type="text"]:focus-visible {
 
 
 /* --------------------------------------------------------------------------
-   16. Animations
+   15. Animations
    -------------------------------------------------------------------------- */
 @keyframes fade-in      { from { opacity: 0; transform: translateY(var(--space-4)); } to { opacity: 1; transform: translateY(0); } }
 @keyframes slide-in-left { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
@@ -1180,7 +1159,7 @@ input[type="text"]:focus-visible {
 
 
 /* --------------------------------------------------------------------------
-   17. Responsive
+   16. Responsive
    -------------------------------------------------------------------------- */
 @media (max-width: 768px) {
     .page-wrapper { flex-direction: column; }
@@ -1201,19 +1180,20 @@ input[type="text"]:focus-visible {
     .sidebar-button { flex-direction: column; padding: var(--space-2); height: auto; min-height: auto; }
     .sidebar-button .icon { margin-right: 0; margin-bottom: var(--space-1); }
     .content-area { margin-left: 0; padding: var(--space-3); }
-    .details-grid { grid-template-columns: 1fr; }
-    .details-actions-grid { flex-direction: column; align-items: stretch; }
-    .storage-overview-grid { grid-template-columns: 1fr 1fr; }
     .wizard-cards { grid-template-columns: 1fr; }
     .wizard-actions { flex-direction: column; }
+    .data-table th,
+    .data-table td { padding: var(--space-2) var(--space-3); }
 }
 
 
 /* --------------------------------------------------------------------------
-   18. High Contrast
+   17. High Contrast
    -------------------------------------------------------------------------- */
 @media (prefers-contrast: high) {
     .btn { border-width: 2px; }
     .checkbox-container .checkmark { border-width: 2px; }
     .wizard-option-box { border-width: 3px; }
+    .data-table th,
+    .data-table td { border-width: 2px; }
 }
