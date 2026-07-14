@@ -433,20 +433,6 @@ input[type="text"]:read-only:focus-visible {
   border-radius: 0;
 }
 
-.drag-handle-profile {
-  cursor: grab;
-  color: var(--color-text-secondary);
-  font-size: 0.9em;
-  line-height: 1;
-  padding: 2px 4px;
-  user-select: none;
-  display: inline-flex;
-  align-items: center;
-}
-.drag-handle-profile:active {
-  cursor: grabbing;
-}
-
 .profile-select-checkbox {
   cursor: pointer;
   flex-shrink: 0;
@@ -568,21 +554,6 @@ input[type="text"]:read-only:focus-visible {
 @keyframes slide-in {
   from { opacity: 0; transform: translateX(-8px); }
   to { opacity: 1; transform: translateX(0); }
-}
-
-/* SortableJS helpers */
-.sortable-ghost {
-  opacity: 0.4;
-  background-color: var(--color-surface-selected);
-  border: 1px dashed var(--color-primary);
-}
-.sortable-chosen {
-  background-color: var(--color-surface-hover);
-}
-.sortable-drag {
-  opacity: 1;
-  background-color: var(--color-surface);
-  z-index: 100;
 }
 
 /* ─── Profile Configuration View ────────────────────────────────────────── */

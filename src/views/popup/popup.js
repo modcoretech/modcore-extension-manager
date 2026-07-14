@@ -8,8 +8,6 @@ import {
     applyProfile,
     registerKeyboardShortcuts,
     cleanupOrphanedProfileEntries,
-    addExtensionToProfile,
-    removeExtensionFromAllProfiles,
     removeExtensionsFromAllProfiles,
     assignExtensionsToProfile,
     currentShortcuts,
@@ -19,9 +17,7 @@ import {
 } from '../../shared/js/profiles.js';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
-export const SETTINGS_STORAGE_KEY         = 'em_settings';
 export const DEFAULT_ICON_PLACEHOLDER     = '../../../public/icons/svg/updatelogo.svg';
-export const DEFAULT_SETTINGS             = Object.freeze({ extensionOrder: Object.freeze([]) });
 
 export const ICON = Object.freeze({
     toggle:    '../../../public/icons/svg/power.svg',
@@ -36,7 +32,6 @@ export const ICON = Object.freeze({
     shortcut:  '../../../public/icons/svg/keyboard.svg',
 });
 
-const HTML_ESCAPES = Object.freeze({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' });
 
 // Safe Status fallback so the popup never hard-crashes if the external status script fails
 const Status = /*@__PURE__*/ (() => {
@@ -72,26 +67,16 @@ let searchDebounceTimer       = null;
 export let allFetchedExtensions      = [];
 export let extensionMap              = new Map();
 export let selectedExtensionIds      = new Set();
-export let appSettings               = { extensionOrder: [] };
-let contextMenuEl             = null;
-let activeContextExtId        = null;
 let dialogResolve             = null;
 let dialogType                = null;
 let fuse                      = null;
-let clusterize                = null;
-let extensionSortable         = null;
 let clearFiltersFn            = null;
 let bulkAssignFuse            = null;
-let currentRenderMode         = 'none'; // 'none' | 'clusterize' | 'dom'
 
 // ═════════════════════════════════════════════════════════════════════════════
 // UTILITIES
 // ═════════════════════════════════════════════════════════════════════════════
 
-export function escapeHtml(str) {
-    if (str === null || str === undefined) return '';
-    return String(str).replace(/[&<>"']/g, ch => HTML_ESCAPES[ch] || ch);
-}
 
 export function sanitizeText(str) {
     if (str === null || str === undefined) return '';
@@ -126,6 +111,9 @@ export function initCustomDialogs() {
     document.getElementById('custom-confirm-no')?.addEventListener('click', () => closeCustomDialog(false));
     document.getElementById('custom-confirm-modal')?.addEventListener('click', e => {
         if (e.target === document.getElementById('custom-confirm-modal')) closeCustomDialog(false);
+    });
+    document.getElementById('custom-confirm-modal')?.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { e.preventDefault(); closeCustomDialog(false); }
     });
 
     document.getElementById('custom-prompt-ok')?.addEventListener('click', () => {
@@ -210,36 +198,6 @@ export function hideLoading() {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// SETTINGS (extension order only)
-// ═════════════════════════════════════════════════════════════════════════════
-
-export async function loadSettings() {
-    try {
-        const data = await chrome.storage.local.get(SETTINGS_STORAGE_KEY);
-        const raw = data[SETTINGS_STORAGE_KEY];
-        if (raw && typeof raw === 'object' && Array.isArray(raw.extensionOrder)) {
-            appSettings = { extensionOrder: raw.extensionOrder };
-        } else {
-            appSettings = { extensionOrder: [] };
-        }
-    } catch (e) {
-        appSettings = { extensionOrder: [] };
-    }
-}
-
-export async function saveSettingsToStore(newSettings) {
-    try {
-        const payload = { extensionOrder: newSettings?.extensionOrder || [] };
-        await chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: payload });
-        appSettings = payload;
-        return true;
-    } catch (e) {
-        Status.error('Could not save extension order.');
-        return false;
-    }
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
 // EXTENSION DATA
 // ═════════════════════════════════════════════════════════════════════════════
 
@@ -286,15 +244,7 @@ export async function filterAndSortExtensions(extensions) {
         filtered = results.map(r => r.item);
     }
 
-    const orderMap = new Map((appSettings.extensionOrder || []).map((id, idx) => [id, idx]));
-    filtered.sort((a, b) => {
-        const oa = orderMap.get(a.id);
-        const ob = orderMap.get(b.id);
-        if (oa !== undefined && ob !== undefined) return oa - ob;
-        if (oa !== undefined) return -1;
-        if (ob !== undefined) return 1;
-        return a._searchName.localeCompare(b._searchName, undefined, { sensitivity: 'base' });
-    });
+    filtered.sort((a, b) => a._searchName.localeCompare(b._searchName, undefined, { sensitivity: 'base' }));
 
     return filtered;
 }
@@ -303,36 +253,6 @@ export async function filterAndSortExtensions(extensions) {
 // EXTENSION LIST RENDERING
 // ═════════════════════════════════════════════════════════════════════════════
 
-function getExtensionRowHTML(ext) {
-    const isSelected = selectedExtensionIds.has(ext.id);
-    const bestIcon = ext.icons ? [...ext.icons].sort((a, b) => b.size - a.size)[0] : null;
-    const iconUrl = escapeHtml(bestIcon?.url ?? DEFAULT_ICON_PLACEHOLDER);
-    const fallbackSrc = escapeHtml(DEFAULT_ICON_PLACEHOLDER);
-    const dragDisplay = selectedExtensionIds.size > 0 ? 'inline-flex' : 'none';
-    const safeName = escapeHtml(ext.name);
-
-    return `
-    <div class="extension-item ${isSelected ? 'selected' : ''}" data-extension-id="${ext.id}" role="listitem" aria-selected="${isSelected}">
-        <button class="drag-handle" data-extension-id="${ext.id}" title="Drag to reorder" aria-label="Drag to reorder" style="display:${dragDisplay}">⋮⋮</button>
-        <input type="checkbox" class="extension-select-checkbox" data-extension-id="${ext.id}" ${isSelected ? 'checked' : ''} aria-label="Select ${safeName}">
-        <img src="${iconUrl}" alt="" class="extension-icon" loading="lazy" data-fallback-src="${fallbackSrc}">
-        <div class="extension-details">
-            <span class="extension-name" title="${safeName}">${safeName}</span>
-        </div>
-        <div class="extension-actions">
-            <button class="toggle-button button-small ${ext.enabled ? 'button-danger' : 'button-success'}" data-action="toggle" data-extension-id="${ext.id}" data-current-state="${ext.enabled ? 'enabled' : 'disabled'}" aria-pressed="${ext.enabled}" title="${ext.enabled ? 'Disable' : 'Enable'} ${safeName}">
-                <img src="${ICON.toggle}" alt="" aria-hidden="true"> ${ext.enabled ? 'Disable' : 'Enable'}
-            </button>
-            <button class="details-button button-small icon-only" data-action="details" data-extension-id="${ext.id}" title="View details for ${safeName}">
-                <img src="${ICON.details}" alt="" aria-hidden="true">
-            </button>
-            <button class="delete-button button-small button-danger icon-only" data-action="delete" data-extension-id="${ext.id}" data-extension-name="${safeName}" title="Uninstall ${safeName}">
-                <img src="${ICON.delete}" alt="" aria-hidden="true">
-            </button>
-        </div>
-    </div>`;
-}
-
 function buildExtensionRow(ext) {
     const item = document.createElement('div');
     item.className = 'extension-item';
@@ -340,14 +260,6 @@ function buildExtensionRow(ext) {
     item.dataset.extensionId = ext.id;
     item.setAttribute('role', 'listitem');
     item.setAttribute('aria-selected', String(selectedExtensionIds.has(ext.id)));
-
-    const dragHandle = document.createElement('button');
-    dragHandle.className = 'drag-handle';
-    dragHandle.dataset.extensionId = ext.id;
-    dragHandle.title = 'Drag to reorder';
-    dragHandle.setAttribute('aria-label', 'Drag to reorder');
-    dragHandle.textContent = '⋮⋮';
-    dragHandle.style.display = selectedExtensionIds.size > 0 ? 'inline-flex' : 'none';
 
     const cb = document.createElement('input');
     cb.type = 'checkbox';
@@ -404,53 +316,12 @@ function buildExtensionRow(ext) {
     actions.appendChild(detailsBtn);
     actions.appendChild(deleteBtn);
 
-    item.appendChild(dragHandle);
     item.appendChild(cb);
     item.appendChild(iconImg);
     item.appendChild(details);
     item.appendChild(actions);
 
     return item;
-}
-
-function initExtensionSortable() {
-    if (extensionSortable) return; // already active — avoid expensive re-creation
-    if (selectedExtensionIds.size === 0) return;
-
-    extensionSortable = new Sortable(el.extensionList, {
-        handle: '.drag-handle',
-        animation: 150,
-        ghostClass: 'sortable-ghost',
-        chosenClass: 'sortable-chosen',
-        dragClass: 'sortable-drag',
-        forceFallback: true,
-        onEnd: async () => {
-            const items = el.extensionList.querySelectorAll('.extension-item');
-            const visibleOrder = Array.from(items).map(item => item.dataset.extensionId);
-
-            const fullOrder = appSettings.extensionOrder || [];
-            const visibleSet = new Set(visibleOrder);
-            const remaining = fullOrder.filter(id => !visibleSet.has(id));
-
-            const knownSet = new Set([...fullOrder, ...visibleOrder]);
-            const extra = allFetchedExtensions.map(e => e.id).filter(id => !knownSet.has(id));
-
-            const newOrder = [...visibleOrder, ...remaining, ...extra];
-            appSettings.extensionOrder = newOrder;
-            await saveSettingsToStore(appSettings);
-            Status.success('Extension order saved.');
-
-            const orderMap = new Map(newOrder.map((id, idx) => [id, idx]));
-            allFetchedExtensions.sort((a, b) => {
-                const oa = orderMap.get(a.id);
-                const ob = orderMap.get(b.id);
-                if (oa !== undefined && ob !== undefined) return oa - ob;
-                if (oa !== undefined) return -1;
-                if (ob !== undefined) return 1;
-                return 0;
-            });
-        }
-    });
 }
 
 export async function renderExtensionList() {
@@ -475,16 +346,11 @@ export async function renderExtensionList() {
                     el.emptyState.appendChild(p2);
                 }
             }
-            if (clusterize) {
-                clusterize.destroy();
-                clusterize = null;
-            }
-            el.extensionList.replaceChildren();
+                el.extensionList.replaceChildren();
             el.extensionList.style.display = 'none';
             hideLoading();
             updateSelectAllCheckboxState();
             updateBulkActionsUI();
-            currentRenderMode = 'none';
             return;
         }
 
@@ -492,42 +358,11 @@ export async function renderExtensionList() {
         el.emptyState.style.display = 'none';
         el.extensionList.style.display = '';
 
-        if (bulkMode) {
-            currentRenderMode = 'dom';
-            if (clusterize) {
-                clusterize.destroy();
-                clusterize = null;
-            }
-            if (extensionSortable) {
-                extensionSortable.destroy();
-                extensionSortable = null;
-            }
-            const frag = document.createDocumentFragment();
-            for (const ext of filteredExtensions) {
-                frag.appendChild(buildExtensionRow(ext));
-            }
-            el.extensionList.replaceChildren(frag);
-            initExtensionSortable();
-        } else {
-            currentRenderMode = 'clusterize';
-            if (extensionSortable) {
-                extensionSortable.destroy();
-                extensionSortable = null;
-            }
-            const rows = filteredExtensions.map(ext => getExtensionRowHTML(ext));
-            if (!clusterize) {
-                clusterize = new Clusterize({
-                    rows,
-                    scrollElem: el.extensionList,
-                    contentElem: el.extensionList,
-                    rows_in_block: 16,
-                    blocks_in_cluster: 4,
-                    show_no_data_row: false
-                });
-            } else {
-                clusterize.update(rows);
-            }
+        const frag = document.createDocumentFragment();
+        for (const ext of filteredExtensions) {
+            frag.appendChild(buildExtensionRow(ext));
         }
+        el.extensionList.replaceChildren(frag);
 
         hideLoading();
         updateSelectAllCheckboxState();
@@ -565,7 +400,6 @@ export async function refreshExtensionDataAndRender() {
 // ═════════════════════════════════════════════════════════════════════════════
 
 export function handleExtensionListClick(event) {
-    if (event.button === 2) return;
     const target = event.target;
 
     if (target.classList.contains('extension-select-checkbox')) {
@@ -576,17 +410,6 @@ export function handleExtensionListClick(event) {
         updateBulkActionsUI();
         updateSelectAllCheckboxState();
 
-        // Fast-path: update drag handle without a full rebuild
-        const anySelected = selectedExtensionIds.size > 0;
-        const dh = item?.querySelector('.drag-handle');
-        if (dh) dh.style.display = anySelected ? 'inline-flex' : 'none';
-
-        // Only rebuild when crossing the clusterize ↔ DOM threshold
-        if ((anySelected && currentRenderMode !== 'dom') || (!anySelected && currentRenderMode !== 'clusterize')) {
-            renderExtensionList();
-        } else if (anySelected && currentRenderMode === 'dom') {
-            initExtensionSortable();
-        }
         return;
     }
 
@@ -731,22 +554,10 @@ export function handleSelectAllChange(event) {
         item.classList.toggle('selected', checked);
         item.setAttribute('aria-selected', String(checked));
         if (cb) cb.checked = checked;
-        const dh = item.querySelector('.drag-handle');
-        if (dh) dh.style.display = checked ? 'inline-flex' : 'none';
     });
 
     updateBulkActionsUI();
     updateSelectAllCheckboxState();
-
-    const anySelected = selectedExtensionIds.size > 0;
-    if ((anySelected && currentRenderMode !== 'dom') || (!anySelected && currentRenderMode !== 'clusterize')) {
-        renderExtensionList();
-    } else if (anySelected && currentRenderMode === 'dom') {
-        initExtensionSortable();
-    } else if (!anySelected && extensionSortable) {
-        extensionSortable.destroy();
-        extensionSortable = null;
-    }
 }
 
 export function clearSelection() {
@@ -755,8 +566,6 @@ export function clearSelection() {
         item.classList.remove('selected');
         const cb = item.querySelector('.extension-select-checkbox');
         if (cb) cb.checked = false;
-        const dh = item.querySelector('.drag-handle');
-        if (dh) dh.style.display = 'none';
     });
     updateBulkActionsUI();
     updateSelectAllCheckboxState();
@@ -965,162 +774,6 @@ export function setupBulkAssignDropdown() {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// CONTEXT MENU
-// ═════════════════════════════════════════════════════════════════════════════
-
-export function createContextMenu() {
-    if (document.getElementById('custom-context-menu')) {
-        contextMenuEl = document.getElementById('custom-context-menu');
-        return;
-    }
-    contextMenuEl = document.createElement('div');
-    contextMenuEl.id = 'custom-context-menu';
-    contextMenuEl.className = 'custom-context-menu';
-    document.body.appendChild(contextMenuEl);
-}
-
-export function hideContextMenu() {
-    contextMenuEl?.classList.remove('visible');
-    contextMenuEl?.removeEventListener('keydown', handleContextMenuKeyDown);
-    activeContextExtId = null;
-}
-
-export function handleContextMenuKeyDown(event) {
-    const items = [...contextMenuEl.querySelectorAll('.context-menu-item:not([style*="display: none"]):not(.context-menu-separator)')];
-    if (!items.length) return;
-    const focused = document.activeElement;
-    const inside = contextMenuEl.contains(focused);
-    let newIdx = -1;
-
-    if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        newIdx = !inside ? 0 : (items.indexOf(focused) + 1) % items.length;
-    } else if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        newIdx = !inside ? items.length - 1 : (items.indexOf(focused) - 1 + items.length) % items.length;
-    } else if (event.key === 'Enter' && inside && focused?.classList.contains('context-menu-item')) {
-        event.preventDefault();
-        focused.click();
-    } else if (event.key === 'Escape') {
-        event.preventDefault();
-        hideContextMenu();
-        (document.querySelector(`.extension-item[data-extension-id="${activeContextExtId}"]`) ?? el.searchInput)?.focus();
-    }
-    if (newIdx !== -1) items[newIdx].focus();
-}
-
-export async function showContextMenu(extensionId, event) {
-    event.preventDefault();
-    event.stopPropagation();
-    activeContextExtId = extensionId;
-
-    const extension = extensionMap.get(extensionId);
-    if (!extension) return;
-
-    contextMenuEl.replaceChildren();
-    const frag = document.createDocumentFragment();
-
-    const makeItem = (text, icon, action, danger = false) => {
-        const item = document.createElement('button');
-        item.className = `context-menu-item${danger ? ' danger' : ''}`;
-        item.appendChild(makeImg(icon, ''));
-        const span = document.createElement('span');
-        span.textContent = text;
-        item.appendChild(span);
-        item.addEventListener('click', () => { action(); hideContextMenu(); });
-        return item;
-    };
-
-    const info = document.createElement('div');
-    info.className = 'context-menu-info';
-    const strong = document.createElement('strong');
-    strong.textContent = sanitizeText(extension.name);
-    const verSpan = document.createElement('span');
-    verSpan.textContent = `Version: ${sanitizeText(extension.version)}`;
-    info.appendChild(strong);
-    info.appendChild(verSpan);
-    frag.appendChild(info);
-    frag.appendChild(Object.assign(document.createElement('hr'), { className: 'context-menu-separator' }));
-
-    const { profiles } = await loadProfileStore();
-    const memberProfiles = Object.values(profiles).filter(p =>
-        Object.prototype.hasOwnProperty.call(p.extensionStates, extensionId)
-    );
-    if (memberProfiles.length > 0) {
-        const mem = document.createElement('div');
-        mem.className = 'context-menu-membership';
-        const mStrong = document.createElement('strong');
-        mStrong.textContent = 'In Profiles:';
-        mem.appendChild(mStrong);
-        const ul = document.createElement('ul');
-        memberProfiles.forEach(p => {
-            const li = document.createElement('li');
-            li.textContent = sanitizeText(p.name);
-            li.title = sanitizeText(p.name);
-            li.className = 'context-menu-item-name';
-            ul.appendChild(li);
-        });
-        mem.appendChild(ul);
-        frag.appendChild(mem);
-        frag.appendChild(Object.assign(document.createElement('hr'), { className: 'context-menu-separator' }));
-    }
-
-    frag.appendChild(makeItem('View Details', ICON.details, () => openDetailsPage(extensionId)));
-
-    const profileMenuItem = document.createElement('button');
-    profileMenuItem.className = 'context-menu-item';
-    profileMenuItem.appendChild(makeImg(ICON.profiles, ''));
-    const pSpan = document.createElement('span');
-    pSpan.textContent = 'Assign to Profile';
-    profileMenuItem.appendChild(pSpan);
-    profileMenuItem.appendChild(document.createTextNode(' ▶'));
-
-    const submenu = document.createElement('div');
-    submenu.className = 'context-menu-submenu';
-    const orderedIds = await getOrderedProfileIds();
-    if (orderedIds.length > 0) {
-        orderedIds.forEach(pid => {
-            submenu.appendChild(makeItem(sanitizeText(profiles[pid].name), ICON.add, () => addExtensionToProfile(extensionId, pid, extension.enabled)));
-        });
-        submenu.appendChild(Object.assign(document.createElement('hr'), { className: 'context-menu-separator' }));
-        submenu.appendChild(makeItem('Remove from all Profiles', ICON.delete, () => removeExtensionFromAllProfiles(extensionId), true));
-    } else {
-        const ph = document.createElement('div');
-        ph.className = 'context-menu-placeholder';
-        ph.textContent = 'No profiles created yet.';
-        ph.setAttribute('role', 'status');
-        submenu.appendChild(ph);
-        submenu.appendChild(makeItem('Create Profile…', ICON.add, () => window.open('../profiles-page/profiles-page.html', '_blank')));
-    }
-    profileMenuItem.appendChild(submenu);
-    frag.appendChild(profileMenuItem);
-
-    frag.appendChild(Object.assign(document.createElement('hr'), { className: 'context-menu-separator' }));
-
-    frag.appendChild(makeItem('Options', ICON.configure, () => {
-        chrome.management.get(extensionId, ext => {
-            if (chrome.runtime.lastError) { Status.error(chrome.runtime.lastError.message); return; }
-            chrome.tabs.create({ url: ext?.optionsUrl || `chrome://extensions/?id=${extensionId}` });
-            if (!ext?.optionsUrl) Status.info('No dedicated Options page; opened extension details.');
-        });
-    }));
-    frag.appendChild(makeItem('Uninstall', ICON.delete, () => confirmAndDeleteExtension(extensionId, extension.name), true));
-
-    contextMenuEl.appendChild(frag);
-
-    const { clientX: mx, clientY: my } = event;
-    requestAnimationFrame(() => {
-        const h = contextMenuEl.offsetHeight;
-        const w = contextMenuEl.offsetWidth;
-        contextMenuEl.style.top = `${Math.min(my, window.innerHeight - h - 4)}px`;
-        contextMenuEl.style.left = `${Math.min(mx, window.innerWidth - w - 4)}px`;
-        contextMenuEl.classList.add('visible');
-        contextMenuEl.addEventListener('keydown', handleContextMenuKeyDown);
-        contextMenuEl.querySelector('.context-menu-item')?.focus();
-    });
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
 // FILTERS & SEARCH
 // ═════════════════════════════════════════════════════════════════════════════
 
@@ -1235,7 +888,10 @@ export function handleGlobalKeydown(event) {
 
     if (event.key === 'Escape') {
         if (helpOpen) { closeHelpModal(); return; }
-        if (contextMenuEl?.classList.contains('visible')) { hideContextMenu(); return; }
+        const confirmOpen = document.getElementById('custom-confirm-modal')?.classList.contains('visible');
+        const promptOpen = document.getElementById('custom-prompt-modal')?.classList.contains('visible');
+        if (confirmOpen) { closeCustomDialog(false); return; }
+        if (promptOpen) { closeCustomDialog(null); return; }
         if (isInput && !anyModalOpen) { active.blur(); return; }
     }
 
@@ -1279,42 +935,20 @@ export function handleGlobalKeydown(event) {
 
 export async function initializePopup() {
     try {
-        createContextMenu();
         initCustomDialogs();
-        await loadSettings();
         await setupFiltersAndSearch();
         setupModalListeners();
         setupBulkActionListeners();
         setupBulkAssignDropdown();
 
         el.extensionList?.addEventListener('click', handleExtensionListClick);
-        el.extensionList?.addEventListener('contextmenu', event => {
-            const item = event.target.closest('.extension-item');
-            if (item?.dataset.extensionId) showContextMenu(item.dataset.extensionId, event);
-        });
-
-        // Delegated image fallback — removes inline onerror from clusterize rows (CSP + perf win)
-        el.extensionList?.addEventListener('error', (event) => {
-            const target = event.target;
-            if (target.tagName === 'IMG' && target.classList.contains('extension-icon')) {
-                const fallback = target.dataset.fallbackSrc;
-                if (fallback && target.src !== fallback) {
-                    target.src = fallback;
-                    target.removeAttribute('data-fallback-src');
-                }
-            }
-        }, true);
-
-        document.addEventListener('click', event => {
-            if (!contextMenuEl?.contains(event.target)) hideContextMenu();
-        });
 
         document.addEventListener('keydown', handleGlobalKeydown);
 
         await refreshExtensionDataAndRender();
         el.searchInput?.focus({ preventScroll: true });
 
-        setTimeout(() => registerKeyboardShortcuts().catch(console.error), 0);
+        registerKeyboardShortcuts().catch(console.error);
 
         const footerEl = document.getElementById('footer-info');
         if (footerEl) {

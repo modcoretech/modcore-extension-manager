@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="../../shared/styles/main.css">
     <link rel="stylesheet" href="profiles-page.css">
 <base target="_blank">
+<base target="_blank">
 </head>
 <body>
     <a href="#main-content" class="skip-link">Skip to main content</a>
@@ -175,8 +176,8 @@
                         <div class="extension-search-wrap">
                             <input type="text" id="profile-config-search" placeholder="Search extensions…" aria-label="Search extensions in profile">
                         </div>
-                        <div id="profile-config-scroll" class="profile-config-scroll clusterize-scroll" role="region" aria-label="Extension list">
-                            <div id="profile-config-extension-list" class="profile-config-extensions clusterize-content" role="list"></div>
+                        <div id="profile-config-scroll" class="profile-config-scroll" role="region" aria-label="Extension list">
+                            <div id="profile-config-extension-list" class="profile-config-extensions" role="list"></div>
                         </div>
                         <div class="config-no-results" style="display: none;" role="status">
                             <p class="hint-text">No extensions match your search.</p>
@@ -211,10 +212,7 @@
             </div>
         </div>
     </div>
-
-    <script src="../../js/vendor/clusterize.js"></script>
     <script src="../../js/vendor/fuze.js"></script>
-    <script src="../../js/vendor/sortable-js.js"></script>
     <script src="../../js/features/modcore-status/modcore-status.js"></script>
 
     <script type="module" src="profiles-page.js"></script>

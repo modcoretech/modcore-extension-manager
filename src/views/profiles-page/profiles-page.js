@@ -29,7 +29,6 @@ let selectedProfileIds   = new Set();
 let currentConfiguringId = null;
 let allFetchedExtensions = [];
 let extensionMap         = new Map();
-let profileListSortable  = null;
 let profileConfigAllExts = [];
 let profileConfigState   = new Map();
 let dialogResolve        = null;
@@ -274,29 +273,6 @@ async function switchToProfileListView() {
     el.newProfileNameInput?.focus();
 }
 
-function initProfileSortable() {
-    if (profileListSortable) profileListSortable.destroy();
-    const listEl = el.profileList;
-    if (!listEl) return;
-    profileListSortable = new Sortable(listEl, {
-        handle: '.drag-handle-profile',
-        animation: 150,
-        ghostClass: 'sortable-ghost',
-        chosenClass: 'sortable-chosen',
-        forceFallback: true,
-        onStart: () => { saveFocus(); },
-        onEnd: async () => {
-            const store = await loadProfileStore();
-            const items = listEl.querySelectorAll('li[data-profileid]');
-            const newOrder = Array.from(items).map(li => li.dataset.profileid).filter(Boolean);
-            store.order = newOrder;
-            await saveProfileStore(store);
-            Status.success('Profile order saved.');
-            restoreFocus();
-        }
-    });
-}
-
 function getFilteredProfiles(profiles, orderedIds) {
     if (!currentProfileFilter) return orderedIds;
     const filter = currentProfileFilter.toLowerCase().trim();
@@ -407,13 +383,6 @@ async function renderProfileList() {
         if (selectedProfileIds.has(profileId)) li.classList.add('selected');
         if (profileId === activeProfileId) li.classList.add('active-profile');
 
-        const dragHandle = document.createElement('span');
-        dragHandle.className = 'drag-handle-profile';
-        dragHandle.textContent = '⋮⋮';
-        dragHandle.title = 'Drag to reorder';
-        dragHandle.setAttribute('aria-label', 'Drag to reorder');
-        dragHandle.setAttribute('tabindex', '-1');
-
         const cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.className = 'profile-select-checkbox';
@@ -505,7 +474,6 @@ async function renderProfileList() {
             ariaLabel: `Delete profile ${sanitizeText(profile.name)}`
         }));
 
-        li.appendChild(dragHandle);
         li.appendChild(cb);
         li.appendChild(details);
         li.appendChild(actions);
@@ -513,7 +481,6 @@ async function renderProfileList() {
     });
 
     listEl.appendChild(frag);
-    initProfileSortable();
     updateProfileBulkUI();
     focusedProfileIndex = -1;
 }

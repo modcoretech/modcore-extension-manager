@@ -31,7 +31,7 @@ export async function loadProfileStore() {
             p.shortcut = typeof p.shortcut === 'string' && p.shortcut.trim() ? p.shortcut.trim() : null;
         }
 
-        const validOrder = order.filter(id => profiles[id]);
+        const validOrder = [...new Set(order)].filter(id => profiles[id]);
         return { profiles, order: validOrder };
     } catch (e) {
         console.error('loadProfileStore error:', e);
@@ -44,18 +44,21 @@ export async function saveProfileStore(store) {
         if (!store || typeof store !== 'object' || Array.isArray(store)) {
             throw new Error('Invalid store object');
         }
-        store.profiles = store.profiles || {};
-        store.order = Array.isArray(store.order) ? store.order : [];
-        await chrome.storage.local.set({ [PROFILES_STORAGE_KEY]: store });
+        const payload = {
+            profiles: store.profiles || {},
+            order: Array.isArray(store.order) ? store.order : []
+        };
+        await chrome.storage.local.set({ [PROFILES_STORAGE_KEY]: payload });
     } catch (e) {
         console.error('saveProfileStore error:', e);
         Status.error('Could not save profiles.');
+        throw e;
     }
 }
 
 export async function getOrderedProfileIds() {
     const { profiles, order } = await loadProfileStore();
-    const inOrder = order.filter(id => profiles[id]);
+    const inOrder = [...new Set(order)].filter(id => profiles[id]);
     const notInOrder = Object.keys(profiles)
         .filter(id => !inOrder.includes(id))
         .sort((a, b) => (profiles[a].name || '').localeCompare(profiles[b].name || '', undefined, { sensitivity: 'base' }));
@@ -64,6 +67,11 @@ export async function getOrderedProfileIds() {
 
 export function generateProfileId() {
     return `profile_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+export async function getProfileById(profileId) {
+    const { profiles } = await loadProfileStore();
+    return profiles[profileId] || null;
 }
 
 export async function cleanupOrphanedProfileEntries(validExtensionIds) {
@@ -84,6 +92,9 @@ export async function cleanupOrphanedProfileEntries(validExtensionIds) {
 
 export async function applyProfile(profileId, extensionMap) {
     try {
+        if (!extensionMap || typeof extensionMap.get !== 'function') {
+            throw new Error('Invalid extensionMap');
+        }
         const { profiles } = await loadProfileStore();
         const profile = profiles[profileId];
 
@@ -95,33 +106,48 @@ export async function applyProfile(profileId, extensionMap) {
         const entries = Object.entries(profile.extensionStates);
         if (entries.length === 0) {
             Status.info(`Profile "${profile.name}" has no extensions configured.`);
-            return { ok: true, changed: 0, errors: 0, noChange: 0 };
+            return { ok: true, changed: 0, errors: 0, noChange: 0, skipped: 0 };
         }
 
-        let success = 0, errors = 0, noChange = 0;
+        let success = 0, errors = 0, noChange = 0, skipped = 0;
 
         const ops = entries.map(([extId, shouldEnable]) => new Promise(resolve => {
             const cur = extensionMap.get(extId);
-            if (!cur || !cur.mayDisable) return resolve({ status: 'skipped' });
-            if (cur.enabled === shouldEnable) return resolve({ status: 'nochange' });
+            if (!cur || !cur.mayDisable) return resolve({ status: 'skipped', id: extId });
+            if (cur.enabled === shouldEnable) return resolve({ status: 'nochange', id: extId });
             chrome.management.setEnabled(extId, shouldEnable, () => {
-                if (chrome.runtime.lastError) resolve({ status: 'error', id: extId, error: chrome.runtime.lastError.message });
-                else resolve({ status: 'success', id: extId });
+                if (chrome.runtime.lastError) resolve({ status: 'error', id: extId, error: chrome.runtime.lastError.message, shouldEnable });
+                else resolve({ status: 'success', id: extId, shouldEnable });
             });
         }));
 
         const results = await Promise.all(ops);
         results.forEach(r => {
-            if (r.status === 'success') { success++; const ext = extensionMap.get(r.id); if (ext) ext.enabled = !ext.enabled; }
-            else if (r.status === 'nochange') noChange++;
-            else if (r.status === 'error') { errors++; console.error('Apply profile error:', r.id, r.error); }
+            if (r.status === 'success') {
+                success++;
+                const ext = extensionMap.get(r.id);
+                if (ext) ext.enabled = r.shouldEnable;
+            } else if (r.status === 'nochange') {
+                noChange++;
+            } else if (r.status === 'skipped') {
+                skipped++;
+            } else if (r.status === 'error') {
+                errors++;
+                console.error('Apply profile error:', r.id, r.error);
+            }
         });
 
-        if (errors > 0) Status.error(`"${profile.name}" applied with ${errors} error(s).`, 5000);
-        else if (success > 0) Status.success(`"${profile.name}" applied – ${success} changed, ${noChange} unchanged.`);
-        else Status.info(`All extensions in "${profile.name}" were already in the desired state.`);
+        if (errors > 0) {
+            Status.error(`"${profile.name}" applied with ${errors} error(s).${skipped > 0 ? ` ${skipped} skipped.` : ''}`, 5000);
+        } else if (success > 0) {
+            Status.success(`"${profile.name}" applied – ${success} changed, ${noChange} unchanged${skipped > 0 ? `, ${skipped} skipped` : ''}.`);
+        } else if (skipped > 0) {
+            Status.info(`"${profile.name}" had no changes needed. ${skipped} non-manageable extension(s) skipped.`);
+        } else {
+            Status.info(`All extensions in "${profile.name}" were already in the desired state.`);
+        }
 
-        return { ok: true, changed: success, errors, noChange };
+        return { ok: true, changed: success, errors, noChange, skipped };
     } catch (e) {
         console.error('applyProfile error:', e);
         Status.error('Failed to apply profile.');
@@ -177,6 +203,8 @@ export function validateShortcut(shortcut, existingShortcuts) {
 
     if (!modifiers.some(m => ['Ctrl', 'Alt'].includes(m)))
         return { isValid: false, message: "Must include 'Ctrl' or 'Alt' modifier.", normalizedShortcut: null };
+    if (!modifiers.includes('Shift'))
+        return { isValid: false, message: "Must include 'Shift' modifier.", normalizedShortcut: null };
     if (existingShortcuts.has(normalized))
         return { isValid: false, message: `Shortcut already used by ${existingShortcuts.get(normalized)}.`, normalizedShortcut: null };
 
@@ -194,7 +222,7 @@ export async function registerKeyboardShortcuts() {
     });
 }
 
-export async function assignExtensionsToProfile(extensionIds, profileId) {
+export async function assignExtensionsToProfile(extensionIds, profileId, enabled = true) {
     if (!extensionIds?.size || !profileId) return;
     const store = await loadProfileStore();
     const profile = store.profiles[profileId];
@@ -202,12 +230,12 @@ export async function assignExtensionsToProfile(extensionIds, profileId) {
 
     let changed = false;
     extensionIds.forEach(extId => {
-        if (profile.extensionStates[extId] !== true) { profile.extensionStates[extId] = true; changed = true; }
+        if (profile.extensionStates[extId] !== enabled) { profile.extensionStates[extId] = enabled; changed = true; }
     });
 
     if (changed) {
         await saveProfileStore(store);
-        Status.success(`${extensionIds.size} extension(s) added to "${profile.name}".`);
+        Status.success(`${extensionIds.size} extension(s) ${enabled ? 'added to' : 'updated in'} "${profile.name}".`);
     } else {
         Status.info(`All selected extensions were already in "${profile.name}".`);
     }
