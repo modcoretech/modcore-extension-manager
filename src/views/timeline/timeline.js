@@ -1,7 +1,7 @@
 /**
  * timeline.js - modcore Timeline
- * Refactored for auto-save, compact-by-default, safer DOM, robust controls,
- * detail view, keyboard shortcuts, and real-time extension status.
+ * Refactored for extension icons, side-sheet filters, cleaner settings,
+ * useful detail view, export/import, and search highlighting.
  */
 (() => {
     'use strict';
@@ -14,13 +14,21 @@
     const TOAST_DURATION_MS       = 3000;
     const UNDO_DURATION_MS        = 8000;
     const EVENT_TYPES             = ['installed', 'uninstalled', 'updated', 'permissions_updated', 'enabled', 'disabled'];
+    const EVENT_ICON_MAP          = {
+        installed: 'icon-install',
+        uninstalled: 'icon-trash',
+        updated: 'icon-update',
+        permissions_updated: 'icon-shield',
+        enabled: 'icon-check',
+        disabled: 'icon-error'
+    };
 
     /* ---------------------------------------------------------------------- */
     /*  State                                                                 */
     /* ---------------------------------------------------------------------- */
     let allHistoryRecords = [];
     let filteredRecords   = [];
-    let installedExtensions = new Map(); // id -> {name, enabled}
+    let installedExtensions = new Map();
     let currentFilters    = {
         searchTerm: '',
         eventTypes: new Set(EVENT_TYPES),
@@ -33,12 +41,10 @@
         logsPerPage:          25,
         pruneDays:            90,
         recordLimit:          1000,
-        pruneOnLimit:         true,
         displayTimestamps:    true,
-        autoPruneOnStartup:   false,
         relativeTimestamps:   false,
         liveRefreshSeconds:   0,
-        showRecordCount:      true,
+        showExtensionIcons:   true,
     };
     let currentPage  = 1;
     let totalPages   = 1;
@@ -59,7 +65,17 @@
 
     const escapeHtml = (str) => {
         if (!str) return '';
-        return str.replace(/[&<<>"']/g, m => ({'&':'&amp;','<<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+        return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    };
+
+    const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    const highlightMatch = (text, term) => {
+        if (!term || !text) return escapeHtml(text);
+        const parts = text.split(new RegExp(`(${escapeRegex(term)})`, 'gi'));
+        return parts.map(part => 
+            part.toLowerCase() === term.toLowerCase() ? `<mark>${escapeHtml(part)}</mark>` : escapeHtml(part)
+        ).join('');
     };
 
     const showToast = (message, type = 'info', duration = TOAST_DURATION_MS, action = null) => {
@@ -98,7 +114,7 @@
 
     const setActionLoading = (busy) => {
         [dom.clearAllButton, dom.pruneNowButton, dom.pruneInactiveBtn, dom.pruneByTypeBtn,
-         dom.resetDefaultsBtn].forEach(b => { if (b) b.disabled = busy; });
+         dom.resetDefaultsBtn, dom.exportHistoryBtn, dom.importHistoryBtn].forEach(b => { if (b) b.disabled = busy; });
     };
 
     const showModal = (id) => {
@@ -165,7 +181,7 @@
         await Promise.all([loadInstalledExtensions(), loadInitialData(false)]);
         buildFilterCheckboxes();
         if (dom.currentYear) dom.currentYear.textContent = new Date().getFullYear();
-        await maybeAutoPrune();
+        checkHistoryLimit();
         startLiveRefresh();
         setBusyState(false);
     };
@@ -187,6 +203,8 @@
         dom.clearSearchBtn        = document.getElementById('clear-search-btn');
         dom.filterToggleButton    = document.getElementById('filter-toggle-btn');
         dom.filterPanel           = document.getElementById('filter-panel');
+        dom.filterBackdrop        = document.getElementById('filter-backdrop');
+        dom.closeFilterSheet      = document.getElementById('close-filter-sheet');
         dom.eventTypeFilters      = document.getElementById('event-type-filters');
         dom.startDateInput        = document.getElementById('start-date-input');
         dom.endDateInput          = document.getElementById('end-date-input');
@@ -195,6 +213,11 @@
         dom.selectAllFiltersBtn   = document.getElementById('select-all-filters-btn');
         dom.selectNoneFiltersBtn  = document.getElementById('select-none-filters-btn');
         dom.recordCountDisplay    = document.getElementById('record-count-display');
+
+        /* Toolbar */
+        dom.exportHistoryBtn      = document.getElementById('export-history-btn');
+        dom.importHistoryBtn      = document.getElementById('import-history-btn');
+        dom.importFileInput       = document.getElementById('import-file-input');
 
         /* Pagination */
         dom.paginationControls   = document.getElementById('pagination-controls');
@@ -207,27 +230,21 @@
         dom.trackingEnabledToggle      = document.getElementById('tracking-enabled-toggle');
         dom.pruneDaysInput             = document.getElementById('prune-days-input');
         dom.pruneNowButton             = document.getElementById('prune-now-btn');
-        dom.pruneOnLimitToggle         = document.getElementById('prune-on-limit-toggle');
         dom.sortOrderSelect            = document.getElementById('sort-order-select');
         dom.logsPerPageInput           = document.getElementById('logs-per-page-input');
         dom.recordLimitInput           = document.getElementById('record-limit-input');
         dom.displayTimestampsToggle    = document.getElementById('display-timestamps-toggle');
-        dom.autoPruneOnStartupToggle   = document.getElementById('auto-prune-startup-toggle');
         dom.relativeTimestampsToggle   = document.getElementById('relative-timestamps-toggle');
         dom.liveRefreshInput           = document.getElementById('live-refresh-input');
-        dom.showRecordCountToggle      = document.getElementById('show-record-count-toggle');
+        dom.showExtensionIconsToggle   = document.getElementById('show-extension-icons-toggle');
         dom.resetDefaultsBtn           = document.getElementById('reset-defaults-btn');
         dom.settingsSavedIndicator     = document.getElementById('settings-saved-indicator');
         dom.pruneInactiveBtn           = document.getElementById('prune-inactive-btn');
         dom.pruneByTypeBtn             = document.getElementById('prune-by-type-btn');
 
         /* Modals */
-        dom.limitModal         = document.getElementById('limit-modal');
         dom.pruneByTypeModal   = document.getElementById('prune-by-type-modal');
         dom.modalBackdrop      = document.getElementById('modal-backdrop');
-        dom.modalPruneBtn      = document.getElementById('modal-prune-btn');
-        dom.modalDisableBtn    = document.getElementById('modal-disable-btn');
-        dom.modalLimitValue    = document.getElementById('modal-limit-value');
         dom.pruneTypeOptions   = document.getElementById('prune-type-options');
         dom.pruneTypeCancelBtn = document.getElementById('prune-type-cancel-btn');
         dom.pruneTypeConfirmBtn= document.getElementById('prune-type-confirm-btn');
@@ -249,6 +266,8 @@
         dom.searchInput.addEventListener('input', debounce(handleSearchInput, SEARCH_DEBOUNCE_MS));
         dom.clearSearchBtn.addEventListener('click', handleClearSearch);
         dom.filterToggleButton.addEventListener('click', toggleFilterPanel);
+        dom.closeFilterSheet?.addEventListener('click', toggleFilterPanel);
+        dom.filterBackdrop?.addEventListener('click', toggleFilterPanel);
         dom.resetFiltersBtn.addEventListener('click', handleResetFilters);
         dom.selectAllFiltersBtn.addEventListener('click', handleSelectAllFilters);
         dom.selectNoneFiltersBtn.addEventListener('click', handleSelectNoneFilters);
@@ -257,15 +276,19 @@
         dom.startDateInput.addEventListener('change', handleDateFilterChange);
         dom.endDateInput.addEventListener('change', handleDateFilterChange);
 
+        /* Toolbar */
+        dom.exportHistoryBtn?.addEventListener('click', handleExportHistory);
+        dom.importHistoryBtn?.addEventListener('click', () => dom.importFileInput?.click());
+        dom.importFileInput?.addEventListener('change', handleImportFileSelect);
+
         /* Pagination */
         dom.prevPageBtn.addEventListener('click', () => handlePageChange(-1));
         dom.nextPageBtn.addEventListener('click', () => handlePageChange(1));
 
         /* Settings - auto-save wiring */
         const autoSaveToggles = [
-            dom.trackingEnabledToggle, dom.pruneOnLimitToggle, dom.displayTimestampsToggle,
-            dom.autoPruneOnStartupToggle, dom.relativeTimestampsToggle,
-            dom.showRecordCountToggle, dom.sortOrderSelect
+            dom.trackingEnabledToggle, dom.displayTimestampsToggle,
+            dom.relativeTimestampsToggle, dom.showExtensionIconsToggle, dom.sortOrderSelect
         ];
         autoSaveToggles.forEach(el => el && el.addEventListener('change', () => debouncedAutoSave()));
 
@@ -292,8 +315,6 @@
         dom.resetDefaultsBtn.addEventListener('click', handleResetDefaults);
 
         /* Modals */
-        dom.modalPruneBtn.addEventListener('click', () => handleModalPrune(true));
-        dom.modalDisableBtn.addEventListener('click', handleModalDisable);
         dom.pruneTypeCancelBtn.addEventListener('click', () => hideModal('pruneByTypeModal'));
         dom.pruneTypeConfirmBtn.addEventListener('click', handlePruneByTypeConfirm);
 
@@ -306,7 +327,6 @@
 
         /* Modal backdrop click */
         dom.modalBackdrop.addEventListener('click', () => {
-            hideModal('limitModal');
             hideModal('pruneByTypeModal');
             hideModal('detailModal');
         });
@@ -316,7 +336,6 @@
         if (e.key === 'Escape') {
             if (!dom.detailModal.hidden) { hideModal('detailModal'); return; }
             if (!dom.pruneByTypeModal.hidden) { hideModal('pruneByTypeModal'); return; }
-            if (!dom.limitModal.hidden) { hideModal('limitModal'); return; }
             if (dom.filterPanel.classList.contains('is-visible')) {
                 toggleFilterPanel();
                 return;
@@ -338,7 +357,11 @@
     const loadInstalledExtensions = async () => {
         try {
             const exts = await chrome.management.getAll();
-            installedExtensions = new Map(exts.map(e => [e.id, { name: e.name, enabled: e.enabled }]));
+            installedExtensions = new Map(exts.map(e => [e.id, { 
+                name: e.name, 
+                enabled: e.enabled,
+                iconUrl: e.icons?.[e.icons.length - 1]?.url || e.icons?.[0]?.url || null
+            }]));
         } catch (e) {
             console.warn('Failed to load installed extensions:', e);
         }
@@ -372,7 +395,7 @@
             console.error('Error loading history:', e);
             showToast('Failed to load history data.', 'error');
             if (dom.noHistoryMessage) {
-                dom.noHistoryMessage.textContent = 'Could not load history.';
+                dom.noHistoryMessage.innerHTML = '<div class="empty-state"><p>Could not load history.</p></div>';
                 dom.noHistoryMessage.hidden = false;
             }
         } finally {
@@ -413,29 +436,20 @@
 
     const updateSettingsControlsState = () => {
         const on = dom.trackingEnabledToggle.checked;
-        [dom.pruneNowButton, dom.pruneDaysInput, dom.pruneOnLimitToggle,
-         dom.recordLimitInput, dom.pruneInactiveBtn, dom.pruneByTypeBtn,
-         dom.autoPruneOnStartupToggle].forEach(el => { if (el) el.disabled = !on; });
+        [dom.pruneNowButton, dom.pruneDaysInput, dom.recordLimitInput,
+         dom.pruneInactiveBtn, dom.pruneByTypeBtn].forEach(el => { if (el) el.disabled = !on; });
     };
 
     const checkHistoryLimit = () => {
         if (!settings.trackingEnabled || allHistoryRecords.length <= settings.recordLimit) return;
-        if (settings.pruneOnLimit) {
-            handleModalPrune(false);
-        } else {
-            if (dom.modalLimitValue) dom.modalLimitValue.textContent = settings.recordLimit;
-            showModal('limitModal');
-        }
+        handleAutoPrune();
     };
 
-    const maybeAutoPrune = async () => {
-        if (!settings.autoPruneOnStartup || !settings.trackingEnabled) return;
-        const days = settings.pruneDays;
-        if (!days || days < 1) return;
+    const handleAutoPrune = async () => {
         try {
-            await chrome.runtime.sendMessage({ type: 'PRUNE_HISTORY_BY_DAYS', payload: { daysToKeep: days } });
+            await chrome.runtime.sendMessage({ type: 'PRUNE_HISTORY_TO_LIMIT', payload: { limit: settings.recordLimit } });
             await loadInitialData(false);
-            showToast(`Auto-pruned records older than ${days} days.`, 'success');
+            showToast(`History pruned to ${settings.recordLimit} records.`, 'success');
         } catch (e) {
             console.error('Auto-prune failed:', e);
         }
@@ -480,7 +494,6 @@
             input.type = 'checkbox';
             input.value = type;
             input.checked = currentFilters.eventTypes.has(type);
-            input.addEventListener('change', handleFilterChange);
             const checkmark = document.createElement('span');
             checkmark.className = 'checkmark';
             const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -502,10 +515,21 @@
         const start = (currentPage - 1) * settings.logsPerPage;
         const page  = filteredRecords.slice(start, start + settings.logsPerPage);
 
-        if (dom.noHistoryMessage) dom.noHistoryMessage.hidden = filteredRecords.length > 0;
-        if (dom.paginationControls) dom.paginationControls.hidden = filteredRecords.length === 0;
+        if (filteredRecords.length === 0) {
+            dom.noHistoryMessage.hidden = false;
+            dom.noHistoryMessage.innerHTML = `
+                <div class="empty-state">
+                    <span class="icon icon-search-off" style="width: 48px; height: 48px; margin-bottom: var(--space-3); opacity: 0.5;"></span>
+                    <p>No events found.</p>
+                    <p class="text-secondary">Try adjusting your filters or search terms.</p>
+                </div>
+            `;
+            dom.paginationControls.hidden = true;
+            return;
+        }
 
-        if (filteredRecords.length === 0) return;
+        dom.noHistoryMessage.hidden = true;
+        dom.paginationControls.hidden = false;
 
         const frag = document.createDocumentFragment();
         const isGroup = settings.sortOrder === 'group';
@@ -561,39 +585,48 @@
 
         const iconWrap = document.createElement('div');
         iconWrap.className = 'item-icon';
-        const icon = document.createElement('span');
-        icon.className = `icon icon-${record.eventType}`;
-        icon.setAttribute('aria-label', formatEventType(record.eventType));
+
+        const ext = installedExtensions.get(record.extensionId);
+        
+        if (settings.showExtensionIcons) {
+            const iconImg = document.createElement('img');
+            iconImg.className = 'extension-icon-img';
+            iconImg.alt = '';
+            iconImg.loading = 'lazy';
+            iconImg.src = ext?.iconUrl || `chrome://extension-icon/${record.extensionId}/32/0`;
+            iconImg.onerror = function() {
+                this.style.display = 'none';
+                const fallback = document.createElement('div');
+                fallback.className = 'extension-icon-fallback';
+                fallback.textContent = (record.extensionName || '?').charAt(0).toUpperCase();
+                iconWrap.appendChild(fallback);
+            };
+            iconWrap.appendChild(iconImg);
+        } else {
+            const icon = document.createElement('span');
+            icon.className = `icon ${EVENT_ICON_MAP[record.eventType] || 'icon-info-status'}`;
+            iconWrap.appendChild(icon);
+        }
+
         const badge = document.createElement('span');
-        badge.className = 'status-badge';
-        icon.appendChild(badge);
-        iconWrap.appendChild(icon);
+        badge.className = `status-badge status-badge-${record.eventType}`;
+        iconWrap.appendChild(badge);
 
         const content = document.createElement('div');
         content.className = 'history-item-content';
         const header = document.createElement('div');
         header.className = 'history-item-header';
-        header.textContent = `${record.extensionName || 'Unknown'} (v${record.extensionVersion || 'N/A'})`;
+        header.innerHTML = highlightMatch(`${record.extensionName || 'Unknown'} (v${record.extensionVersion || 'N/A'})`, currentFilters.searchTerm);
 
         const metaRow = document.createElement('div');
         metaRow.className = 'history-item-meta-row';
 
         const details = document.createElement('span');
         details.className = 'history-item-details';
-        details.textContent = formatEventType(record.eventType) + (record.details ? ` — ${record.details}` : '');
+        const detailText = formatEventType(record.eventType) + (record.details ? ` — ${record.details}` : '');
+        details.innerHTML = highlightMatch(detailText, currentFilters.searchTerm);
 
-        const status = document.createElement('span');
-        status.className = 'extension-status';
-        const ext = installedExtensions.get(record.extensionId);
-        if (ext) {
-            status.textContent = ext.enabled ? 'Enabled' : 'Disabled';
-            status.classList.add(ext.enabled ? 'status-enabled' : 'status-disabled');
-        } else {
-            status.textContent = 'Uninstalled';
-            status.classList.add('status-uninstalled');
-        }
-
-        metaRow.append(details, status);
+        metaRow.appendChild(details);
         content.append(header, metaRow);
 
         item.append(iconWrap, content);
@@ -616,17 +649,68 @@
         if (!dom.detailContent) return;
         const ext = installedExtensions.get(record.extensionId);
         const isInstalled = !!ext;
+        const iconUrl = ext?.iconUrl || `chrome://extension-icon/${record.extensionId}/32/0`;
+        
+        const extHistory = allHistoryRecords
+            .filter(r => r.extensionId === record.extensionId)
+            .slice(0, 5);
 
         dom.detailContent.innerHTML = `
-            <div class="detail-row"><strong>Extension:</strong> <span>${escapeHtml(record.extensionName || 'Unknown')}</span></div>
-            <div class="detail-row"><strong>Version:</strong> <span>${escapeHtml(record.extensionVersion || 'N/A')}</span></div>
-            <div class="detail-row"><strong>Event:</strong> <span class="detail-event detail-event-${record.eventType}">${formatEventType(record.eventType)}</span></div>
-            <div class="detail-row"><strong>Date:</strong> <span>${formatFullDate(record.timestamp)}</span></div>
-            <div class="detail-row"><strong>Relative:</strong> <span>${formatRelativeTime(record.timestamp)}</span></div>
-            <div class="detail-row"><strong>Extension ID:</strong> <code class="detail-code" id="detail-extension-id">${escapeHtml(record.extensionId)}</code></div>
-            <div class="detail-row"><strong>Current Status:</strong> <span class="extension-status ${isInstalled ? (ext.enabled ? 'status-enabled' : 'status-disabled') : 'status-uninstalled'}">${isInstalled ? (ext.enabled ? 'Enabled' : 'Disabled') : 'Uninstalled'}</span></div>
-            ${record.details ? `<div class="detail-row detail-details"><strong>Details:</strong> <p>${escapeHtml(record.details)}</p></div>` : ''}
+            <div class="detail-header">
+                <img src="${escapeHtml(iconUrl)}" alt="" class="detail-icon" onerror="this.style.display='none'">
+                <div class="detail-header-info">
+                    <h4>${escapeHtml(record.extensionName || 'Unknown Extension')}</h4>
+                    <span class="detail-version">Version ${escapeHtml(record.extensionVersion || 'N/A')}</span>
+                </div>
+            </div>
+            
+            <div class="detail-grid">
+                <div class="detail-cell">
+                    <strong>Event</strong>
+                    <span class="detail-event detail-event-${record.eventType}">${formatEventType(record.eventType)}</span>
+                </div>
+                <div class="detail-cell">
+                    <strong>Current Status</strong>
+                    <span class="extension-status ${isInstalled ? (ext.enabled ? 'status-enabled' : 'status-disabled') : 'status-uninstalled'}">
+                        ${isInstalled ? (ext.enabled ? 'Enabled' : 'Disabled') : 'Uninstalled'}
+                    </span>
+                </div>
+                <div class="detail-cell">
+                    <strong>Date</strong>
+                    <span>${formatFullDate(record.timestamp)}</span>
+                </div>
+                <div class="detail-cell">
+                    <strong>Relative Time</strong>
+                    <span>${formatRelativeTime(record.timestamp)}</span>
+                </div>
+            </div>
+
+            <div class="detail-row">
+                <strong>Extension ID</strong>
+                <code class="detail-code" id="detail-extension-id">${escapeHtml(record.extensionId)}</code>
+            </div>
+
+            ${record.details ? `
+            <div class="detail-row detail-details">
+                <strong>Event Details</strong>
+                <p>${escapeHtml(record.details)}</p>
+            </div>` : ''}
+
+            ${extHistory.length > 1 ? `
+            <div class="detail-recent">
+                <strong>Recent Activity for This Extension</strong>
+                <ul class="detail-recent-list">
+                    ${extHistory.map(r => `
+                        <li>
+                            <span class="detail-recent-event detail-event-${r.eventType}">${formatEventType(r.eventType)}</span>
+                            <span class="detail-recent-time">${settings.relativeTimestamps ? formatRelativeTime(r.timestamp) : new Date(r.timestamp).toLocaleTimeString()}</span>
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>` : ''}
         `;
+        
+        if (dom.copyDetailIdBtn) dom.copyDetailIdBtn.disabled = false;
         showModal('detailModal');
     };
 
@@ -642,8 +726,24 @@
     };
 
     const toggleFilterPanel = () => {
-        const visible = dom.filterPanel.classList.toggle('is-visible');
-        dom.filterToggleButton.setAttribute('aria-expanded', visible);
+        const visible = !dom.filterPanel.classList.contains('is-visible');
+        if (visible) {
+            dom.filterPanel.hidden = false;
+            dom.filterBackdrop.hidden = false;
+            requestAnimationFrame(() => {
+                dom.filterPanel.classList.add('is-visible');
+                dom.filterBackdrop.classList.add('is-visible');
+            });
+            dom.filterToggleButton.setAttribute('aria-expanded', 'true');
+        } else {
+            dom.filterPanel.classList.remove('is-visible');
+            dom.filterBackdrop.classList.remove('is-visible');
+            dom.filterPanel.addEventListener('transitionend', () => {
+                dom.filterPanel.hidden = true;
+                dom.filterBackdrop.hidden = true;
+            }, { once: true });
+            dom.filterToggleButton.setAttribute('aria-expanded', 'false');
+        }
     };
 
     const renderPagination = () => {
@@ -657,9 +757,8 @@
 
     const updateRecordCount = () => {
         if (!dom.recordCountDisplay) return;
-        if (!settings.showRecordCount) { dom.recordCountDisplay.textContent = ''; return; }
-        const start = Math.min((currentPage-1)*settings.logsPerPage+1, filteredRecords.length);
-        const end   = Math.min(currentPage*settings.logsPerPage, filteredRecords.length);
+        const start = Math.min((currentPage - 1) * settings.logsPerPage + 1, filteredRecords.length);
+        const end   = Math.min(currentPage * settings.logsPerPage, filteredRecords.length);
         dom.recordCountDisplay.textContent = filteredRecords.length
             ? `${start}-${end} of ${filteredRecords.length} records`
             : '0 records';
@@ -671,30 +770,26 @@
     const syncSettingsToUI = () => {
         dom.trackingEnabledToggle.checked    = settings.trackingEnabled;
         dom.pruneDaysInput.value             = settings.pruneDays;
-        dom.pruneOnLimitToggle.checked       = settings.pruneOnLimit;
         dom.sortOrderSelect.value            = settings.sortOrder;
         dom.logsPerPageInput.value           = settings.logsPerPage;
         dom.recordLimitInput.value           = settings.recordLimit;
         dom.displayTimestampsToggle.checked  = settings.displayTimestamps;
-        dom.autoPruneOnStartupToggle.checked = settings.autoPruneOnStartup;
         dom.relativeTimestampsToggle.checked = settings.relativeTimestamps;
         dom.liveRefreshInput.value           = settings.liveRefreshSeconds;
-        dom.showRecordCountToggle.checked    = settings.showRecordCount;
+        dom.showExtensionIconsToggle.checked = settings.showExtensionIcons;
         updateSettingsControlsState();
     };
 
     const readSettingsFromUI = () => {
         settings.trackingEnabled      = dom.trackingEnabledToggle.checked;
         settings.pruneDays            = Math.max(1, Math.min(3650, parseInt(dom.pruneDaysInput.value,10)||90));
-        settings.pruneOnLimit         = dom.pruneOnLimitToggle.checked;
         settings.sortOrder            = dom.sortOrderSelect.value;
         settings.logsPerPage          = Math.max(5, Math.min(500, parseInt(dom.logsPerPageInput.value,10)||25));
         settings.recordLimit          = Math.max(100, Math.min(10000, parseInt(dom.recordLimitInput.value,10)||1000));
         settings.displayTimestamps    = dom.displayTimestampsToggle.checked;
-        settings.autoPruneOnStartup   = dom.autoPruneOnStartupToggle.checked;
         settings.relativeTimestamps   = dom.relativeTimestampsToggle.checked;
         settings.liveRefreshSeconds   = Math.max(0, Math.min(300, parseInt(dom.liveRefreshInput.value,10)||0));
-        settings.showRecordCount      = dom.showRecordCountToggle.checked;
+        settings.showExtensionIcons   = dom.showExtensionIconsToggle.checked;
     };
 
     const saveSettings = async (showFeedback = true) => {
@@ -718,9 +813,9 @@
         if (!confirm('Reset all settings to defaults?')) return;
         settings = {
             trackingEnabled: true, sortOrder: 'desc', logsPerPage: 25, pruneDays: 90,
-            recordLimit: 1000, pruneOnLimit: true, displayTimestamps: true,
-            autoPruneOnStartup: false, relativeTimestamps: false, liveRefreshSeconds: 0,
-            showRecordCount: true,
+            recordLimit: 1000, displayTimestamps: true,
+            relativeTimestamps: false, liveRefreshSeconds: 0,
+            showExtensionIcons: true,
         };
         syncSettingsToUI();
         await saveSettings();
@@ -896,27 +991,58 @@
         } finally { setActionLoading(false); }
     };
 
-    const handleModalPrune = async (showToastMsg = true) => {
+    const handleExportHistory = async () => {
         try {
-            await chrome.runtime.sendMessage({ type: 'PRUNE_HISTORY_TO_LIMIT', payload: { limit: settings.recordLimit } });
-            await loadInitialData();
-            hideModal('limitModal');
-            if (showToastMsg) showToast(`History pruned to ${settings.recordLimit} records.`, 'success');
+            const res = await chrome.runtime.sendMessage({ type: 'GET_EXTENSION_HISTORY' });
+            const history = res?.history || [];
+            const blob = new Blob([JSON.stringify(history, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `modcore-timeline-${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('History exported.', 'success');
         } catch (e) {
-            console.error('Prune to limit failed:', e);
-            if (showToastMsg) showToast('Failed to prune to limit.', 'error');
+            console.error('Export failed:', e);
+            showToast('Failed to export history.', 'error');
         }
     };
 
-    const handleModalDisable = async () => {
+    const handleImportFileSelect = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
         try {
-            dom.trackingEnabledToggle.checked = false;
-            await saveSettings();
-            hideModal('limitModal');
-            showToast('History tracking disabled.', 'info');
-        } catch (e) {
-            console.error('Disable failed:', e);
-            showToast('Failed to disable tracking.', 'error');
+            const text = await file.text();
+            const imported = JSON.parse(text);
+            if (!Array.isArray(imported)) throw new Error('Invalid file format.');
+            const valid = imported.filter(r =>
+                r && typeof r === 'object' &&
+                typeof r.timestamp === 'number' &&
+                typeof r.extensionId === 'string' &&
+                typeof r.eventType === 'string'
+            );
+            if (valid.length === 0) throw new Error('No valid records found.');
+
+            const res = await chrome.runtime.sendMessage({ type: 'GET_EXTENSION_HISTORY' });
+            const current = res?.history || [];
+            const merged = [...valid, ...current];
+            merged.sort((a, b) => b.timestamp - a.timestamp);
+            const seen = new Set();
+            const deduped = merged.filter(r => {
+                const key = r.id || `${r.timestamp}-${r.extensionId}-${r.eventType}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+
+            await chrome.runtime.sendMessage({ type: 'RESTORE_HISTORY', payload: deduped });
+            await loadInitialData();
+            showToast(`Imported ${valid.length} records.`, 'success');
+        } catch (err) {
+            showToast(`Import failed: ${err.message}`, 'error');
+        } finally {
+            e.target.value = '';
         }
     };
 
