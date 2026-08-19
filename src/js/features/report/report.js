@@ -6,42 +6,35 @@ let _sidebar = null;
 let _prevFocus = null;
 let _consoleLogs = [];
 let _consoleCaptureInstalled = false;
-let _keyHandlerBound = null;
+let _keyHandlerBound = false;
 let _listeners = [];
 
 const MAX_LOGS = 50;
 const MAX_LOG_ENTRY_LENGTH = 500;
-const MAX_BODY = 6500;
 
 const REPO_OWNER = 'modcoretech';
 const REPO_NAME = 'modcore-extension-manager';
 const ISSUE_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}/issues/new`;
 const DISCUSS_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}/discussions/new`;
 
-const TEMPLATES = {
+const CATEGORIES = {
   BUG: {
     name: 'Bug Report',
     prefix: '[BUG]',
     label: 'bug',
-    sumPlaceholder: 'e.g., The settings button disappears on page reload.',
-    descPlaceholder: '1. Clear, repeatable steps?\n2. Expected result?\n3. Actual result?',
-    instructions: 'Provide clear steps to reproduce so we can fix it quickly.'
+    instructions: 'Select optional attachments below to include context before creating your bug report on GitHub.'
   },
   FEATURE: {
     name: 'Feature Suggestion',
     prefix: '[FEATURE]',
     label: 'enhancement',
-    sumPlaceholder: 'e.g., Add a dark mode toggle button.',
-    descPlaceholder: 'Describe the feature, why it is needed, and how it improves the extension.',
-    instructions: 'Explain the value and intended usage of your suggestion.'
+    instructions: 'Select optional attachments below to include context before suggesting your feature on GitHub.'
   },
   GENERAL: {
     name: 'General Feedback',
     prefix: '[FEEDBACK]',
     label: 'feedback',
-    sumPlaceholder: 'e.g., Question about installation process.',
-    descPlaceholder: 'Provide your detailed question or general feedback, including context.',
-    instructions: 'Provide full context for your question or feedback.',
+    instructions: 'Select optional attachments below to include context before starting a discussion on GitHub.',
     discuss: true
   }
 };
@@ -50,7 +43,7 @@ function safeStringify(arg) {
   if (arg === null) return 'null';
   if (arg === undefined) return 'undefined';
   if (typeof arg === 'string') return arg.slice(0, MAX_LOG_ENTRY_LENGTH);
-  if (typeof arg === 'number' || typeof arg === 'boolean' || typeof arg === 'bigint' || typeof arg === 'symbol') return String(arg);
+  if (['number', 'boolean', 'bigint', 'symbol'].includes(typeof arg)) return String(arg);
   if (typeof arg === 'function') return '[Function]';
   if (arg instanceof Error) return (arg.stack || arg.message || String(arg)).slice(0, MAX_LOG_ENTRY_LENGTH);
   if (arg instanceof Date) return arg.toISOString();
@@ -63,7 +56,7 @@ function safeStringify(arg) {
           if (seen.has(v)) return '[Circular]';
           seen.add(v);
         }
-        if (typeof v === 'string' && v.length > 200) return v.slice(0, 200) + '...';
+        if (typeof v === 'string' && v.length > 200) return `${v.slice(0, 200)}...`;
         return v;
       });
       return str.slice(0, MAX_LOG_ENTRY_LENGTH);
@@ -80,7 +73,7 @@ function captureEntry(type, args, meta = {}) {
   _capturing = true;
   try {
     if (_consoleLogs.length >= MAX_LOGS) _consoleLogs.shift();
-    const msg = Array.from(args).map(a => safeStringify(a)).join(' ');
+    const msg = Array.from(args).map(safeStringify).join(' ');
     _consoleLogs.push({
       type,
       msg: msg.slice(0, MAX_LOG_ENTRY_LENGTH),
@@ -98,43 +91,31 @@ function ensureConsoleCapture() {
   _consoleCaptureInstalled = true;
 
   const methods = ['log', 'info', 'debug', 'warn', 'error', 'trace'];
-  const originals = {};
-
   methods.forEach(method => {
     if (typeof console[method] !== 'function') return;
-    originals[method] = console[method].bind(console);
+    const original = console[method].bind(console);
     console[method] = (...args) => {
       captureEntry(method, args);
-      originals[method](...args);
+      original(...args);
     };
   });
 
   window.addEventListener('error', e => {
-    let msg = e.message;
-    if (e.error instanceof Error) {
-      msg = e.error.stack || e.error.message || e.message;
-    }
+    const msg = e.error instanceof Error ? (e.error.stack || e.error.message) : e.message;
     captureEntry('error', [msg], { source: e.filename, line: e.lineno, col: e.colno });
   });
 
   window.addEventListener('unhandledrejection', e => {
-    let msg;
-    if (e.reason instanceof Error) {
-      msg = e.reason.stack || e.reason.message;
-    } else {
-      msg = safeStringify(e.reason);
-    }
+    const msg = e.reason instanceof Error ? (e.reason.stack || e.reason.message) : safeStringify(e.reason);
     captureEntry('unhandledrejection', [msg]);
   });
 }
 
-function el(tag, cls, attrs) {
+function el(tag, cls, attrs = {}) {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
-  if (attrs) {
-    for (const [k, v] of Object.entries(attrs)) {
-      if (v != null) e.setAttribute(k, v);
-    }
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v != null) e.setAttribute(k, v);
   }
   return e;
 }
@@ -213,15 +194,10 @@ async function getExtensions() {
     return '_chrome.management API not available._';
   }
   try {
-    const exts = await new Promise((resolve, reject) => {
-      chrome.management.getAll(result => {
-        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-        else resolve(result);
-      });
-    });
-
+    const exts = await chrome.management.getAll();
     const selfId = chrome.runtime?.id;
     const list = exts.filter(e => e.id !== selfId).sort((a, b) => a.name.localeCompare(b.name));
+    
     if (!list.length) return '_No other extensions installed._';
 
     const MAX = 30;
@@ -433,47 +409,13 @@ function buildSidebar() {
     }
     .mc-type-txt { font-weight: var(--weight-medium); font-size: var(--text-body-md); }
 
-    .mc-dialog input:not([type="checkbox"]):not(.mc-type-radio),
-    .mc-dialog textarea {
-      width: 100%;
-      padding: 10px 14px;
-      border-radius: var(--radius-2xl);
-      margin-top: 2px;
-      margin-bottom: 4px;
-      font-size: var(--text-body-md);
-      border: 1.5px solid var(--color-border);
-      background: var(--color-surface);
-      color: var(--color-text-primary);
-      transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
-    }
-    .mc-dialog input:focus,
-    .mc-dialog textarea:focus {
-      outline: none;
-      border-color: var(--color-primary);
-      box-shadow: 0 0 0 3.5px var(--color-focus-ring);
-      transform: translateY(-1px);
-    }
-    .mc-dialog textarea { min-height: 100px; resize: vertical; }
-    .mc-dialog input[aria-invalid="true"],
-    .mc-dialog textarea[aria-invalid="true"] {
-      border-color: var(--color-danger) !important;
-      background: var(--color-danger-container);
-    }
-
-    .mc-counter {
-      text-align: right;
-      font-size: var(--text-label-sm);
-      color: var(--color-text-muted);
-      margin-bottom: 12px;
-    }
-
     .mc-note {
       background: var(--color-info-container);
       color: var(--color-info);
       padding: 10px 14px;
       border-radius: var(--radius-2xl);
       font-size: var(--text-body-sm);
-      margin-top: 8px;
+      margin-top: 12px;
       border: 1px solid rgba(var(--color-info-rgb), 0.15);
     }
 
@@ -534,6 +476,7 @@ function buildSidebar() {
       color: var(--color-text-primary);
       border: 1px solid rgba(var(--color-warning-rgb), 0.25);
       border-radius: var(--radius-2xl);
+      margin-top: 16px;
     }
 
     .mc-error {
@@ -619,18 +562,19 @@ function buildSidebar() {
   const closeBtn = el('button', 'mc-sidebar-close', { type: 'button', 'aria-label': 'Close' });
   const closeIcon = el('span', 'icon icon-close icon-20');
   closeBtn.appendChild(closeIcon);
-  header.appendChild(title);
-  header.appendChild(closeBtn);
+  header.append(title, closeBtn);
 
   const content = el('div', 'mc-sidebar-content');
 
-  let selType = 'BUG';
-  let summaryInp, descInp, instrNote, sumCounter, descCounter;
-  let techCb, extCb, logCb;
-  let submitBtn, errorBox;
+  let selCategory = 'BUG';
+  let instrNote, techCb, extCb, logCb, submitBtn, errorBox;
 
   function clearError() {
-    if (errorBox) { errorBox.remove(); errorBox = null; }
+    if (errorBox) { 
+      if (errorBox._tId) clearTimeout(errorBox._tId);
+      errorBox.remove(); 
+      errorBox = null; 
+    }
   }
 
   function showError(msg) {
@@ -639,40 +583,36 @@ function buildSidebar() {
     errorBox.textContent = msg;
     content.insertBefore(errorBox, content.firstChild);
     errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    const tId = setTimeout(() => clearError(), 4500);
-    errorBox._tId = tId;
+    errorBox._tId = setTimeout(clearError, 4500);
   }
 
-  function updateForm(type) {
-    const tpl = TEMPLATES[type] || TEMPLATES.BUG;
-    summaryInp.placeholder = tpl.sumPlaceholder;
-    descInp.placeholder = tpl.descPlaceholder;
-    instrNote.textContent = tpl.instructions;
+  function updateForm(catKey) {
+    const cat = CATEGORIES[catKey] || CATEGORIES.BUG;
+    instrNote.textContent = cat.instructions;
   }
 
-  const typeSection = el('div', 'mc-section');
-  const typeLabel = el('label', 'mc-section-label');
-  typeLabel.textContent = 'Report Type';
-  typeLabel.id = 'mc-type-lbl';
-  const typeGroup = el('div', 'mc-type-group', { role: 'radiogroup', 'aria-labelledby': 'mc-type-lbl' });
+  const categorySection = el('div', 'mc-section');
+  const categoryLabel = el('label', 'mc-section-label', { id: 'mc-type-lbl' });
+  categoryLabel.textContent = 'Report Category';
+  
+  const categoryGroup = el('div', 'mc-type-group', { role: 'radiogroup', 'aria-labelledby': 'mc-type-lbl' });
 
-  Object.keys(TEMPLATES).forEach(key => {
-    const tpl = TEMPLATES[key];
+  Object.keys(CATEGORIES).forEach(key => {
+    const cat = CATEGORIES[key];
     const lbl = el('label', 'mc-type-opt', { for: `mc-type-${key}`, tabindex: '0' });
     const radio = el('input', 'mc-type-radio', {
       type: 'radio', id: `mc-type-${key}`, name: 'issue-type', value: key
     });
     const txt = el('span', 'mc-type-txt');
-    txt.textContent = tpl.name;
+    txt.textContent = cat.name;
 
-    lbl.appendChild(radio);
-    lbl.appendChild(txt);
+    lbl.append(radio, txt);
 
     const activate = () => {
-      typeGroup.querySelectorAll('.mc-type-opt').forEach(o => o.classList.remove('sel'));
+      categoryGroup.querySelectorAll('.mc-type-opt').forEach(o => o.classList.remove('sel'));
       lbl.classList.add('sel');
       radio.checked = true;
-      selType = key;
+      selCategory = key;
       updateForm(key);
     };
 
@@ -684,67 +624,24 @@ function buildSidebar() {
       }
     });
 
-    typeGroup.appendChild(lbl);
+    categoryGroup.appendChild(lbl);
   });
 
-  const firstOpt = typeGroup.querySelector('.mc-type-opt');
-  if (firstOpt) { firstOpt.classList.add('sel'); firstOpt.querySelector('input').checked = true; }
-
-  typeSection.appendChild(typeLabel);
-  typeSection.appendChild(typeGroup);
-
-  const detailsSection = el('div', 'mc-section');
-
-  const sumLbl = el('label', 'mc-section-label', { for: 'mc-summary' });
-  sumLbl.textContent = 'Summary';
-  summaryInp = el('input', '', {
-    type: 'text', id: 'mc-summary', name: 'issue-summary',
-    required: 'true', 'aria-required': 'true',
-    'aria-label': 'Summary', maxlength: '120', autocomplete: 'off'
-  });
-  sumCounter = el('div', 'mc-counter');
-  sumCounter.textContent = '0 / 120';
-
-  const descLbl = el('label', 'mc-section-label', { for: 'mc-desc' });
-  descLbl.textContent = 'Description';
-  descInp = el('textarea', '', {
-    id: 'mc-desc', name: 'issue-description',
-    required: 'true', 'aria-required': 'true',
-    'aria-label': 'Description', maxlength: '2000'
-  });
-  descCounter = el('div', 'mc-counter');
-  descCounter.textContent = '0 / 2000';
+  const firstOpt = categoryGroup.querySelector('.mc-type-opt');
+  if (firstOpt) { 
+    firstOpt.classList.add('sel'); 
+    firstOpt.querySelector('input').checked = true; 
+  }
 
   instrNote = el('div', 'mc-note', { role: 'note' });
-
-  on(summaryInp, 'input', () => {
-    summaryInp.setAttribute('aria-invalid', 'false');
-    sumCounter.textContent = `${summaryInp.value.length} / 120`;
-    clearError();
-  });
-  on(descInp, 'input', () => {
-    descInp.setAttribute('aria-invalid', 'false');
-    descCounter.textContent = `${descInp.value.length} / 2000`;
-    clearError();
-  });
-
-  detailsSection.appendChild(sumLbl);
-  detailsSection.appendChild(summaryInp);
-  detailsSection.appendChild(sumCounter);
-  detailsSection.appendChild(descLbl);
-  detailsSection.appendChild(descInp);
-  detailsSection.appendChild(descCounter);
-  detailsSection.appendChild(instrNote);
+  categorySection.append(categoryLabel, categoryGroup, instrNote);
 
   const attachSection = el('div', 'mc-section');
-
   const attachLabel = el('label', 'mc-section-label');
-  attachLabel.textContent = 'Attachments';
+  attachLabel.textContent = 'Attachments & Environment';
 
   function mkCheck({ id, label, desc, badge, checked = false }) {
-    const row = el('label', 'mc-check-row');
-    row.setAttribute('for', id);
-
+    const row = el('label', 'mc-check-row', { for: id });
     const hdr = el('div', 'mc-check-hdr');
     const cb = el('input', '', { type: 'checkbox', id, name: id });
     if (checked) cb.checked = true;
@@ -752,8 +649,7 @@ function buildSidebar() {
     const span = el('span');
     span.textContent = label;
 
-    hdr.appendChild(cb);
-    hdr.appendChild(span);
+    hdr.append(cb, span);
 
     if (badge) {
       const b = el('span', 'mc-check-badge');
@@ -764,8 +660,7 @@ function buildSidebar() {
     const d = el('div', 'mc-check-desc');
     d.textContent = desc;
 
-    row.appendChild(hdr);
-    row.appendChild(d);
+    row.append(hdr, d);
     return { row, cb };
   }
 
@@ -774,99 +669,74 @@ function buildSidebar() {
 
   const techRow = mkCheck({
     id: 'mc-tech', label: 'Include technical environment details',
-    desc: 'Browser, OS, and screen resolution. Recommended for bug reports.',
+    desc: 'Browser, OS, and screen resolution context.',
     badge: 'Recommended', checked: true
   });
   techCb = techRow.cb;
 
   const extRow = mkCheck({
     id: 'mc-ext', label: 'Include installed extensions list',
-    desc: 'Lists your other installed extensions. Useful for compatibility issues.',
+    desc: 'Lists active browser extensions to debug issues.',
     badge: 'Optional', checked: false
   });
   extCb = extRow.cb;
 
   const logRow = mkCheck({
     id: 'mc-logs', label: 'Include recent console logs and errors',
-    desc: `Attaches up to ${MAX_LOGS} captured console messages. ${logCount} entries captured so far.`,
+    desc: `Attaches up to ${MAX_LOGS} captured runtime logs (${logCount} captured).`,
     badge: capBadge, checked: false
   });
   logCb = logRow.cb;
 
-  attachSection.appendChild(attachLabel);
-  attachSection.appendChild(techRow.row);
-  attachSection.appendChild(extRow.row);
-  attachSection.appendChild(logRow.row);
+  attachSection.append(attachLabel, techRow.row, extRow.row, logRow.row);
 
   const priv = el('div', 'mc-privacy', { role: 'note' });
-  priv.textContent = `Privacy: Your report will open on the ${REPO_NAME} public GitHub page. Ensure your summary and description contain no personal or sensitive information.`;
+  priv.textContent = `Privacy: Continuing will redirect you to GitHub. Your selected details will be pre-filled so you can comfortably write your issue.`;
 
   const footer = el('div', 'mc-sidebar-footer');
   const cancelBtn = el('button', 'btn-sec', { type: 'button' });
   cancelBtn.textContent = 'Cancel';
   submitBtn = el('button', 'btn-ok', { type: 'button' });
-  submitBtn.textContent = 'Send to GitHub';
+  submitBtn.textContent = 'Continue on GitHub';
 
-  footer.appendChild(cancelBtn);
-  footer.appendChild(submitBtn);
+  footer.append(cancelBtn, submitBtn);
 
-  content.appendChild(typeSection);
-  content.appendChild(detailsSection);
-  content.appendChild(attachSection);
-  content.appendChild(priv);
-
-  sidebar.appendChild(header);
-  sidebar.appendChild(content);
-  sidebar.appendChild(footer);
-
-  overlay.appendChild(style);
-  overlay.appendChild(sidebar);
+  content.append(categorySection, attachSection, priv);
+  sidebar.append(header, content, footer);
+  overlay.append(style, sidebar);
 
   on(overlay, 'click', e => { if (e.target === overlay) closeSidebar(); });
   on(closeBtn, 'click', closeSidebar);
   on(cancelBtn, 'click', closeSidebar);
   on(submitBtn, 'click', submit);
 
-  updateForm(selType);
+  updateForm(selCategory);
 
   async function submit() {
-    const emptySum = !summaryInp.value.trim();
-    const emptyDesc = !descInp.value.trim();
-    summaryInp.setAttribute('aria-invalid', String(emptySum));
-    descInp.setAttribute('aria-invalid', String(emptyDesc));
-
-    if (emptySum || emptyDesc) {
-      showError('Please fill in all required fields before continuing.');
-      (emptySum ? summaryInp : descInp).focus();
-      return;
-    }
     clearError();
 
     submitBtn.disabled = true;
     submitBtn.classList.add('btn-loading');
     submitBtn.textContent = 'Opening GitHub...';
 
-    const tpl = TEMPLATES[selType] || TEMPLATES.GENERAL;
-    const title = `${tpl.prefix} ${summaryInp.value.trim()}`;
-    const desc = descInp.value.trim();
-    const isDiscuss = tpl.discuss === true;
+    const cat = CATEGORIES[selCategory] || CATEGORIES.GENERAL;
+    const isDiscuss = cat.discuss === true;
     const target = isDiscuss ? DISCUSS_URL : ISSUE_URL;
 
-    const parts = [`## Detailed Report\n\n${desc}`];
-    if (techCb.checked) parts.push(`\n---\n${getTechInfo()}`);
-    if (extCb.checked) parts.push(`\n---\n${await getExtensions()}`);
-    if (logCb.checked) parts.push(`\n---\n${getConsoleLogs()}`);
-    parts.push(`\n---\n*Technical details included voluntarily by the user to aid debugging.*`);
+    const sections = [];
+    if (techCb.checked) sections.push(getTechInfo());
+    if (extCb.checked) sections.push(await getExtensions());
+    if (logCb.checked) sections.push(getConsoleLogs());
 
-    let body = parts.join('\n');
-    if (body.length > MAX_BODY) {
-      body = body.slice(0, MAX_BODY) + '\n\n_(report truncated to stay within URL limits)_';
+    let body = '<!-- Please describe your issue or feedback above -->\n\n';
+    if (sections.length > 0) {
+      body += `\n<details><summary><strong>Attached Diagnostic Data</strong></summary>\n\n${sections.join('\n\n---\n\n')}\n\n*Technical details voluntarily attached by the user.*</details>`;
     }
 
     const params = new URLSearchParams();
-    params.append('title', title);
+    params.append('title', `${cat.prefix} `);
     params.append('body', body);
-    if (!isDiscuss && tpl.label) params.append('labels', tpl.label);
+    if (!isDiscuss && cat.label) params.append('labels', cat.label);
     if (isDiscuss) params.append('category', 'general');
 
     const url = `${target}?${params.toString()}`;
@@ -881,7 +751,7 @@ function buildSidebar() {
       showError('Failed to open GitHub. Please try again.');
       submitBtn.disabled = false;
       submitBtn.classList.remove('btn-loading');
-      submitBtn.textContent = 'Send to GitHub';
+      submitBtn.textContent = 'Continue on GitHub';
       return;
     }
 
@@ -892,7 +762,7 @@ function buildSidebar() {
     if (e.key !== 'Tab') return;
     const focusable = Array.from(
       overlay.querySelectorAll(
-        'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
       )
     );
     if (!focusable.length) return;
@@ -918,7 +788,7 @@ function openSidebar() {
   _sidebar = buildSidebar();
   document.body.appendChild(_sidebar);
 
-  requestAnimationFrame(() => _sidebar.classList.add('open'));
+  requestAnimationFrame(() => _sidebar?.classList.add('open'));
   _sidebar.querySelector('.mc-type-opt')?.focus();
 }
 

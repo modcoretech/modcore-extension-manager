@@ -323,8 +323,6 @@
         return aside;
     };
 
-    // Note: The SIDEBAR_CSS has been omitted as per the previous iteration logic (or left as standard). 
-    // Assuming you inject the literal CSS string as previously presented in your block.
     const SIDEBAR_CSS = `
     .mc-shell-body { margin: 0; min-height: 100vh; }
     .mc-shell { display: flex; align-items: flex-start; width: 100%; min-height: 100vh; background-color: var(--color-bg); }
