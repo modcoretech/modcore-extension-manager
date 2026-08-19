@@ -109,7 +109,6 @@
         dom.initialLoading.style.display = busy ? 'flex' : 'none';
         dom.contentArea.style.opacity    = busy ? '0.5' : '1';
         dom.contentArea.style.pointerEvents = busy ? 'none' : 'auto';
-        dom.sidebarButtons.forEach(b => b.disabled = busy);
     };
 
     const setActionLoading = (busy) => {
@@ -176,24 +175,21 @@
     const initializeApp = async () => {
         cacheDomElements();
         setupEventListeners();
+        switchPanel(panelIdFromHash());
         await loadSettings();
         setBusyState(true);
         await Promise.all([loadInstalledExtensions(), loadInitialData(false)]);
         buildFilterCheckboxes();
-        if (dom.currentYear) dom.currentYear.textContent = new Date().getFullYear();
         checkHistoryLimit();
         startLiveRefresh();
         setBusyState(false);
     };
 
     const cacheDomElements = () => {
-        dom.sidebar           = document.querySelector('.sidebar');
         dom.contentArea       = document.querySelector('.content-area');
         dom.toastContainer    = document.getElementById('toast-container');
         dom.initialLoading    = document.getElementById('initial-loading-indicator');
-        dom.currentYear       = document.getElementById('current-year');
         dom.panels            = document.querySelectorAll('.content-panel');
-        dom.sidebarButtons    = document.querySelectorAll('.sidebar-button[data-panel-target]');
 
         /* History */
         dom.historyContentWrapper = document.getElementById('history-content-wrapper');
@@ -257,10 +253,10 @@
     };
 
     const setupEventListeners = () => {
-        /* Navigation */
-        dom.sidebarButtons.forEach(btn => {
-            btn.addEventListener('click', () => switchPanel(btn.dataset.panelTarget));
-        });
+        /* Navigation — panel switching is now driven entirely by the
+           universal sidebar (src/shared/js/sidebar.js), which sets
+           location.hash. We just react to it here. */
+        window.addEventListener('hashchange', () => switchPanel(panelIdFromHash()));
 
         /* History */
         dom.searchInput.addEventListener('input', debounce(handleSearchInput, SEARCH_DEBOUNCE_MS));
@@ -469,14 +465,18 @@
     /* ---------------------------------------------------------------------- */
     /*  UI Rendering                                                          */
     /* ---------------------------------------------------------------------- */
+    const DEFAULT_PANEL_ID = 'panel-history';
+
+    /** Reads "#panel-settings" -> "panel-settings", falling back to the
+     *  default panel when there's no (recognised) hash yet. */
+    const panelIdFromHash = () => {
+        const id = location.hash.replace(/^#/, '');
+        return document.getElementById(id) ? id : DEFAULT_PANEL_ID;
+    };
+
     const switchPanel = (targetId) => {
         const targetPanel = document.getElementById(targetId);
         if (!targetPanel) return;
-        dom.sidebarButtons.forEach(btn => {
-            const active = btn.dataset.panelTarget === targetId;
-            btn.classList.toggle('active', active);
-            btn.setAttribute('aria-current', active ? 'page' : 'false');
-        });
         dom.panels.forEach(panel => {
             const isTarget = panel.id === targetId;
             panel.hidden = !isTarget;

@@ -15,40 +15,10 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     min-height: 100vh;
-    display: flex;
     overflow-y: auto;
 }
-.page-wrapper { display: flex; width: 100%; min-height: 100vh; background-color: var(--color-bg); }
-.content-area { flex-grow: 1; padding: var(--container-padding); margin-left: var(--sidebar-width); }
-.sidebar {
-    width: var(--sidebar-width);
-    background-color: var(--color-surface);
-    border-right: var(--border-width) solid var(--color-border);
-    display: flex;
-    flex-direction: column;
-    padding: var(--space-6) var(--space-4);
-    flex-shrink: 0;
-    position: fixed;
-    left: 0; top: 0; height: 100vh; z-index: 10;
-}
-.sidebar-header { display: flex; align-items: center; padding: var(--space-2) var(--space-2); margin-bottom: var(--space-6); gap: var(--space-3); }
-.sidebar-title { font-size: var(--text-headline-sm); font-weight: var(--weight-semibold); color: var(--color-text-primary); }
-.header-logo.no-mask { width: 48px; height: 48px; border-radius: var(--radius-lg); }
-.sidebar-nav { flex-grow: 1; }
-.sidebar-nav ul { list-style: none; }
-.sidebar-nav li { margin-bottom: var(--space-2); }
-.sidebar-button {
-    font-family: inherit; font-size: var(--text-body-lg); font-weight: var(--weight-medium);
-    color: var(--color-text-primary); background-color: transparent; border: none;
-    border-radius: var(--radius-lg); padding: var(--space-2) var(--space-4);
-    cursor: pointer; transition: var(--transition-normal); display: flex;
-    align-items: center; width: 100%; text-align: left; min-height: 44px;
-    text-decoration: none;
-}
-.sidebar-button:hover { background-color: var(--color-surface-high); color: var(--color-primary); }
-.sidebar-button.active { background-color: var(--color-primary-container); color: var(--color-primary); font-weight: var(--weight-semibold); }
-.sidebar-button .icon { margin-right: var(--space-3); }
-.sidebar-footer { margin-top: auto; padding-top: var(--space-4); border-top: var(--border-width) solid var(--color-border); text-align: center; font-size: var(--text-body-sm); color: var(--color-text-secondary); }
+/* Sidebar layout */
+.content-area { padding: var(--container-padding); }
 .content-panel { background-color: var(--color-surface); outline: none; display: none; flex-direction: column; gap: var(--space-4); flex-grow: 1; border-radius: var(--radius-xl); overflow: hidden; padding: var(--container-padding); }
 .content-panel.active { display: flex; animation: fade-in .3s ease-out; }
 [hidden] { display: none !important; }
