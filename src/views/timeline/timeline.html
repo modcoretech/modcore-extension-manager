@@ -13,7 +13,6 @@
     <div class="page-wrapper">
         <aside class="sidebar">
             <header class="sidebar-header">
-                <img src="../../../public/icons/png/modcore-em.png" alt="Modcore Logo" class="header-logo no-mask">
                 <h1 class="sidebar-title">modcore Timeline</h1>
             </header>
             <nav class="sidebar-nav" aria-label="History Sections">
@@ -52,7 +51,11 @@
             <section id="panel-history" class="content-panel active" aria-labelledby="history-panel-title" tabindex="-1">
                 <header class="panel-header">
                     <h2 id="history-panel-title">Extension Activity</h2>
-                    <p id="history-panel-description">Review a chronological log of events for all your extensions.</p>
+                    <p id="history-panel-description">
+                        Review a chronological log of events for all your extensions. Looking to clear or prune
+                        records? Head to
+                        <button type="button" class="link-button" data-panel-target="panel-settings">Settings &rarr; Data Management</button>.
+                    </p>
                 </header>
                 <div class="panel-content">
                     <div class="history-controls">
@@ -68,33 +71,8 @@
                                 <span class="icon icon-filter" aria-hidden="true"></span>
                                 <span class="btn-text">Filter</span>
                             </button>
-                            <button id="clear-all-btn" class="btn tertiary danger" aria-label="Clear all history">
-                                <span class="icon icon-trash" aria-hidden="true"></span>
-                                <span class="btn-text">Clear All</span>
-                            </button>
                         </div>
                     </div>
-
-                    <div class="history-toolbar">
-                        <button id="export-history-btn" class="btn tertiary small">
-                            <span class="icon icon-download" aria-hidden="true"></span>
-                            <span>Export</span>
-                        </button>
-                        <button id="import-history-btn" class="btn tertiary small">
-                            <span class="icon icon-upload" aria-hidden="true"></span>
-                            <span>Import</span>
-                        </button>
-                        <span class="toolbar-divider" aria-hidden="true"></span>
-                        <button id="prune-inactive-btn" class="btn tertiary small">
-                            <span class="icon icon-trash" aria-hidden="true"></span>
-                            <span>Prune Inactive</span>
-                        </button>
-                        <button id="prune-by-type-btn" class="btn tertiary small">
-                            <span class="icon icon-filter" aria-hidden="true"></span>
-                            <span>Prune by Type</span>
-                        </button>
-                    </div>
-                    <input type="file" id="import-file-input" accept="application/json" hidden>
 
                     <div id="filter-panel" class="filter-panel" hidden>
                         <div class="filter-sheet-header">
@@ -153,110 +131,129 @@
             <section id="panel-settings" class="content-panel" aria-labelledby="settings-panel-title" hidden tabindex="-1">
                 <header class="panel-header">
                     <h2 id="settings-panel-title">Timeline Settings</h2>
-                    <p>Configure how extension activity is tracked and displayed. Changes save automatically.</p>
+                    <p>Configure how extension activity is tracked and displayed.</p>
                 </header>
                 <div class="panel-content">
-                    <div class="content-section">
-                        <h3 class="section-title small-title">Tracking</h3>
-                        <div class="setting-item">
-                            <div class="setting-label">
-                                <strong>Enable Timeline</strong>
-                                <p class="text-secondary">Record extension installations, updates, enables, disables, and permission changes.</p>
-                                <p class="text-secondary">All data is stored locally on your device.</p>
-                            </div>
-                            <input type="checkbox" id="tracking-enabled-toggle" class="toggle-switch" checked>
-                        </div>
-                    </div>
 
-                    <div class="content-section">
-                        <h3 class="section-title small-title">Storage</h3>
+                    <fieldset class="content-section settings-fieldset">
+                        <legend class="section-title small-title">Tracking</legend>
                         <div class="setting-item">
                             <div class="setting-label">
-                                <strong>Record Limit</strong>
-                                <p class="text-secondary">Maximum number of events to keep. Oldest records are automatically removed when exceeded.</p>
+                                <label for="tracking-enabled-toggle"><strong>Enable Timeline</strong></label>
+                                <p class="text-secondary" id="tracking-enabled-desc">
+                                    Record extension installs, updates, enables, disables, and permission changes as they happen.
+                                    <a href="https://sites.google.com/view/modcore-em-help/manage-extensions/extension-activity-log-page" target="_blank" rel="noopener">Learn more</a>.
+                                </p>
                             </div>
-                            <div class="prune-controls">
-                                <label for="record-limit-input" class="visually-hidden">Record limit</label>
-                                <input type="number" id="record-limit-input" class="text-input" value="1000" min="100">
-                                <span>records</span>
-                            </div>
+                            <input type="checkbox" id="tracking-enabled-toggle" class="toggle-switch" checked aria-describedby="tracking-enabled-desc">
                         </div>
-                        <div class="setting-item">
-                            <div class="setting-label">
-                                <strong>Retention Period</strong>
-                                <p class="text-secondary">Delete records older than this age. Use the button to apply immediately.</p>
-                            </div>
-                            <div class="prune-controls">
-                                <label for="prune-days-input" class="visually-hidden">Days to keep</label>
-                                <input type="number" id="prune-days-input" class="text-input" value="90" min="1">
-                                <span>days</span>
-                                <button id="prune-now-btn" class="btn secondary">Prune Now</button>
-                            </div>
-                        </div>
-                    </div>
+                    </fieldset>
 
-                    <div class="content-section">
-                        <h3 class="section-title small-title">Display</h3>
+                    <fieldset class="content-section settings-fieldset">
+                        <legend class="section-title small-title">Display</legend>
                         <div class="setting-item">
                             <div class="setting-label">
-                                <strong>Sort Order</strong>
-                                <p class="text-secondary">How events are ordered in the timeline.</p>
+                                <label for="sort-order-select"><strong>Sort Order</strong></label>
+                                <p class="text-secondary" id="sort-order-desc">Choose how events are ordered in the timeline list.</p>
                             </div>
-                            <select id="sort-order-select" class="select-input">
-                                <option value="desc">Newest First</option>
-                                <option value="asc">Oldest First</option>
-                                <option value="name">Extension Name (A-Z)</option>
-                                <option value="type">Event Type</option>
-                                <option value="group">Group by Extension</option>
+                            <select id="sort-order-select" class="select-input" aria-describedby="sort-order-desc">
+                                <option value="desc">Newest first</option>
+                                <option value="asc">Oldest first</option>
+                                <option value="name">Extension name (A-Z)</option>
+                                <option value="type">Event type</option>
+                                <option value="group">Group by extension</option>
                             </select>
                         </div>
                         <div class="setting-item">
                             <div class="setting-label">
-                                <strong>Logs per Page</strong>
-                                <p class="text-secondary">Number of events shown before pagination.</p>
+                                <label for="logs-per-page-input"><strong>Logs per Page</strong></label>
+                                <p class="text-secondary" id="logs-per-page-desc">How many events are shown on a single page before you need to page forward.</p>
                             </div>
                             <div class="prune-controls">
                                 <label for="logs-per-page-input" class="visually-hidden">Logs per page</label>
-                                <input type="number" id="logs-per-page-input" class="text-input" value="25" min="5">
-                                <span>logs</span>
+                                <input type="number" id="logs-per-page-input" class="text-input" value="25" min="5" max="500" aria-describedby="logs-per-page-desc">
+                                <span aria-hidden="true">logs</span>
                             </div>
                         </div>
                         <div class="setting-item">
                             <div class="setting-label">
-                                <strong>Show Extension Icons</strong>
-                                <p class="text-secondary">Display each extension's actual icon in the timeline.</p>
+                                <label for="relative-timestamps-toggle"><strong>Relative Timestamps</strong></label>
+                                <p class="text-secondary" id="relative-timestamps-desc">Show times like &ldquo;2 hours ago&rdquo; instead of an exact clock time.</p>
                             </div>
-                            <input type="checkbox" id="show-extension-icons-toggle" class="toggle-switch" checked>
+                            <input type="checkbox" id="relative-timestamps-toggle" class="toggle-switch" aria-describedby="relative-timestamps-desc">
                         </div>
+                    </fieldset>
+
+                    <fieldset class="content-section settings-fieldset">
+                        <legend class="section-title small-title">Storage</legend>
                         <div class="setting-item">
                             <div class="setting-label">
-                                <strong>Display Timestamps</strong>
-                                <p class="text-secondary">Show the time next to each event.</p>
-                            </div>
-                            <input type="checkbox" id="display-timestamps-toggle" class="toggle-switch" checked>
-                        </div>
-                        <div class="setting-item">
-                            <div class="setting-label">
-                                <strong>Relative Timestamps</strong>
-                                <p class="text-secondary">Show "2 hours ago" instead of exact clock times.</p>
-                            </div>
-                            <input type="checkbox" id="relative-timestamps-toggle" class="toggle-switch">
-                        </div>
-                        <div class="setting-item">
-                            <div class="setting-label">
-                                <strong>Live Refresh</strong>
-                                <p class="text-secondary">Automatically refresh the timeline every N seconds. Set to 0 to disable.</p>
+                                <label for="record-limit-input"><strong>Record Limit</strong></label>
+                                <p class="text-secondary" id="record-limit-desc">Maximum number of events to keep at once. When this is exceeded, the oldest records are removed automatically.</p>
                             </div>
                             <div class="prune-controls">
-                                <label for="live-refresh-input" class="visually-hidden">Live refresh seconds</label>
-                                <input type="number" id="live-refresh-input" class="text-input" value="0" min="0" max="300">
-                                <span>seconds</span>
+                                <label for="record-limit-input" class="visually-hidden">Record limit</label>
+                                <input type="number" id="record-limit-input" class="text-input" value="1000" min="100" max="10000" aria-describedby="record-limit-desc">
+                                <span aria-hidden="true">records</span>
                             </div>
                         </div>
-                    </div>
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <label for="prune-days-input"><strong>Retention Period</strong></label>
+                                <p class="text-secondary" id="prune-days-desc">Records older than this many days can be deleted on demand using the button below.</p>
+                            </div>
+                            <div class="prune-controls">
+                                <label for="prune-days-input" class="visually-hidden">Days to keep</label>
+                                <input type="number" id="prune-days-input" class="text-input" value="90" min="1" max="3650" aria-describedby="prune-days-desc">
+                                <span aria-hidden="true">days</span>
+                                <button id="prune-now-btn" class="btn secondary">Prune Now</button>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="content-section settings-fieldset danger-zone">
+                        <legend class="section-title small-title danger-zone-title">
+                            <span class="icon icon-warning-status icon-danger" aria-hidden="true"></span>
+                            Data Management
+                        </legend>
+                        <p class="text-secondary danger-zone-intro">
+                            These actions permanently remove history records. Clearing all history can be undone for a
+                            few seconds right after you do it; the others cannot be undone.
+                        </p>
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <strong>Prune Inactive Extensions</strong>
+                                <p class="text-secondary">Remove history for extensions that are no longer installed.</p>
+                            </div>
+                            <button id="prune-inactive-btn" class="btn secondary">
+                                <span class="icon icon-trash" aria-hidden="true"></span>
+                                <span>Prune Inactive</span>
+                            </button>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <strong>Prune by Event Type</strong>
+                                <p class="text-secondary">Choose specific event types (e.g. "Enabled"/"Disabled") to delete from your history.</p>
+                            </div>
+                            <button id="prune-by-type-btn" class="btn secondary">
+                                <span class="icon icon-filter" aria-hidden="true"></span>
+                                <span>Prune by Type&hellip;</span>
+                            </button>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <strong>Clear All History</strong>
+                                <p class="text-secondary">Delete every recorded event. This is the most destructive option here.</p>
+                            </div>
+                            <button id="clear-all-btn" class="btn danger" aria-label="Clear all history">
+                                <span class="icon icon-trash" aria-hidden="true"></span>
+                                <span class="btn-text">Clear All</span>
+                            </button>
+                        </div>
+                    </fieldset>
 
                     <div class="settings-actions">
-                        <span id="settings-saved-indicator" class="save-indicator" hidden>Saved automatically</span>
+                        <span id="settings-saved-indicator" class="save-indicator" role="status" hidden>Saved automatically</span>
                         <button id="reset-defaults-btn" class="btn tertiary">Reset to Defaults</button>
                     </div>
                 </div>

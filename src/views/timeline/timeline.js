@@ -11,15 +11,8 @@
     const SETTINGS_SAVE_DEBOUNCE_MS = 400;
     const TOAST_DURATION_MS       = 3000;
     const UNDO_DURATION_MS        = 8000;
+    const MAX_DETAIL_HISTORY_ROWS = 5;
     const EVENT_TYPES             = ['installed', 'uninstalled', 'updated', 'permissions_updated', 'enabled', 'disabled'];
-    const EVENT_ICON_MAP          = {
-        installed: 'icon-install',
-        uninstalled: 'icon-trash',
-        updated: 'icon-update',
-        permissions_updated: 'icon-shield',
-        enabled: 'icon-check',
-        disabled: 'icon-error'
-    };
 
     /* ---------------------------------------------------------------------- */
     /*  State                                                                 */
@@ -33,20 +26,19 @@
         startDate:  null,
         endDate:    null
     };
+    // Note: extension icons and event timestamps are always shown in the
+    // timeline; those are no longer user-configurable, so there's nothing
+    // to store for them here.
     let settings = {
         trackingEnabled:      true,
         sortOrder:            'desc',
         logsPerPage:          25,
         pruneDays:            90,
         recordLimit:          1000,
-        displayTimestamps:    true,
         relativeTimestamps:   false,
-        liveRefreshSeconds:   0,
-        showExtensionIcons:   true,
     };
     let currentPage  = 1;
     let totalPages   = 1;
-    let liveRefreshInterval = null;
 
     /* ---------------------------------------------------------------------- */
     /*  DOM Cache                                                             */
@@ -62,8 +54,8 @@
     };
 
     const escapeHtml = (str) => {
-        if (!str) return '';
-        return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+        if (str === null || str === undefined) return '';
+        return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
     };
 
     const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -112,7 +104,7 @@
 
     const setActionLoading = (busy) => {
         [dom.clearAllButton, dom.pruneNowButton, dom.pruneInactiveBtn, dom.pruneByTypeBtn,
-         dom.resetDefaultsBtn, dom.exportHistoryBtn, dom.importHistoryBtn].forEach(b => { if (b) b.disabled = busy; });
+         dom.resetDefaultsBtn].forEach(b => { if (b) b.disabled = busy; });
     };
 
     const showModal = (id) => {
@@ -180,7 +172,6 @@
         buildFilterCheckboxes();
         if (dom.currentYear) dom.currentYear.textContent = new Date().getFullYear();
         checkHistoryLimit();
-        startLiveRefresh();
         setBusyState(false);
     };
 
@@ -192,6 +183,7 @@
         dom.currentYear       = document.getElementById('current-year');
         dom.panels            = document.querySelectorAll('.content-panel');
         dom.sidebarButtons    = document.querySelectorAll('.sidebar-button[data-panel-target]');
+        dom.panelLinkButtons  = document.querySelectorAll('[data-panel-target]');
 
         /* History */
         dom.historyContentWrapper = document.getElementById('history-content-wrapper');
@@ -212,11 +204,6 @@
         dom.selectNoneFiltersBtn  = document.getElementById('select-none-filters-btn');
         dom.recordCountDisplay    = document.getElementById('record-count-display');
 
-        /* Toolbar */
-        dom.exportHistoryBtn      = document.getElementById('export-history-btn');
-        dom.importHistoryBtn      = document.getElementById('import-history-btn');
-        dom.importFileInput       = document.getElementById('import-file-input');
-
         /* Pagination */
         dom.paginationControls   = document.getElementById('pagination-controls');
         dom.prevPageBtn          = document.getElementById('prev-page-btn');
@@ -231,10 +218,7 @@
         dom.sortOrderSelect            = document.getElementById('sort-order-select');
         dom.logsPerPageInput           = document.getElementById('logs-per-page-input');
         dom.recordLimitInput           = document.getElementById('record-limit-input');
-        dom.displayTimestampsToggle    = document.getElementById('display-timestamps-toggle');
         dom.relativeTimestampsToggle   = document.getElementById('relative-timestamps-toggle');
-        dom.liveRefreshInput           = document.getElementById('live-refresh-input');
-        dom.showExtensionIconsToggle   = document.getElementById('show-extension-icons-toggle');
         dom.resetDefaultsBtn           = document.getElementById('reset-defaults-btn');
         dom.settingsSavedIndicator     = document.getElementById('settings-saved-indicator');
         dom.pruneInactiveBtn           = document.getElementById('prune-inactive-btn');
@@ -256,7 +240,7 @@
 
     const setupEventListeners = () => {
         /* Navigation */
-        dom.sidebarButtons.forEach(btn => {
+        dom.panelLinkButtons.forEach(btn => {
             btn.addEventListener('click', () => switchPanel(btn.dataset.panelTarget));
         });
 
@@ -274,19 +258,13 @@
         dom.startDateInput.addEventListener('change', handleDateFilterChange);
         dom.endDateInput.addEventListener('change', handleDateFilterChange);
 
-        /* Toolbar */
-        dom.exportHistoryBtn?.addEventListener('click', handleExportHistory);
-        dom.importHistoryBtn?.addEventListener('click', () => dom.importFileInput?.click());
-        dom.importFileInput?.addEventListener('change', handleImportFileSelect);
-
         /* Pagination */
         dom.prevPageBtn.addEventListener('click', () => handlePageChange(-1));
         dom.nextPageBtn.addEventListener('click', () => handlePageChange(1));
 
         /* Settings - auto-save wiring */
         const autoSaveToggles = [
-            dom.trackingEnabledToggle, dom.displayTimestampsToggle,
-            dom.relativeTimestampsToggle, dom.showExtensionIconsToggle, dom.sortOrderSelect
+            dom.trackingEnabledToggle, dom.relativeTimestampsToggle, dom.sortOrderSelect
         ];
         autoSaveToggles.forEach(el => el && el.addEventListener('change', () => debouncedAutoSave()));
 
@@ -294,7 +272,6 @@
             { el: dom.pruneDaysInput,   min: 1,    max: 3650 },
             { el: dom.logsPerPageInput, min: 5,    max: 500 },
             { el: dom.recordLimitInput, min: 100,  max: 10000 },
-            { el: dom.liveRefreshInput, min: 0,    max: 300 },
         ];
         numericAutoSave.forEach(({ el, min, max }) => {
             if (!el) return;
@@ -453,17 +430,6 @@
         }
     };
 
-    const startLiveRefresh = () => {
-        stopLiveRefresh();
-        const sec = parseInt(settings.liveRefreshSeconds, 10) || 0;
-        if (sec < 5) return;
-        liveRefreshInterval = setInterval(() => loadInitialData(false), sec * 1000);
-    };
-
-    const stopLiveRefresh = () => {
-        if (liveRefreshInterval) { clearInterval(liveRefreshInterval); liveRefreshInterval = null; }
-    };
-
     /* ---------------------------------------------------------------------- */
     /*  UI Rendering                                                          */
     /* ---------------------------------------------------------------------- */
@@ -585,26 +551,23 @@
         iconWrap.className = 'item-icon';
 
         const ext = installedExtensions.get(record.extensionId);
-        
-        if (settings.showExtensionIcons) {
-            const iconImg = document.createElement('img');
-            iconImg.className = 'extension-icon-img';
-            iconImg.alt = '';
-            iconImg.loading = 'lazy';
-            iconImg.src = ext?.iconUrl || `chrome://extension-icon/${record.extensionId}/32/0`;
-            iconImg.onerror = function() {
-                this.style.display = 'none';
-                const fallback = document.createElement('div');
-                fallback.className = 'extension-icon-fallback';
-                fallback.textContent = (record.extensionName || '?').charAt(0).toUpperCase();
-                iconWrap.appendChild(fallback);
-            };
-            iconWrap.appendChild(iconImg);
-        } else {
-            const icon = document.createElement('span');
-            icon.className = `icon ${EVENT_ICON_MAP[record.eventType] || 'icon-info-status'}`;
-            iconWrap.appendChild(icon);
-        }
+
+        const iconImg = document.createElement('img');
+        iconImg.className = 'extension-icon-img';
+        iconImg.alt = '';
+        iconImg.loading = 'lazy';
+        iconImg.src = ext?.iconUrl || `chrome://extension-icon/${record.extensionId}/32/0`;
+        // Attached via addEventListener (not an inline `onerror="..."` attribute)
+        // so this keeps working under the extension's content-security-policy,
+        // which disallows inline event handlers.
+        iconImg.addEventListener('error', () => {
+            iconImg.style.display = 'none';
+            const fallback = document.createElement('div');
+            fallback.className = 'extension-icon-fallback';
+            fallback.textContent = (record.extensionName || '?').charAt(0).toUpperCase();
+            iconWrap.appendChild(fallback);
+        }, { once: true });
+        iconWrap.appendChild(iconImg);
 
         const badge = document.createElement('span');
         badge.className = `status-badge status-badge-${record.eventType}`;
@@ -629,14 +592,12 @@
 
         item.append(iconWrap, content);
 
-        if (settings.displayTimestamps) {
-            const time = document.createElement('div');
-            time.className = 'history-item-meta';
-            time.textContent = settings.relativeTimestamps
-                ? formatRelativeTime(record.timestamp)
-                : new Date(record.timestamp).toLocaleTimeString();
-            item.appendChild(time);
-        }
+        const time = document.createElement('div');
+        time.className = 'history-item-meta';
+        time.textContent = settings.relativeTimestamps
+            ? formatRelativeTime(record.timestamp)
+            : new Date(record.timestamp).toLocaleTimeString();
+        item.appendChild(time);
 
         item.addEventListener('click', () => openDetailModal(record));
         item.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetailModal(record); } });
@@ -651,11 +612,11 @@
         
         const extHistory = allHistoryRecords
             .filter(r => r.extensionId === record.extensionId)
-            .slice(0, 5);
+            .slice(0, MAX_DETAIL_HISTORY_ROWS);
 
         dom.detailContent.innerHTML = `
             <div class="detail-header">
-                <img src="${escapeHtml(iconUrl)}" alt="" class="detail-icon" onerror="this.style.display='none'">
+                <img src="${escapeHtml(iconUrl)}" alt="" class="detail-icon">
                 <div class="detail-header-info">
                     <h4>${escapeHtml(record.extensionName || 'Unknown Extension')}</h4>
                     <span class="detail-version">Version ${escapeHtml(record.extensionVersion || 'N/A')}</span>
@@ -708,6 +669,11 @@
             </div>` : ''}
         `;
         
+        const detailIcon = dom.detailContent.querySelector('.detail-icon');
+        // Attached via addEventListener, not an inline `onerror` attribute,
+        // so it isn't blocked by the extension page's content-security-policy.
+        detailIcon?.addEventListener('error', () => { detailIcon.style.display = 'none'; }, { once: true });
+
         if (dom.copyDetailIdBtn) dom.copyDetailIdBtn.disabled = false;
         showModal('detailModal');
     };
@@ -771,10 +737,7 @@
         dom.sortOrderSelect.value            = settings.sortOrder;
         dom.logsPerPageInput.value           = settings.logsPerPage;
         dom.recordLimitInput.value           = settings.recordLimit;
-        dom.displayTimestampsToggle.checked  = settings.displayTimestamps;
         dom.relativeTimestampsToggle.checked = settings.relativeTimestamps;
-        dom.liveRefreshInput.value           = settings.liveRefreshSeconds;
-        dom.showExtensionIconsToggle.checked = settings.showExtensionIcons;
         updateSettingsControlsState();
     };
 
@@ -784,10 +747,7 @@
         settings.sortOrder            = dom.sortOrderSelect.value;
         settings.logsPerPage          = Math.max(5, Math.min(500, parseInt(dom.logsPerPageInput.value,10)||25));
         settings.recordLimit          = Math.max(100, Math.min(10000, parseInt(dom.recordLimitInput.value,10)||1000));
-        settings.displayTimestamps    = dom.displayTimestampsToggle.checked;
         settings.relativeTimestamps   = dom.relativeTimestampsToggle.checked;
-        settings.liveRefreshSeconds   = Math.max(0, Math.min(300, parseInt(dom.liveRefreshInput.value,10)||0));
-        settings.showExtensionIcons   = dom.showExtensionIconsToggle.checked;
     };
 
     const saveSettings = async (showFeedback = true) => {
@@ -798,7 +758,6 @@
             else showSaveIndicator();
             applyFiltersAndSort();
             checkHistoryLimit();
-            startLiveRefresh();
         } catch (e) {
             console.error('Error saving settings:', e);
             showToast('Failed to save settings.', 'error');
@@ -811,9 +770,7 @@
         if (!confirm('Reset all settings to defaults?')) return;
         settings = {
             trackingEnabled: true, sortOrder: 'desc', logsPerPage: 25, pruneDays: 90,
-            recordLimit: 1000, displayTimestamps: true,
-            relativeTimestamps: false, liveRefreshSeconds: 0,
-            showExtensionIcons: true,
+            recordLimit: 1000, relativeTimestamps: false,
         };
         syncSettingsToUI();
         await saveSettings();
@@ -987,61 +944,6 @@
             console.error('Prune by type failed:', e);
             showToast('Failed to prune by type.', 'error');
         } finally { setActionLoading(false); }
-    };
-
-    const handleExportHistory = async () => {
-        try {
-            const res = await chrome.runtime.sendMessage({ type: 'GET_EXTENSION_HISTORY' });
-            const history = res?.history || [];
-            const blob = new Blob([JSON.stringify(history, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `modcore-timeline-${new Date().toISOString().slice(0,10)}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-            showToast('History exported.', 'success');
-        } catch (e) {
-            console.error('Export failed:', e);
-            showToast('Failed to export history.', 'error');
-        }
-    };
-
-    const handleImportFileSelect = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        try {
-            const text = await file.text();
-            const imported = JSON.parse(text);
-            if (!Array.isArray(imported)) throw new Error('Invalid file format.');
-            const valid = imported.filter(r =>
-                r && typeof r === 'object' &&
-                typeof r.timestamp === 'number' &&
-                typeof r.extensionId === 'string' &&
-                typeof r.eventType === 'string'
-            );
-            if (valid.length === 0) throw new Error('No valid records found.');
-
-            const res = await chrome.runtime.sendMessage({ type: 'GET_EXTENSION_HISTORY' });
-            const current = res?.history || [];
-            const merged = [...valid, ...current];
-            merged.sort((a, b) => b.timestamp - a.timestamp);
-            const seen = new Set();
-            const deduped = merged.filter(r => {
-                const key = r.id || `${r.timestamp}-${r.extensionId}-${r.eventType}`;
-                if (seen.has(key)) return false;
-                seen.add(key);
-                return true;
-            });
-
-            await chrome.runtime.sendMessage({ type: 'RESTORE_HISTORY', payload: deduped });
-            await loadInitialData();
-            showToast(`Imported ${valid.length} records.`, 'success');
-        } catch (err) {
-            showToast(`Import failed: ${err.message}`, 'error');
-        } finally {
-            e.target.value = '';
-        }
     };
 
     /* ---------------------------------------------------------------------- */

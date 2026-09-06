@@ -321,14 +321,47 @@ mark {
 .page-info { font-size: var(--text-body-lg); color: var(--color-text-secondary); }
 
 /* Settings Panel */
-.setting-item { display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) 0; }
+.settings-fieldset { border: none; padding: 0; }
+.settings-fieldset legend { padding: 0; }
+.setting-item { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); padding: var(--space-3) 0; }
 .setting-item:not(:last-child) { border-bottom: 1px solid var(--color-border); }
-.setting-label { display: flex; flex-direction: column; }
+.setting-label { display: flex; flex-direction: column; gap: var(--space-1); max-width: 60ch; }
+.setting-label strong,
+.setting-label label { color: var(--color-text-primary); }
 .settings-actions { margin-top: var(--space-4); display: flex; justify-content: flex-end; align-items: center; gap: var(--space-3); }
 .save-indicator { font-size: var(--text-body-sm); color: var(--color-success); opacity: 0; transition: opacity 0.3s ease; }
 .save-indicator.visible { opacity: 1; }
-.prune-controls { display: flex; align-items: center; gap: var(--space-2); }
+.prune-controls { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; }
 .prune-controls .text-input { width: 80px; text-align: center; }
+
+/* Danger Zone (Settings > Data Management) */
+.danger-zone {
+    border: 1px solid var(--color-danger);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    background-color: var(--color-danger-container);
+}
+.danger-zone .setting-item:not(:last-child) { border-bottom-color: var(--color-danger); opacity: 0.9; }
+.danger-zone-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-danger);
+}
+.danger-zone-intro { margin-bottom: var(--space-3); }
+
+/* Inline text link styled as a button, used to jump between panels */
+.link-button {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: var(--color-text-link);
+    text-decoration: underline;
+    cursor: pointer;
+}
+.link-button:hover,
+.link-button:focus-visible { color: var(--color-primary-hover); }
 
 /* ==========================================================================
    Animations, Skeletons, Toasts, Modals
