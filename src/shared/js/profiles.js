@@ -8,6 +8,12 @@ const PROFILES_STORAGE_KEY = 'em_profiles';
 
 export const currentShortcuts = new Map();
 
+const Status = globalThis.Status ?? {
+    error: (msg) => console.error('[modcore]', msg),
+    success: (msg) => console.log('[modcore]', msg),
+    info: (msg) => console.info('[modcore]', msg)
+};
+
 export async function loadProfileStore() {
     try {
         const data = await chrome.storage.local.get(PROFILES_STORAGE_KEY);

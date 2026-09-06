@@ -955,9 +955,9 @@ export async function initializePopup() {
             try {
                 const manifest = chrome.runtime.getManifest();
                 const year = new Date().getFullYear();
-                footerEl.textContent = `Version ${manifest?.version ?? '?'} | © ${year} modcore. Made in Germany.`;
+                footerEl.textContent = `Version ${manifest?.version ?? '?'} | © ${year} modcore.`;
             } catch (e) {
-                footerEl.textContent = `© ${new Date().getFullYear()} modcore. Made in Germany.`;
+                footerEl.textContent = `© ${new Date().getFullYear()} modcore.`;
             }
         }
 
