@@ -6,7 +6,7 @@
     <title>modcore AI</title>
     <link rel="stylesheet" href="../../shared/styles/main.css">
     <link rel="stylesheet" href="ai.css">
-<base target="_blank">
+    <base target="_blank">
 </head>
 <body>
     <div class="ai-container">
@@ -16,7 +16,7 @@
                 <i class="icon icon-20 icon-code" aria-hidden="true"></i>
                 <h1 class="ai-title">modcore AI</h1>
             </div>
-            
+
             <div class="header-actions">
                 <button id="newChatBtn" class="btn btn-primary" title="Start a fresh conversation">
                     <i class="icon icon-16 icon-plus" aria-hidden="true"></i>
@@ -39,10 +39,10 @@
 
         <!-- Input Area -->
         <footer class="ai-footer">
-            <!-- Hidden File Input for Image Attachments -->
-            <input type="file" id="imageFileInput" accept="image/png, image/jpeg, image/webp, image/gif" hidden>
+            <!-- Hidden File Input — accepts images, text, code and generic documents -->
+            <input type="file" id="imageFileInput" hidden>
 
-            <!-- Image Preview Badge Bar -->
+            <!-- Attachment Preview Bar -->
             <div id="imagePreviewBar" class="image-preview-bar hidden">
                 <div class="image-preview-item">
                     <img id="imagePreviewThumb" src="" alt="Attachment Preview">
@@ -54,14 +54,14 @@
             </div>
 
             <div class="input-container">
-                <button id="attachBtn" class="btn-icon attach-btn" title="Attach Image" aria-label="Attach Image" disabled>
+                <button id="attachBtn" class="btn-icon attach-btn" title="Attach file" aria-label="Attach file" disabled>
                     <i class="icon icon-16 icon-plus" aria-hidden="true"></i>
                 </button>
-                <textarea 
-                    id="userPrompt" 
-                    class="chat-input" 
-                    placeholder="Pick a model in Settings to start chatting..." 
-                    rows="1" 
+                <textarea
+                    id="userPrompt"
+                    class="chat-input"
+                    placeholder="Pick a model in Settings to start chatting..."
+                    rows="1"
                     disabled
                     aria-label="Chat input"></textarea>
                 <button id="sendBtn" class="btn btn-primary send-btn" disabled aria-label="Send message">
@@ -92,7 +92,9 @@
             <main class="modal-body">
                 <div class="modal-header">
                     <h2 id="settingsTitle">Model Settings</h2>
-                    <button id="closeSettingsBtn" class="btn-icon" aria-label="Close Settings"><i class="icon icon-16 icon-close" aria-hidden="true"></i></button>
+                    <button id="closeSettingsBtn" class="btn-icon" aria-label="Close Settings">
+                        <i class="icon icon-16 icon-close" aria-hidden="true"></i>
+                    </button>
                 </div>
 
                 <!-- Tab: Model Setup -->
@@ -100,7 +102,7 @@
                     <div class="setting-group">
                         <label for="endpointUrl">Local AI Endpoint URL</label>
                         <input type="text" id="endpointUrl" class="text-input" value="http://localhost:1234/v1">
-                        <span class="help-text">Connects with LM Studio, Ollama, or OpenAI-compatible local APIs.</span>
+                        <span class="help-text">Connects with LM Studio, Ollama, or any OpenAI-compatible local API.</span>
                     </div>
 
                     <div id="statusBanner" class="status-banner">
@@ -110,7 +112,7 @@
                     </div>
 
                     <div class="setting-group margin-top">
-                        <label for="modelSelect">Available Text & Vision Models</label>
+                        <label for="modelSelect">Available Text &amp; Vision Models</label>
                         <div class="model-select-row">
                             <select id="modelSelect" class="model-select" disabled>
                                 <option value="">Fetching models...</option>
@@ -120,7 +122,7 @@
                                 <span id="lockBtnText">Lock in</span>
                             </button>
                         </div>
-                        <span class="help-text">Lock in a model to start chatting - you can change it anytime.</span>
+                        <span class="help-text">Lock in a model to start chatting — you can change it anytime.</span>
                     </div>
                 </section>
 
@@ -146,7 +148,13 @@
                             <span>Enable GitHub API Access</span>
                         </label>
                         <span class="help-text">Allows modcore AI to fetch repository information, code files, releases, and issue details from GitHub (requires internet connection).</span>
-                        
+
+                        <div class="setting-group margin-top">
+                            <label for="githubTokenInput">GitHub Personal Access Token <span class="help-text">(optional)</span></label>
+                            <input type="password" id="githubTokenInput" class="text-input" placeholder="ghp_..." autocomplete="off" spellcheck="false">
+                            <span class="help-text">Raises the API limit from 60 to 5,000 requests/hour and unlocks code search. Stored locally; sent only to GitHub.</span>
+                        </div>
+
                         <div id="githubRateLimitCard" class="rate-limit-card">
                             <div class="rate-limit-header">
                                 <i class="icon icon-16 icon-api" aria-hidden="true"></i>
@@ -178,6 +186,7 @@
         </div>
     </div>
 
+    <script src="../../js/vendor/purify.min.js"></script>
     <script type="module" src="ai.js"></script>
     <script src="../../js/features/report/report.js"></script>
 </body>

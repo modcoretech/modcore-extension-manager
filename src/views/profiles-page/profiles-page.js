@@ -18,10 +18,11 @@ const ICON = {
     duplicate: '../../../public/icons/svg/copy.svg',
     delete:    '../../../public/icons/svg/trash.svg',
     shortcut:  '../../../public/icons/svg/keyboard.svg',
-    arrowLeft: '../../../public/icons/svg/arrow-left.svg',
 };
 
-// ─── DOM References (populated in init) ─────────────────────────────────────
+const SELF_EXT_ID = chrome.runtime.id;
+
+// ─── DOM References ─────────────────────────────────────────────────────────
 let el = {};
 
 // ─── Session State ───────────────────────────────────────────────────────────
@@ -38,9 +39,8 @@ let lastFocusedElement   = null;
 let isConfigDirty        = false;
 let currentProfileFilter = '';
 let focusedProfileIndex  = -1;
-let deletedProfilesCache = [];
-let activeProfileId      = null;
 let profileFuse          = null;
+let profileFuseDirty     = true;
 let extensionFuse        = null;
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -88,24 +88,46 @@ function debounce(fn, ms) {
     };
 }
 
+function invalidateProfileFuse() {
+    profileFuseDirty = true;
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // DIALOGS
 // ═════════════════════════════════════════════════════════════════════════════
 
+function trapFocus(modal, event) {
+    if (event.key !== 'Tab') return;
+    const focusables = modal.querySelectorAll(
+        'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+    }
+}
+
 function initDialogs() {
+    const confirmModal = document.getElementById('custom-confirm-modal');
+    const promptModal  = document.getElementById('custom-prompt-modal');
+
     document.getElementById('custom-confirm-yes')?.addEventListener('click', () => closeDialog(true));
     document.getElementById('custom-confirm-no')?.addEventListener('click', () => closeDialog(false));
-    document.getElementById('custom-confirm-modal')?.addEventListener('click', e => {
-        if (e.target === document.getElementById('custom-confirm-modal')) closeDialog(false);
-    });
+    confirmModal?.addEventListener('click', e => { if (e.target === confirmModal) closeDialog(false); });
+    confirmModal?.addEventListener('keydown', e => trapFocus(confirmModal, e));
 
     document.getElementById('custom-prompt-ok')?.addEventListener('click', () => {
         closeDialog(document.getElementById('custom-prompt-input')?.value ?? '');
     });
     document.getElementById('custom-prompt-cancel')?.addEventListener('click', () => closeDialog(null));
-    document.getElementById('custom-prompt-modal')?.addEventListener('click', e => {
-        if (e.target === document.getElementById('custom-prompt-modal')) closeDialog(null);
-    });
+    promptModal?.addEventListener('click', e => { if (e.target === promptModal) closeDialog(null); });
+    promptModal?.addEventListener('keydown', e => trapFocus(promptModal, e));
     document.getElementById('custom-prompt-input')?.addEventListener('keydown', e => {
         if (e.key === 'Enter') { e.preventDefault(); closeDialog(e.target.value); }
         if (e.key === 'Escape') { e.preventDefault(); closeDialog(null); }
@@ -159,7 +181,7 @@ function showCustomPrompt(message, defaultValue = '', title = 'Input Required') 
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// LOADING
+// LOADING / BUSY
 // ═════════════════════════════════════════════════════════════════════════════
 
 function showLoading() {
@@ -173,6 +195,10 @@ function hideLoading() {
         el.loadingIndicator.style.display = 'none';
         el.loadingIndicator.setAttribute('aria-hidden', 'true');
     }
+}
+
+function setListBusy(busy) {
+    if (el.profileList) el.profileList.setAttribute('aria-busy', busy ? 'true' : 'false');
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -193,7 +219,11 @@ function fetchAllExtensions() {
 }
 
 async function refreshExtensionData() {
-    allFetchedExtensions = await fetchAllExtensions();
+    const all = await fetchAllExtensions();
+
+    // Never expose the current extension for management — modcore must not disable itself.
+    allFetchedExtensions = all.filter(ext => ext.id !== SELF_EXT_ID);
+
     extensionMap.clear();
     for (const ext of allFetchedExtensions) {
         ext._searchName = (ext.name ?? '').toLowerCase();
@@ -201,9 +231,10 @@ async function refreshExtensionData() {
         ext._searchId = (ext.id ?? '').toLowerCase();
         extensionMap.set(ext.id, ext);
     }
-    await cleanupOrphanedProfileEntries(new Set(allFetchedExtensions.map(e => e.id)));
 
-    // Build Fuse index for extensions
+    await cleanupOrphanedProfileEntries(new Set(allFetchedExtensions.map(e => e.id)));
+    invalidateProfileFuse();
+
     const fuseableExts = allFetchedExtensions.filter(ext => ext.mayDisable);
     extensionFuse = new Fuse(fuseableExts, {
         keys: ['name', 'description', 'id'],
@@ -211,39 +242,6 @@ async function refreshExtensionData() {
         ignoreLocation: true,
         includeMatches: true,
     });
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// ACTIVE PROFILE DETECTION
-// ═════════════════════════════════════════════════════════════════════════════
-
-function getCurrentExtensionStateMap() {
-    const map = new Map();
-    for (const ext of allFetchedExtensions) {
-        if (ext.mayDisable) map.set(ext.id, ext.enabled);
-    }
-    return map;
-}
-
-function profileMatchesCurrentState(profile, currentMap) {
-    const states = profile.extensionStates || {};
-    for (const [extId, enabled] of Object.entries(states)) {
-        if (!currentMap.has(extId)) continue;
-        if (currentMap.get(extId) !== enabled) return false;
-    }
-    for (const [extId, enabled] of currentMap) {
-        if (states[extId] !== undefined && states[extId] !== enabled) return false;
-    }
-    return true;
-}
-
-async function detectActiveProfile() {
-    const { profiles } = await loadProfileStore();
-    const currentMap = getCurrentExtensionStateMap();
-    for (const [id, profile] of Object.entries(profiles)) {
-        if (profileMatchesCurrentState(profile, currentMap)) return id;
-    }
-    return null;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -266,8 +264,6 @@ async function switchToProfileListView() {
     if (el.mainView) el.mainView.style.display = '';
     stopRecordingShortcut();
 
-    activeProfileId = await detectActiveProfile();
-
     await renderProfileList();
     updateProfileStats();
     el.newProfileNameInput?.focus();
@@ -278,14 +274,12 @@ function getFilteredProfiles(profiles, orderedIds) {
     const filter = currentProfileFilter.toLowerCase().trim();
     if (!filter) return orderedIds;
 
-    // Use Fuse.js for fuzzy search
     if (profileFuse) {
         const results = profileFuse.search(filter, { limit: 100 });
         const resultIds = new Set(results.map(r => r.item.id));
         return orderedIds.filter(id => resultIds.has(id));
     }
 
-    // Fallback to simple substring search
     return orderedIds.filter(id => {
         const p = profiles[id];
         return p && p.name.toLowerCase().includes(filter);
@@ -293,18 +287,14 @@ function getFilteredProfiles(profiles, orderedIds) {
 }
 
 function updateProfileStats() {
-    const stats = document.getElementById('profile-stats-grid');
-    if (!stats) return;
-
     const totalEl = document.getElementById('stat-total');
-    const activeEl = document.getElementById('stat-active');
     const shortcutEl = document.getElementById('stat-with-shortcut');
+    if (!totalEl && !shortcutEl) return;
 
     loadProfileStore().then(({ profiles }) => {
         const ids = Object.keys(profiles);
         const withShortcut = ids.filter(id => profiles[id]?.shortcut).length;
         if (totalEl) totalEl.textContent = ids.length;
-        if (activeEl) activeEl.textContent = activeProfileId ? '1' : '0';
         if (shortcutEl) shortcutEl.textContent = withShortcut;
     });
 }
@@ -317,30 +307,23 @@ async function renderProfileList() {
 
     const { profiles } = await loadProfileStore();
     let orderedIds = await getOrderedProfileIds();
+    const allOrderedIds = orderedIds;
 
-    // Build Fuse index if not built yet
-    if (!profileFuse && orderedIds.length > 0) {
+    if (profileFuseDirty) {
         const profileArray = orderedIds.map(id => ({ id, ...profiles[id] })).filter(p => p.name);
         profileFuse = new Fuse(profileArray, {
             keys: ['name'],
             threshold: 0.3,
             ignoreLocation: true,
         });
-    } else if (profileFuse) {
-        // Rebuild Fuse index when profiles change
-        const profileArray = orderedIds.map(id => ({ id, ...profiles[id] })).filter(p => p.name);
-        profileFuse = new Fuse(profileArray, {
-            keys: ['name'],
-            threshold: 0.3,
-            ignoreLocation: true,
-        });
+        profileFuseDirty = false;
     }
 
     orderedIds = getFilteredProfiles(profiles, orderedIds);
 
     const totalProfiles = Object.keys(profiles).length;
-
     const hasProfiles = totalProfiles > 0;
+
     if (el.profileListToolbar) {
         el.profileListToolbar.style.display = hasProfiles ? 'flex' : 'none';
     }
@@ -361,11 +344,16 @@ async function renderProfileList() {
         el.noSearchResultsMsg.style.display = 'flex';
         selectedProfileIds.clear();
         updateProfileBulkUI();
+        announceToScreenReader('No profiles match your search.');
         return;
     }
 
     el.noSearchResultsMsg.style.display = 'none';
     listEl.style.display = 'block';
+
+    if (currentProfileFilter && orderedIds.length !== allOrderedIds.length) {
+        announceToScreenReader(`${orderedIds.length} of ${allOrderedIds.length} profiles match your search.`);
+    }
 
     const validExtIds = new Set(allFetchedExtensions.map(e => e.id));
     const frag = document.createDocumentFragment();
@@ -381,7 +369,6 @@ async function renderProfileList() {
         li.setAttribute('role', 'listitem');
         li.setAttribute('tabindex', '-1');
         if (selectedProfileIds.has(profileId)) li.classList.add('selected');
-        if (profileId === activeProfileId) li.classList.add('active-profile');
 
         const cb = document.createElement('input');
         cb.type = 'checkbox';
@@ -404,16 +391,7 @@ async function renderProfileList() {
         meta.className = 'profile-item-meta';
 
         const managedExtIds = Object.keys(profile.extensionStates || {}).filter(id => validExtIds.has(id));
-        const enabledCount = managedExtIds.filter(id => profile.extensionStates[id]).length;
         const extCount = managedExtIds.length;
-
-        if (profileId === activeProfileId) {
-            const activeBadge = document.createElement('span');
-            activeBadge.className = 'profile-active-badge';
-            activeBadge.textContent = 'Active';
-            activeBadge.setAttribute('aria-label', 'Currently active profile');
-            meta.appendChild(activeBadge);
-        }
 
         if (extCount === 0) {
             const emptyWarning = document.createElement('span');
@@ -495,12 +473,11 @@ function updateProfileBulkUI() {
     bulkDelete.classList.toggle('visible', count > 0);
     bulkDelete.disabled = count === 0;
     bulkDelete.replaceChildren();
+    bulkDelete.appendChild(makeImg(ICON.delete, ''));
     if (count > 0) {
-        bulkDelete.appendChild(makeImg(ICON.delete, ''));
         bulkDelete.appendChild(document.createTextNode(` Delete (${count})`));
         bulkDelete.setAttribute('aria-label', `Delete ${count} selected profiles`);
     } else {
-        bulkDelete.appendChild(makeImg(ICON.delete, ''));
         bulkDelete.appendChild(document.createTextNode(' Delete Selected'));
         bulkDelete.setAttribute('aria-label', 'Delete selected profiles');
     }
@@ -574,18 +551,19 @@ async function addProfile(profileName) {
     currentProfileFilter = '';
     if (el.profileSearchInput) el.profileSearchInput.value = '';
 
-    activeProfileId = await detectActiveProfile();
+    invalidateProfileFuse();
     await renderProfileList();
     updateProfileStats();
     Status.success(`Profile "${sanitizeText(name)}" added.`);
+    announceToScreenReader(`Profile ${name} created.`);
     await registerKeyboardShortcuts();
 
-    const newItem = el.profileList?.querySelector(`li[data-profileid="${id}"]`);
+    const newItem = el.profileList?.querySelector(`li[data-profileid="${id}"] .profile-select-checkbox`);
     newItem?.focus();
     return true;
 }
 
-async function deleteProfiles(idsSet, allowUndo = true) {
+async function deleteProfiles(idsSet) {
     if (idsSet.size === 0) return false;
 
     const store = await loadProfileStore();
@@ -603,12 +581,6 @@ async function deleteProfiles(idsSet, allowUndo = true) {
         return false;
     }
 
-    if (allowUndo) {
-        deletedProfilesCache = Array.from(idsSet)
-            .map(id => ({ id, profile: structuredClone(store.profiles[id]) }))
-            .filter(p => p.profile);
-    }
-
     let deleted = 0;
     idsSet.forEach(id => {
         if (store.profiles[id]) { delete store.profiles[id]; deleted++; }
@@ -618,57 +590,18 @@ async function deleteProfiles(idsSet, allowUndo = true) {
     if (deleted > 0) {
         await saveProfileStore(store);
         selectedProfileIds.clear();
-        activeProfileId = await detectActiveProfile();
+        invalidateProfileFuse();
         await renderProfileList();
         updateProfileStats();
         Status.success(`${deleted} profile(s) deleted.`);
-
-        if (allowUndo && deletedProfilesCache.length > 0) {
-            showUndoButton();
-        }
-
+        announceToScreenReader(`${deleted} profile${deleted === 1 ? '' : 's'} deleted.`);
         await registerKeyboardShortcuts();
+
+        const nextFocus = el.profileList?.querySelector('li[data-profileid] .profile-select-checkbox');
+        if (nextFocus) nextFocus.focus();
+        else el.newProfileNameInput?.focus();
     }
     return true;
-}
-
-function showUndoButton() {
-    const existing = document.getElementById('undo-delete-btn');
-    if (existing) existing.remove();
-
-    if (deletedProfilesCache.length === 0) return;
-
-    const btn = document.createElement('button');
-    btn.id = 'undo-delete-btn';
-    btn.className = 'button-small undo-button';
-    btn.appendChild(makeImg(ICON.arrowLeft, ''));
-    btn.appendChild(document.createTextNode(' Undo Delete'));
-    btn.setAttribute('aria-label', 'Undo last profile deletion');
-    btn.addEventListener('click', undoLastDelete);
-
-    const toolbar = el.profileListToolbar;
-    if (toolbar) toolbar.appendChild(btn);
-}
-
-async function undoLastDelete() {
-    if (deletedProfilesCache.length === 0) return;
-
-    const store = await loadProfileStore();
-    for (const { id, profile } of deletedProfilesCache) {
-        if (!store.profiles[id]) {
-            store.profiles[id] = profile;
-            if (!store.order.includes(id)) store.order.push(id);
-        }
-    }
-    await saveProfileStore(store);
-    deletedProfilesCache = [];
-    document.getElementById('undo-delete-btn')?.remove();
-
-    activeProfileId = await detectActiveProfile();
-    await renderProfileList();
-    updateProfileStats();
-    Status.success('Deletion undone.');
-    await registerKeyboardShortcuts();
 }
 
 async function duplicateProfile(sourceId) {
@@ -693,33 +626,32 @@ async function duplicateProfile(sourceId) {
     store.order.push(id);
     await saveProfileStore(store);
 
-    activeProfileId = await detectActiveProfile();
+    invalidateProfileFuse();
     await renderProfileList();
     updateProfileStats();
     Status.success(`Profile duplicated as "${sanitizeText(newName)}".`);
+    announceToScreenReader(`Profile duplicated as ${newName}.`);
     await registerKeyboardShortcuts();
 
-    const newItem = el.profileList?.querySelector(`li[data-profileid="${id}"]`);
+    const newItem = el.profileList?.querySelector(`li[data-profileid="${id}"] .profile-select-checkbox`);
     newItem?.focus();
     return true;
 }
 
 async function createProfileFromCurrentState() {
-    showLoading();
     const profileName = await showCustomPrompt(
         'Enter a name for the new profile:',
         'Current State Profile',
         'Create Profile from Current State'
     );
-    if (profileName === null) { hideLoading(); return; }
+    if (profileName === null) return;
 
     const name = profileName.trim();
-    if (!name) { hideLoading(); Status.error('Profile name cannot be empty.'); return; }
-    if (name.length > 50) { hideLoading(); Status.error('Profile name must be 50 characters or fewer.'); return; }
+    if (!name) { Status.error('Profile name cannot be empty.'); return; }
+    if (name.length > 50) { Status.error('Profile name must be 50 characters or fewer.'); return; }
 
     const store = await loadProfileStore();
     if (Object.values(store.profiles).some(p => p.name.toLowerCase() === name.toLowerCase())) {
-        hideLoading();
         Status.error(`Profile "${sanitizeText(name)}" already exists.`);
         return;
     }
@@ -732,25 +664,29 @@ async function createProfileFromCurrentState() {
     store.order.push(id);
     await saveProfileStore(store);
 
-    hideLoading();
-    activeProfileId = await detectActiveProfile();
+    invalidateProfileFuse();
     await renderProfileList();
     updateProfileStats();
     Status.success(`Profile "${sanitizeText(name)}" created from current state.`);
+    announceToScreenReader(`Profile ${name} created from current state.`);
     await registerKeyboardShortcuts();
 
-    const newItem = el.profileList?.querySelector(`li[data-profileid="${id}"]`);
+    const newItem = el.profileList?.querySelector(`li[data-profileid="${id}"] .profile-select-checkbox`);
     newItem?.focus();
 }
 
 async function applyProfileAndRefresh(profileId) {
     showLoading();
-    const result = await applyProfile(profileId, extensionMap);
-    hideLoading();
-    await refreshExtensionData();
-    activeProfileId = await detectActiveProfile();
-    await renderProfileList();
-    updateProfileStats();
+    setListBusy(true);
+    try {
+        await applyProfile(profileId, extensionMap);
+        await refreshExtensionData();
+        await renderProfileList();
+        updateProfileStats();
+    } finally {
+        hideLoading();
+        setListBusy(false);
+    }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -793,7 +729,7 @@ async function switchToProfileConfigView(profileId) {
 
     await renderProfileConfigList();
     updateConfigSummary(profile);
-    el.saveProfileConfigBtn?.focus();
+    el.profileConfigNameInput?.focus();
 }
 
 function updateConfigSummary(profile) {
@@ -975,7 +911,9 @@ async function saveProfileConfig() {
     updateConfigDirtyState();
     updateConfigSummary(profile);
 
+    invalidateProfileFuse();
     Status.success(`Saved "${sanitizeText(profile.name)}".`);
+    announceToScreenReader(`Profile ${profile.name} saved.`);
     await registerKeyboardShortcuts();
 }
 
@@ -1058,7 +996,6 @@ function handleShortcutRecordKeydown(event) {
         showShortcutMessage('Shortcut must include Ctrl or Alt.', 'error');
         return;
     }
-
     if (!event.shiftKey) {
         showShortcutMessage('Shortcut must include Shift.', 'error');
         return;
@@ -1104,7 +1041,7 @@ function setupListeners() {
     el.profileList?.addEventListener('click', handleProfileListClick);
     el.createFromStateButton?.addEventListener('click', createProfileFromCurrentState);
     el.selectAllCheckbox?.addEventListener('change', handleSelectAllProfiles);
-    el.bulkDeleteBtn?.addEventListener('click', () => deleteProfiles(selectedProfileIds));
+    el.bulkDeleteBtn?.addEventListener('click', () => deleteProfiles(new Set(selectedProfileIds)));
 
     el.saveProfileConfigBtn?.addEventListener('click', saveProfileConfig);
     el.backToProfilesBtn?.addEventListener('click', switchToProfileListView);
@@ -1121,24 +1058,19 @@ function setupListeners() {
         }
     });
 
-    // Profile search with Fuse.js
     el.profileSearchInput?.addEventListener('input', debounce((e) => {
         currentProfileFilter = e.target.value.trim();
         renderProfileList();
     }, 150));
 
-    el.clearSearchBtn?.addEventListener('click', () => {
+    const clearSearch = () => {
         currentProfileFilter = '';
         if (el.profileSearchInput) el.profileSearchInput.value = '';
         renderProfileList();
         el.profileSearchInput?.focus();
-    });
-    el.clearSearchBtnAlt?.addEventListener('click', () => {
-        currentProfileFilter = '';
-        if (el.profileSearchInput) el.profileSearchInput.value = '';
-        renderProfileList();
-        el.profileSearchInput?.focus();
-    });
+    };
+    el.clearSearchBtn?.addEventListener('click', clearSearch);
+    el.clearSearchBtnAlt?.addEventListener('click', clearSearch);
 
     el.shortcutRecordBtn?.addEventListener('click', () => {
         if (isRecordingShortcut) stopRecordingShortcut();
@@ -1179,25 +1111,45 @@ function handleListKeydown(event) {
     if (items.length === 0) return;
 
     const active = document.activeElement;
-    const isInList = active && (active.closest('#profile-management-list') || active.matches('.profile-select-checkbox'));
+    const inList = !!active?.closest('#profile-management-list');
+    const inSearchOrSelectAll = !!active?.matches('#profile-search-input, #select-all-profiles-checkbox');
 
-    if (!isInList && !active?.matches('#profile-search-input, #select-all-profiles-checkbox')) return;
+    if (!inList && !inSearchOrSelectAll) return;
+
+    const focusItemAt = (idx) => {
+        focusedProfileIndex = Math.max(0, Math.min(idx, items.length - 1));
+        const target = items[focusedProfileIndex]?.querySelector('.profile-select-checkbox') || items[focusedProfileIndex];
+        target?.focus();
+    };
+
+    // Down-arrow from outside the list jumps into it
+    if (inSearchOrSelectAll && event.key === 'ArrowDown') {
+        event.preventDefault();
+        focusItemAt(0);
+        return;
+    }
+    if (!inList) return;
+
+    const currentIdx = items.findIndex(item => item.contains(active));
+    if (currentIdx >= 0) focusedProfileIndex = currentIdx;
 
     switch (event.key) {
-        case 'ArrowDown': {
+        case 'ArrowDown':
             event.preventDefault();
-            focusedProfileIndex = Math.min(focusedProfileIndex + 1, items.length - 1);
-            const target = items[focusedProfileIndex]?.querySelector('.profile-select-checkbox') || items[focusedProfileIndex];
-            target?.focus();
+            focusItemAt(focusedProfileIndex + 1);
             break;
-        }
-        case 'ArrowUp': {
+        case 'ArrowUp':
             event.preventDefault();
-            focusedProfileIndex = Math.max(focusedProfileIndex - 1, 0);
-            const target = items[focusedProfileIndex]?.querySelector('.profile-select-checkbox') || items[focusedProfileIndex];
-            target?.focus();
+            focusItemAt(focusedProfileIndex - 1);
             break;
-        }
+        case 'Home':
+            event.preventDefault();
+            focusItemAt(0);
+            break;
+        case 'End':
+            event.preventDefault();
+            focusItemAt(items.length - 1);
+            break;
         case 'Enter': {
             if (active?.classList.contains('profile-select-checkbox')) return;
             event.preventDefault();
@@ -1223,30 +1175,26 @@ function handleGlobalKeydown(event) {
     const isInput = active && ['INPUT', 'SELECT', 'TEXTAREA'].includes(active.tagName);
     const configOpen = el.profileConfigSection?.style.display !== 'none';
 
-    if (event.key === 'Escape') {
-        if (configOpen && !isInput) {
-            event.preventDefault();
-            switchToProfileListView();
-            return;
-        }
+    if (event.key === 'Escape' && configOpen && !isInput) {
+        event.preventDefault();
+        switchToProfileListView();
+        return;
     }
 
-    if (!isInput && !configOpen) {
-        if (event.ctrlKey && event.shiftKey) {
-            switch (event.key.toUpperCase()) {
-                case 'N':
-                    event.preventDefault();
-                    el.newProfileNameInput?.focus();
-                    el.newProfileNameInput?.select();
-                    break;
-                case 'A':
-                    event.preventDefault();
-                    if (el.selectAllCheckbox) {
-                        el.selectAllCheckbox.checked = !el.selectAllCheckbox.checked;
-                        el.selectAllCheckbox.dispatchEvent(new Event('change'));
-                    }
-                    break;
-            }
+    if (!isInput && !configOpen && event.ctrlKey && event.shiftKey) {
+        switch (event.key.toUpperCase()) {
+            case 'N':
+                event.preventDefault();
+                el.newProfileNameInput?.focus();
+                el.newProfileNameInput?.select();
+                break;
+            case 'A':
+                event.preventDefault();
+                if (el.selectAllCheckbox) {
+                    el.selectAllCheckbox.checked = !el.selectAllCheckbox.checked;
+                    el.selectAllCheckbox.dispatchEvent(new Event('change'));
+                }
+                break;
         }
     }
 
@@ -1277,38 +1225,36 @@ function handleBeforeUnload(event) {
 
 function cacheElements() {
     el = {
-        loadingIndicator:         document.getElementById('loading-indicator'),
-        newProfileNameInput:      document.getElementById('new-profile-name'),
-        addProfileButton:         document.getElementById('add-profile-btn'),
-        createFromStateButton:    document.getElementById('create-from-state-btn'),
-        profileListSection:       document.getElementById('profile-list-section'),
-        profileListToolbar:       document.getElementById('profile-list-toolbar'),
-        profileList:              document.getElementById('profile-management-list'),
-        noProfilesMsg:            document.getElementById('no-profiles-msg'),
-        noSearchResultsMsg:       document.getElementById('no-search-results-msg'),
-        clearSearchBtn:           document.getElementById('clear-search-btn'),
-        clearSearchBtnAlt:        document.getElementById('clear-search-btn-alt'),
-        profileConfigSection:     document.getElementById('profile-config-section'),
-        profileConfigTitle:       document.getElementById('profile-config-title'),
-        profileConfigNameInput:   document.getElementById('profile-config-name-input'),
+        loadingIndicator:           document.getElementById('loading-indicator'),
+        newProfileNameInput:        document.getElementById('new-profile-name'),
+        addProfileButton:           document.getElementById('add-profile-btn'),
+        createFromStateButton:      document.getElementById('create-from-state-btn'),
+        profileListToolbar:         document.getElementById('profile-list-toolbar'),
+        profileList:                document.getElementById('profile-management-list'),
+        noProfilesMsg:              document.getElementById('no-profiles-msg'),
+        noSearchResultsMsg:         document.getElementById('no-search-results-msg'),
+        clearSearchBtn:             document.getElementById('clear-search-btn'),
+        clearSearchBtnAlt:          document.getElementById('clear-search-btn-alt'),
+        profileConfigSection:       document.getElementById('profile-config-section'),
+        profileConfigTitle:         document.getElementById('profile-config-title'),
+        profileConfigNameInput:     document.getElementById('profile-config-name-input'),
         profileConfigShortcutInput: document.getElementById('profile-config-shortcut-input'),
         profileConfigShortcutMessage: document.getElementById('profile-config-shortcut-message'),
-        profileConfigSearch:      document.getElementById('profile-config-search'),
-        profileConfigScroll:      document.getElementById('profile-config-scroll'),
-        profileConfigExtList:     document.getElementById('profile-config-extension-list'),
-        saveProfileConfigBtn:     document.getElementById('save-profile-config-btn'),
-        backToProfilesBtn:        document.getElementById('back-to-profiles-btn'),
-        selectAllCheckbox:        document.getElementById('select-all-profiles-checkbox'),
-        bulkDeleteBtn:            document.getElementById('modal-bulk-delete-profiles-btn'),
-        shortcutRecordBtn:        document.getElementById('shortcut-record-btn'),
-        shortcutClearBtn:         document.getElementById('shortcut-clear-btn'),
-        mainView:                 document.getElementById('main-view'),
-        profileSearchInput:       document.getElementById('profile-search-input'),
-        configDirtyIndicator:     document.getElementById('config-dirty-indicator'),
-        configSummaryContent:     document.getElementById('config-summary-content'),
-        configSelectAllBtn:       document.getElementById('config-select-all-btn'),
-        configSelectNoneBtn:      document.getElementById('config-select-none-btn'),
-        ariaLiveRegion:           document.getElementById('aria-live-region'),
+        profileConfigSearch:        document.getElementById('profile-config-search'),
+        profileConfigExtList:       document.getElementById('profile-config-extension-list'),
+        saveProfileConfigBtn:       document.getElementById('save-profile-config-btn'),
+        backToProfilesBtn:          document.getElementById('back-to-profiles-btn'),
+        selectAllCheckbox:          document.getElementById('select-all-profiles-checkbox'),
+        bulkDeleteBtn:              document.getElementById('modal-bulk-delete-profiles-btn'),
+        shortcutRecordBtn:          document.getElementById('shortcut-record-btn'),
+        shortcutClearBtn:           document.getElementById('shortcut-clear-btn'),
+        mainView:                   document.getElementById('main-view'),
+        profileSearchInput:         document.getElementById('profile-search-input'),
+        configDirtyIndicator:       document.getElementById('config-dirty-indicator'),
+        configSummaryContent:       document.getElementById('config-summary-content'),
+        configSelectAllBtn:         document.getElementById('config-select-all-btn'),
+        configSelectNoneBtn:        document.getElementById('config-select-none-btn'),
+        ariaLiveRegion:             document.getElementById('aria-live-region'),
     };
 }
 
@@ -1327,7 +1273,6 @@ async function init() {
         Status.error('Extension management API unavailable. Some features may not work.');
     }
 
-    activeProfileId = await detectActiveProfile();
     await renderProfileList();
     updateProfileStats();
     await registerKeyboardShortcuts();

@@ -115,9 +115,13 @@ export async function applyProfile(profileId, extensionMap) {
             return { ok: true, changed: 0, errors: 0, noChange: 0, skipped: 0 };
         }
 
+        // Never allow disabling the extension itself
+        const selfId = chrome.runtime.id;
+
         let success = 0, errors = 0, noChange = 0, skipped = 0;
 
         const ops = entries.map(([extId, shouldEnable]) => new Promise(resolve => {
+            if (extId === selfId) return resolve({ status: 'skipped', id: extId });
             const cur = extensionMap.get(extId);
             if (!cur || !cur.mayDisable) return resolve({ status: 'skipped', id: extId });
             if (cur.enabled === shouldEnable) return resolve({ status: 'nochange', id: extId });

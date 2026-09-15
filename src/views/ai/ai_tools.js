@@ -16,6 +16,31 @@ export const EXTENSION_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'suggest_page',
+            description: 'Suggest an internal page or view in modcore Extension Manager for the user to open (e.g. Snapshots, Timeline, Automations, Safety Center, Profiles, Popup, Options). Use this tool call whenever recommending a specific feature or page interface to the user.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    url: {
+                        type: 'string',
+                        description: 'Relative URL of the page to open (e.g. "../../src/views/popup/popup.html", "../../src/views/snapshot/snapshot.html", "../../src/views/timeline/timeline.html", "../../src/views/automations/automations.html", "../../src/views/safety-center/safety-center.html", "../../src/views/profiles-page/profiles-page.html", "../../src/views/ai/ai.html").'
+                    },
+                    title: {
+                        type: 'string',
+                        description: 'Display title of the page (e.g. "modcore Snapshot", "Safety Center", "modcore Automations", "modcore Timeline", "Profiles Page", "Popup").'
+                    },
+                    reason: {
+                        type: 'string',
+                        description: 'Brief explanation for why opening this page helps the user.'
+                    }
+                },
+                required: ['url', 'title']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'list_extensions',
             description: 'List installed browser extensions with their name, id, version, enabled state, and a short description. Use this first to see what exists before acting on a specific extension.',
             parameters: {
@@ -61,7 +86,7 @@ export const EXTENSION_TOOLS = [
         type: 'function',
         function: {
             name: 'toggle_extensions',
-            description: 'Enable or disable one or more extensions in a single call. Identifiers can be names or IDs - they are resolved automatically.',
+            description: 'Enable or disable one or more extensions in a single call. Note: You cannot disable modcore Extension Manager itself.',
             parameters: {
                 type: 'object',
                 properties: {
@@ -86,7 +111,7 @@ export const EXTENSION_TOOLS = [
         type: 'function',
         function: {
             name: 'uninstall_extensions',
-            description: 'Permanently uninstall one or more extensions. Always destructive and requires user approval unless auto-approval is enabled.',
+            description: 'Permanently uninstall one or more extensions. Always destructive and requires user approval unless auto-approval is enabled. Note: You cannot uninstall modcore Extension Manager itself.',
             parameters: {
                 type: 'object',
                 properties: {
@@ -140,7 +165,7 @@ export const EXTENSION_TOOLS = [
         type: 'function',
         function: {
             name: 'create_profile',
-            description: 'Create a new profile preset. Give it a name and a list of extensions with the state you want them in when the profile is applied. Extension identifiers can be names or IDs.',
+            description: 'Create a new profile preset. Give it a name and a list of extensions with the state you want them in when the profile is applied.',
             parameters: {
                 type: 'object',
                 properties: {
@@ -157,7 +182,7 @@ export const EXTENSION_TOOLS = [
                             required: ['identifier', 'enabled']
                         }
                     },
-                    shortcut: { type: 'string', description: 'Optional keyboard shortcut, e.g. "Ctrl+Shift+1". Must include Ctrl or Alt plus Shift.' }
+                    shortcut: { type: 'string', description: 'Optional keyboard shortcut, e.g. "Ctrl+Shift+1".' }
                 },
                 required: ['name']
             }
@@ -167,7 +192,7 @@ export const EXTENSION_TOOLS = [
         type: 'function',
         function: {
             name: 'update_profile',
-            description: 'Modify an existing profile. Supports renaming, changing the shortcut, and incrementally adding/removing/setting extensions - you do not need to resend the whole extension list.',
+            description: 'Modify an existing profile. Supports renaming, changing shortcut, and incrementally adding/removing/setting extension rules.',
             parameters: {
                 type: 'object',
                 properties: {
@@ -176,7 +201,7 @@ export const EXTENSION_TOOLS = [
                     shortcut: { type: 'string', description: 'New keyboard shortcut, or an empty string to clear it.' },
                     setExtensions: {
                         type: 'array',
-                        description: 'Extensions to add or update within this profile (merged into existing rules).',
+                        description: 'Extensions to add or update within this profile.',
                         items: {
                             type: 'object',
                             properties: {
@@ -189,11 +214,11 @@ export const EXTENSION_TOOLS = [
                     removeExtensions: {
                         type: 'array',
                         items: { type: 'string' },
-                        description: 'Extension names or IDs to remove from this profile entirely (they will no longer be touched when the profile is applied).'
+                        description: 'Extension names or IDs to remove from this profile entirely.'
                     },
                     replaceExtensions: {
                         type: 'boolean',
-                        description: 'If true, setExtensions fully replaces the profile\'s extension list instead of merging. Defaults to false.'
+                        description: 'If true, setExtensions fully replaces the profile\'s extension list instead of merging.'
                     }
                 },
                 required: ['identifier']
@@ -204,7 +229,7 @@ export const EXTENSION_TOOLS = [
         type: 'function',
         function: {
             name: 'duplicate_profile',
-            description: 'Duplicate an existing profile under a new name, useful as a starting point for a variant.',
+            description: 'Duplicate an existing profile under a new name.',
             parameters: {
                 type: 'object',
                 properties: {
@@ -229,16 +254,16 @@ export const EXTENSION_TOOLS = [
             }
         }
     },
-    {
+        {
         type: 'function',
         function: {
             name: 'check_latest_release',
-            description: 'Check the latest release of a GitHub repository (defaults to modcoretech/modcore-extension-manager). Use when asked about updates or release notes.',
+            description: 'Get the latest release of a GitHub repository, including the full changelog.',
             parameters: {
                 type: 'object',
                 properties: {
-                    owner: { type: 'string', description: 'GitHub organization/owner. Defaults to modcoretech.' },
-                    repo: { type: 'string', description: 'GitHub repository name. Defaults to modcore-extension-manager.' }
+                    owner: { type: 'string', description: 'GitHub owner or organization. Defaults to "modcoretech".' },
+                    repo: { type: 'string', description: 'Repository name. Defaults to "modcore-extension-manager".' }
                 }
             }
         }
@@ -246,17 +271,91 @@ export const EXTENSION_TOOLS = [
     {
         type: 'function',
         function: {
-            name: 'search_github_issues',
-            description: 'Search GitHub issues and pull requests in a repository. Use when checking for bugs or reported issues.',
+            name: 'list_recent_releases',
+            description: 'List recent releases of a GitHub repository, optionally with full changelogs.',
             parameters: {
                 type: 'object',
                 properties: {
-                    query: { type: 'string', description: 'Search terms, e.g. "profile shortcut".' },
-                    state: { type: 'string', enum: ['open', 'closed', 'all'], description: 'Filter state. Defaults to "open".' },
-                    owner: { type: 'string', description: 'GitHub organization/owner. Defaults to modcoretech.' },
-                    repo: { type: 'string', description: 'GitHub repository name. Defaults to modcore-extension-manager.' }
+                    owner: { type: 'string', description: 'GitHub owner or organization. Defaults to "modcoretech".' },
+                    repo: { type: 'string', description: 'Repository name. Defaults to "modcore-extension-manager".' },
+                    perPage: { type: 'number', description: 'Number of releases to return (1-100). Defaults to 10.' },
+                    includeChangelog: { type: 'boolean', description: 'Include the full release notes for each release. Defaults to true.' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'get_release_by_tag',
+            description: 'Get a specific release by its tag name, including the full changelog.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    tag: { type: 'string', description: 'Release tag, e.g. "v1.2.0".' },
+                    owner: { type: 'string', description: 'GitHub owner or organization. Defaults to "modcoretech".' },
+                    repo: { type: 'string', description: 'Repository name. Defaults to "modcore-extension-manager".' }
                 },
-                required: ['query']
+                required: ['tag']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'get_repo_details',
+            description: 'Get details about a GitHub repository (stars, forks, open issues, license, language, topics).',
+            parameters: {
+                type: 'object',
+                properties: {
+                    owner: { type: 'string', description: 'GitHub owner or organization. Defaults to "modcoretech".' },
+                    repo: { type: 'string', description: 'Repository name. Defaults to "modcore-extension-manager".' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'list_contributors',
+            description: 'List contributors to a GitHub repository.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    owner: { type: 'string', description: 'GitHub owner or organization. Defaults to "modcoretech".' },
+                    repo: { type: 'string', description: 'Repository name. Defaults to "modcore-extension-manager".' },
+                    perPage: { type: 'number', description: 'Number of contributors (1-100). Defaults to 20.' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'list_branches',
+            description: 'List branches in a GitHub repository.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    owner: { type: 'string', description: 'GitHub owner or organization. Defaults to "modcoretech".' },
+                    repo: { type: 'string', description: 'Repository name. Defaults to "modcore-extension-manager".' },
+                    perPage: { type: 'number', description: 'Number of branches (1-100). Defaults to 30.' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'list_tags',
+            description: 'List tags in a GitHub repository.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    owner: { type: 'string', description: 'GitHub owner or organization. Defaults to "modcoretech".' },
+                    repo: { type: 'string', description: 'Repository name. Defaults to "modcore-extension-manager".' },
+                    perPage: { type: 'number', description: 'Number of tags (1-100). Defaults to 30.' }
+                }
             }
         }
     },
@@ -268,8 +367,8 @@ export const EXTENSION_TOOLS = [
             parameters: {
                 type: 'object',
                 properties: {
-                    owner: { type: 'string', description: 'GitHub organization/owner. Defaults to modcoretech.' },
-                    repo: { type: 'string', description: 'GitHub repository name. Defaults to modcore-extension-manager.' },
+                    owner: { type: 'string', description: 'GitHub owner or organization. Defaults to "modcoretech".' },
+                    repo: { type: 'string', description: 'Repository name. Defaults to "modcore-extension-manager".' },
                     path: { type: 'string', description: 'Optional relative file path, e.g. "docs/FAQ.md". Defaults to README.' }
                 }
             }
@@ -278,43 +377,14 @@ export const EXTENSION_TOOLS = [
     {
         type: 'function',
         function: {
-            name: 'list_recent_releases',
-            description: 'List recent releases of a GitHub repository with release tags and publication dates.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    owner: { type: 'string', description: 'GitHub organization/owner. Defaults to modcoretech.' },
-                    repo: { type: 'string', description: 'GitHub repository name. Defaults to modcore-extension-manager.' },
-                    perPage: { type: 'number', description: 'Number of releases to return (1-20). Defaults to 5.' }
-                }
-            }
-        }
-    },
-    {
-        type: 'function',
-        function: {
-            name: 'get_repo_details',
-            description: 'Get details about a GitHub repository (stars, forks, open issues count, license, default branch).',
-            parameters: {
-                type: 'object',
-                properties: {
-                    owner: { type: 'string', description: 'GitHub organization/owner. Defaults to modcoretech.' },
-                    repo: { type: 'string', description: 'GitHub repository name. Defaults to modcore-extension-manager.' }
-                }
-            }
-        }
-    },
-    {
-        type: 'function',
-        function: {
             name: 'get_file_content',
-            description: 'Read text content of a file or list contents of a directory in a GitHub repository.',
+            description: 'Read code/text content of a file or list directory contents in a GitHub repository. Handles large files via the blob API.',
             parameters: {
                 type: 'object',
                 properties: {
                     path: { type: 'string', description: 'File or directory path within the repository.' },
-                    owner: { type: 'string', description: 'GitHub organization/owner. Defaults to modcoretech.' },
-                    repo: { type: 'string', description: 'GitHub repository name. Defaults to modcore-extension-manager.' },
+                    owner: { type: 'string', description: 'GitHub owner or organization. Defaults to "modcoretech".' },
+                    repo: { type: 'string', description: 'Repository name. Defaults to "modcore-extension-manager".' },
                     ref: { type: 'string', description: 'Optional branch name, tag, or commit SHA.' }
                 },
                 required: ['path']
@@ -324,14 +394,64 @@ export const EXTENSION_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'search_code',
+            description: 'Search code within a GitHub org or repository. Requires an authenticated GitHub token configured in Preferences.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    query: { type: 'string', description: 'Code search terms.' },
+                    owner: { type: 'string', description: 'GitHub owner or organization. Defaults to "modcoretech".' },
+                    repo: { type: 'string', description: 'Optional repository name to narrow the search.' }
+                },
+                required: ['query']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'search_github_issues',
+            description: 'Search GitHub issues and pull requests in a repository or organization.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    query: { type: 'string', description: 'Search terms.' },
+                    state: { type: 'string', enum: ['open', 'closed', 'all'], description: 'Filter state. Defaults to "open".' },
+                    owner: { type: 'string', description: 'GitHub owner or organization. Defaults to "modcoretech".' },
+                    repo: { type: 'string', description: 'Optional repository name. Defaults to "modcore-extension-manager".' }
+                },
+                required: ['query']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'get_issue_or_pr',
-            description: 'Get full details, body text, and recent comments of a specific GitHub issue or pull request.',
+            description: 'Get full details (including all comments) for a GitHub issue or pull request.',
             parameters: {
                 type: 'object',
                 properties: {
                     issueNumber: { type: 'number', description: 'The issue or pull request number.' },
-                    owner: { type: 'string', description: 'GitHub organization/owner. Defaults to modcoretech.' },
-                    repo: { type: 'string', description: 'GitHub repository name. Defaults to modcore-extension-manager.' }
+                    owner: { type: 'string', description: 'GitHub owner or organization. Defaults to "modcoretech".' },
+                    repo: { type: 'string', description: 'Repository name. Defaults to "modcore-extension-manager".' }
+                },
+                required: ['issueNumber']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'list_issue_comments',
+            description: 'List all comments on an issue or pull request.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    issueNumber: { type: 'number', description: 'The issue or pull request number.' },
+                    owner: { type: 'string', description: 'GitHub owner or organization. Defaults to "modcoretech".' },
+                    repo: { type: 'string', description: 'Repository name. Defaults to "modcore-extension-manager".' },
+                    perPage: { type: 'number', description: 'Number of comments (1-100). Defaults to 30.' }
                 },
                 required: ['issueNumber']
             }
@@ -341,13 +461,13 @@ export const EXTENSION_TOOLS = [
         type: 'function',
         function: {
             name: 'list_pull_requests',
-            description: 'List pull requests in a GitHub repository filtered by state.',
+            description: 'List pull requests in a GitHub repository.',
             parameters: {
                 type: 'object',
                 properties: {
                     state: { type: 'string', enum: ['open', 'closed', 'all'], description: 'Filter state. Defaults to "open".' },
-                    owner: { type: 'string', description: 'GitHub organization/owner. Defaults to modcoretech.' },
-                    repo: { type: 'string', description: 'GitHub repository name. Defaults to modcore-extension-manager.' }
+                    owner: { type: 'string', description: 'GitHub owner or organization. Defaults to "modcoretech".' },
+                    repo: { type: 'string', description: 'Repository name. Defaults to "modcore-extension-manager".' }
                 }
             }
         }
@@ -361,9 +481,9 @@ export const EXTENSION_TOOLS = [
                 type: 'object',
                 properties: {
                     path: { type: 'string', description: 'Optional path to filter commits.' },
-                    owner: { type: 'string', description: 'GitHub organization/owner. Defaults to modcoretech.' },
-                    repo: { type: 'string', description: 'GitHub repository name. Defaults to modcore-extension-manager.' },
-                    perPage: { type: 'number', description: 'Number of commits (1-20). Defaults to 5.' }
+                    owner: { type: 'string', description: 'GitHub owner or organization. Defaults to "modcoretech".' },
+                    repo: { type: 'string', description: 'Repository name. Defaults to "modcore-extension-manager".' },
+                    perPage: { type: 'number', description: 'Number of commits (1-100). Defaults to 10.' }
                 }
             }
         }
@@ -371,8 +491,55 @@ export const EXTENSION_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'get_commit',
+            description: 'Get details (stats, files changed, patches) for a specific commit SHA.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    sha: { type: 'string', description: 'Commit SHA (full or short).' },
+                    owner: { type: 'string', description: 'GitHub owner or organization. Defaults to "modcoretech".' },
+                    repo: { type: 'string', description: 'Repository name. Defaults to "modcore-extension-manager".' }
+                },
+                required: ['sha']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'compare_commits',
+            description: 'Compare two commits, branches, or tags in a GitHub repository.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    base: { type: 'string', description: 'Base ref (branch, tag, or SHA).' },
+                    head: { type: 'string', description: 'Head ref (branch, tag, or SHA).' },
+                    owner: { type: 'string', description: 'GitHub owner or organization. Defaults to "modcoretech".' },
+                    repo: { type: 'string', description: 'Repository name. Defaults to "modcore-extension-manager".' }
+                },
+                required: ['base', 'head']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'get_github_user',
+            description: 'Get public profile information for a GitHub user or organization.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    username: { type: 'string', description: 'GitHub username or organization name.' }
+                },
+                required: ['username']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'get_github_rate_limit',
-            description: 'Check the current GitHub API rate limit status, remaining unauthorized requests, and reset time.',
+            description: 'Check the current GitHub API rate limit status.',
             parameters: { type: 'object', properties: {} }
         }
     }
@@ -390,6 +557,18 @@ class ToolError extends Error {
 
 function normalize(str) {
     return String(str || '').trim().toLowerCase();
+}
+
+/**
+ * Check if an extension is modcore Extension Manager itself.
+ */
+function isSelfExtensionManager(identifier, ext) {
+    if (typeof chrome !== 'undefined' && chrome.runtime?.id && ext?.id === chrome.runtime.id) {
+        return true;
+    }
+    const idNorm = normalize(identifier);
+    const nameNorm = ext ? normalize(ext.name) : '';
+    return idNorm === 'modcore-extension-manager' || nameNorm === 'modcore extension manager';
 }
 
 function formatExtensionInfo(ext) {
@@ -455,6 +634,22 @@ function describeNotFound(kind, identifier) {
 }
 
 /* --------------------------------------------------------------------------
+   Page Suggestion Handler
+   -------------------------------------------------------------------------- */
+export async function suggestPage(url, title, reason = '') {
+    if (!url || typeof url !== 'string') {
+        throw new ToolError('A page URL is required.');
+    }
+    return {
+        success: true,
+        action: 'page_suggested',
+        url: url.trim(),
+        title: title ? title.trim() : 'modcore Extension Manager Page',
+        reason: reason ? reason.trim() : ''
+    };
+}
+
+/* --------------------------------------------------------------------------
    Extension Handlers
    -------------------------------------------------------------------------- */
 export async function listInstalledExtensions(includeDisabled = true) {
@@ -516,6 +711,18 @@ export async function toggleExtensions(items = []) {
             continue;
         }
         const ext = resolved.match;
+
+        // Policy protection: Disallow disabling modcore Extension Manager itself
+        if (isSelfExtensionManager(item.identifier, ext) && item.enable === false) {
+            results.push({
+                identifier: item.identifier,
+                status: 'blocked',
+                name: ext.name,
+                message: 'modcore Extension Manager is the extension manager itself and cannot be disabled.'
+            });
+            continue;
+        }
+
         if (!ext.mayDisable) {
             results.push({ identifier: item.identifier, status: 'blocked', name: ext.name, message: 'This extension is managed by policy and cannot be toggled.' });
             continue;
@@ -556,6 +763,18 @@ export async function uninstallExtensions(identifiers = []) {
             continue;
         }
         const ext = resolved.match;
+
+        // Policy protection: Disallow uninstalling modcore Extension Manager itself
+        if (isSelfExtensionManager(identifier, ext)) {
+            results.push({
+                identifier,
+                status: 'blocked',
+                name: ext.name,
+                message: 'modcore Extension Manager is the extension manager itself and cannot be uninstalled.'
+            });
+            continue;
+        }
+
         try {
             await new Promise((resolve, reject) => {
                 chrome.management.uninstall(ext.id, { showConfirmDialog: false }, () => {

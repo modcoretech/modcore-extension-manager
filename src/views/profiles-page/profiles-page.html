@@ -7,8 +7,6 @@
     <meta name="color-scheme" content="light dark">
     <link rel="stylesheet" href="../../shared/styles/main.css">
     <link rel="stylesheet" href="profiles-page.css">
-<base target="_blank">
-<base target="_blank">
 </head>
 <body>
     <a href="#main-content" class="skip-link">Skip to main content</a>
@@ -35,12 +33,16 @@
                 <section class="section-card" id="profile-creation-section">
                     <h2>Create New Profile</h2>
                     <div class="create-profile-row">
-                        <input type="text" id="new-profile-name" placeholder="Enter profile name…" aria-label="Name for your new extension profile" maxlength="50">
+                        <input type="text" id="new-profile-name"
+                               placeholder="Enter profile name…"
+                               aria-label="Name for your new extension profile"
+                               aria-describedby="create-profile-hint"
+                               maxlength="50">
                         <button id="add-profile-btn" class="button-small button-primary" title="Add New Profile" aria-label="Add new profile">
                             <img src="../../../public/icons/svg/plus.svg" alt="" aria-hidden="true"> Add
                         </button>
                     </div>
-                    <p class="hint-text">Profiles let you switch between sets of enabled/disabled extensions for different workflows.</p>
+                    <p class="hint-text" id="create-profile-hint">Profiles let you switch between sets of enabled/disabled extensions for different workflows.</p>
                     <div class="secondary-actions">
                         <button id="create-from-state-btn" class="button-small" title="Create a new profile that mirrors the current state of your extensions." aria-label="Create new profile from current extension states.">
                             <img src="../../../public/icons/svg/current.svg" alt="" aria-hidden="true"> From Current State
@@ -54,10 +56,6 @@
                         <div class="stat-item">
                             <span class="stat-number" id="stat-total">0</span>
                             <span class="stat-label">Total</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-number" id="stat-active">0</span>
-                            <span class="stat-label">Active</span>
                         </div>
                         <div class="stat-item">
                             <span class="stat-number" id="stat-with-shortcut">0</span>
@@ -176,7 +174,7 @@
                         <div class="extension-search-wrap">
                             <input type="text" id="profile-config-search" placeholder="Search extensions…" aria-label="Search extensions in profile">
                         </div>
-                        <div id="profile-config-scroll" class="profile-config-scroll" role="region" aria-label="Extension list">
+                        <div class="profile-config-scroll" role="region" aria-label="Extension list">
                             <div id="profile-config-extension-list" class="profile-config-extensions" role="list"></div>
                         </div>
                         <div class="config-no-results" style="display: none;" role="status">

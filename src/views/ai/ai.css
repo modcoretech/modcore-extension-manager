@@ -169,6 +169,21 @@ body {
     background-color: var(--color-success) !important;
 }
 
+/* Stop-state for the send button */
+.btn-stop {
+    background-color: var(--color-danger);
+    color: var(--color-danger-on, #ffffff);
+}
+
+.btn-stop:hover:not(:disabled) {
+    background-color: var(--color-danger-hover, var(--color-danger));
+    opacity: 0.9;
+}
+
+.btn-stop .icon {
+    background-color: currentColor !important;
+}
+
 /* Chat Stream */
 .chat-stream {
     flex: 1;
@@ -198,6 +213,12 @@ body {
     gap: var(--space-1);
     max-width: 85%;
     position: relative;
+    animation: ai-msg-in var(--duration-normal, 280ms) var(--ease-standard, ease-out);
+}
+
+@keyframes ai-msg-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .message-row.user {
@@ -249,6 +270,18 @@ body {
     display: block;
 }
 
+.message-file-card {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    background-color: rgba(0, 0, 0, 0.18);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    font-size: var(--text-body-sm, 0.875rem);
+    margin-bottom: var(--space-2);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
 /* Markdown Styling */
 .message-bubble p {
     margin-bottom: var(--space-2);
@@ -257,13 +290,21 @@ body {
     margin-bottom: 0;
 }
 
-.message-bubble h1, .message-bubble h2, .message-bubble h3 {
+.message-bubble h1,
+.message-bubble h2,
+.message-bubble h3,
+.message-bubble h4,
+.message-bubble h5,
+.message-bubble h6 {
     margin: var(--space-3) 0 var(--space-1) 0;
     font-weight: var(--weight-bold);
 }
 .message-bubble h1 { font-size: 1.25rem; }
 .message-bubble h2 { font-size: 1.1rem; }
 .message-bubble h3 { font-size: 1rem; }
+.message-bubble h4,
+.message-bubble h5,
+.message-bubble h6 { font-size: 0.95rem; }
 
 .message-bubble code {
     font-family: var(--font-mono, monospace);
@@ -286,7 +327,8 @@ body {
     padding: 0;
 }
 
-.message-bubble ul, .message-bubble ol {
+.message-bubble ul,
+.message-bubble ol {
     margin-left: var(--space-5);
     margin-bottom: var(--space-2);
 }
@@ -298,6 +340,53 @@ body {
     margin: var(--space-2) 0;
 }
 
+.message-bubble a {
+    color: var(--color-text-link);
+    text-decoration: underline;
+}
+
+/* Code block wrapper with copy button */
+.code-block {
+    position: relative;
+    margin: var(--space-2) 0;
+}
+
+.code-block pre {
+    margin: 0;
+}
+
+.code-copy-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    font-size: var(--text-label-md, 0.75rem);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    border: var(--border-width, 1px) solid var(--color-border);
+    background: var(--color-surface-high);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity var(--transition-fast, 0.15s), color var(--transition-fast, 0.15s), border-color var(--transition-fast, 0.15s);
+}
+
+.code-block:hover .code-copy-btn,
+.code-block:focus-within .code-copy-btn {
+    opacity: 1;
+}
+
+.code-copy-btn:hover {
+    color: var(--color-text-primary);
+    border-color: var(--color-text-muted);
+}
+
+.code-copy-btn.copied {
+    color: var(--color-success);
+    border-color: var(--color-success);
+    opacity: 1;
+}
+
+/* Tables */
 .table-container {
     width: 100%;
     overflow-x: auto;
@@ -330,47 +419,34 @@ body {
     border-bottom: none;
 }
 
-/* Actions Below Message */
-.message-actions {
+/* Page Suggestion Cards */
+.page-suggestion-card {
+    background-color: var(--color-surface-mid);
+    border: var(--border-width, 1px) solid var(--color-primary);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    margin-top: var(--space-2);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    max-width: 320px;
+}
+
+.page-suggestion-header {
     display: flex;
     align-items: center;
-    gap: 4px;
-    opacity: 0;
-    transition: opacity var(--transition-fast, 0.15s);
-    margin-top: 2px;
+    gap: var(--space-2);
+    color: var(--color-primary);
 }
 
-.message-row.user .message-actions {
-    justify-content: flex-end;
-}
-
-.message-row.assistant .message-actions {
-    justify-content: flex-start;
-}
-
-.message-wrapper:hover .message-actions {
-    opacity: 1;
-}
-
-.action-btn {
-    background: transparent;
-    border: none;
+.page-suggestion-reason {
+    font-size: var(--text-body-sm, 0.875rem);
     color: var(--color-text-secondary);
-    padding: var(--space-1);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
 }
 
-.action-btn:hover {
-    background-color: var(--color-surface-hover);
-    color: var(--color-text-primary);
-}
-
-.action-btn .icon {
-    background-color: currentColor;
+.btn-open-page {
+    align-self: flex-start;
+    margin-top: var(--space-1);
 }
 
 /* Reasoning & Tools */
@@ -428,6 +504,11 @@ body {
     font-size: var(--text-body-sm, 0.875rem);
 }
 
+.tool-call-card.tool-call-failed {
+    border-color: var(--color-danger);
+    background-color: var(--color-danger-container);
+}
+
 .tool-call-card summary {
     cursor: pointer;
     font-weight: var(--weight-medium, 500);
@@ -469,6 +550,63 @@ body {
     background-color: currentColor;
 }
 
+/* Per-message actions (Copy / Regenerate) */
+.message-actions {
+    display: flex;
+    gap: var(--space-1);
+    margin-top: 4px;
+    opacity: 0.35;
+    transition: opacity var(--transition-fast, 0.15s);
+}
+
+.message-row.assistant:hover .message-actions,
+.message-row.assistant:focus-within .message-actions {
+    opacity: 1;
+}
+
+.msg-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: background-color var(--transition-fast, 0.15s), color var(--transition-fast, 0.15s);
+}
+
+.msg-action-btn:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text-primary);
+}
+
+.msg-action-btn.copied {
+    color: var(--color-success);
+}
+
+.msg-action-btn .icon {
+    background-color: currentColor;
+}
+
+/* Unsafe-content notice + error bubble */
+.unsafe-notice {
+    color: var(--color-danger);
+    font-weight: var(--weight-medium, 500);
+}
+
+.error-bubble {
+    color: var(--color-danger);
+}
+
+/* Unsafe badge in Preferences */
+.badge-unsafe {
+    color: var(--color-warning, #d97706);
+    font-weight: var(--weight-medium, 500);
+    font-size: var(--text-label-md, 0.75rem);
+}
+
 /* Footer & Input Bar */
 .ai-footer {
     padding: var(--space-3) 0 var(--space-5) 0;
@@ -477,7 +615,7 @@ body {
     gap: var(--space-2);
 }
 
-/* Image Attachment Preview Bar */
+/* Attachment Preview Bar */
 .image-preview-bar {
     display: flex;
     align-items: center;
@@ -705,17 +843,6 @@ body {
     accent-color: var(--color-primary);
 }
 
-.badge-unsafe {
-    color: var(--color-danger);
-    font-weight: var(--weight-bold);
-    font-size: var(--text-label-md, 0.75rem);
-    background-color: var(--color-danger-container);
-    padding: 2px 6px;
-    border-radius: var(--radius-sm);
-    margin-left: var(--space-1);
-    display: inline-block;
-}
-
 .rate-limit-card {
     background-color: var(--color-surface-mid);
     border: var(--border-width, 1px) solid var(--color-border);
@@ -787,6 +914,7 @@ body {
     color: var(--color-text-primary);
     font-size: var(--text-body-sm, 0.875rem);
     outline: none;
+    font-family: inherit;
 }
 
 .text-input:focus {
@@ -840,34 +968,7 @@ body {
     flex: 1;
 }
 
-@media (max-width: 600px) {
-    .modal-card.sidebar-layout {
-        flex-direction: column;
-        height: auto;
-    }
-
-    .modal-sidebar {
-        width: 100%;
-        border-right: none;
-        border-bottom: var(--border-width, 1px) solid var(--color-border);
-        padding: var(--space-3);
-    }
-
-    .sidebar-nav {
-        flex-direction: row;
-    }
-
-    .nav-item {
-        flex: 1;
-        justify-content: center;
-    }
-}
-
-/* ==========================================================================
-   ENHANCEMENTS - toasts, failed tool calls, small motion/UX polish
-   ========================================================================== */
-
-/* Toast notifications (replaces alert()) */
+/* Toast Notifications */
 .ai-toast {
     position: fixed;
     left: 50%;
@@ -903,74 +1004,33 @@ body {
     color: #ffffff;
 }
 
-/* Failed tool calls get a subtle warning tint instead of blending in */
-.tool-call-card.tool-call-failed {
-    border-color: var(--color-danger);
-    background-color: var(--color-danger-container);
-}
+@media (max-width: 600px) {
+    .modal-card.sidebar-layout {
+        flex-direction: column;
+        height: auto;
+    }
 
-.tool-call-card.tool-call-failed summary .icon {
-    background-color: var(--color-danger);
-}
+    .modal-sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: var(--border-width, 1px) solid var(--color-border);
+        padding: var(--space-3);
+    }
 
-/* Slightly livelier message entrance so replies don't feel like they just "appear" */
-.message-row {
-    animation: ai-msg-in var(--duration-normal, 280ms) var(--ease-standard, ease-out);
-}
+    .sidebar-nav {
+        flex-direction: row;
+    }
 
-@keyframes ai-msg-in {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
-}
+    .nav-item {
+        flex: 1;
+        justify-content: center;
+    }
 
-/* Tool loader badge pulse so it reads as "in progress", not stuck */
-.tool-loader-badge span {
-    animation: ai-pulse 1.6s ease-in-out infinite;
-}
+    .message-row {
+        max-width: 95%;
+    }
 
-@keyframes ai-pulse {
-    0%, 100% { opacity: 0.65; }
-    50% { opacity: 1; }
-}
-
-/* Lock button gets a clearer "engaged" look */
-.btn-locked {
-    background-color: var(--color-success-container);
-    border-color: var(--color-success);
-    color: var(--color-success);
-}
-
-.btn-locked .icon {
-    background-color: var(--color-success) !important;
-}
-
-/* Send button disabled state reads a bit softer than default */
-.send-btn:disabled {
-    opacity: 0.5;
-}
-
-/* Approval dialog's warning icon gets a touch more presence */
-.dialog-icon.warning {
-    background-color: var(--color-warning-container);
-}
-
-.dialog-icon.warning .icon {
-    background-color: var(--color-warning);
-}
-
-/* ==========================================================================
-   STOP BUTTON - replaces send button while generating
-   ========================================================================== */
-
-.btn-stop {
-    background-color: var(--color-danger) !important;
-    color: var(--color-danger-on, #ffffff) !important;
-}
-
-.btn-stop:hover:not(:disabled) {
-    background-color: var(--color-danger-hover, #b52a1f) !important;
-}
-
-.btn-stop .icon {
-    background-color: currentColor !important;
+    .message-actions {
+        opacity: 1;
+    }
 }
