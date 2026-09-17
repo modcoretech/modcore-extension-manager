@@ -12,26 +12,26 @@ let urlRulesCache = [];
 
 /**
  * Returns the current cached URL rules (for the tab watcher).
- * For compound triggers containing URL conditions, returns a proxy
- * object with trigger.url set so the legacy service-worker tab
- * watcher can perform its coarse-grained check.
+ * Protocols are stripped so the coarse `tab.url.includes(...)` check works
+ * regardless of whether the tab is http or https.
  */
 export function getUrlRulesCache() {
     return urlRulesCache.map(rule => {
-        if (rule.trigger?.type === 'compound') {
-            const urlCondition = rule.trigger.conditions?.find(c => c.type === 'url');
-            if (urlCondition) {
-                return {
-                    ...rule,
-                    trigger: {
-                        ...rule.trigger,
-                        url: urlCondition.url,
-                        matchType: urlCondition.matchType || 'contains'
-                    }
-                };
+        const urlCondition = rule.trigger?.type === 'compound'
+            ? rule.trigger.conditions?.find(c => c.type === 'url')
+            : (rule.trigger?.type === 'url' ? rule.trigger : null);
+
+        if (!urlCondition) return rule;
+
+        const normalizedUrl = (urlCondition.url || '').replace(/^https?:\/\//i, '');
+        return {
+            ...rule,
+            trigger: {
+                ...rule.trigger,
+                url: normalizedUrl,
+                matchType: urlCondition.matchType || 'contains'
             }
-        }
-        return rule;
+        };
     });
 }
 
@@ -89,16 +89,19 @@ async function evaluateSingleCondition(condition) {
     }
 }
 
+/**
+ * Compares a tab URL against a stored pattern. Protocols are stripped from
+ * both sides so `https://example.com` matches both http and https tabs.
+ */
 function matchUrl(tabUrl, pattern, matchType = 'contains') {
     if (!tabUrl || !pattern) return false;
-    const url = tabUrl.toLowerCase();
-    const pat = pattern.toLowerCase();
+    const url = String(tabUrl).toLowerCase().replace(/^https?:\/\//i, '');
+    const pat = String(pattern).toLowerCase().replace(/^https?:\/\//i, '');
+    if (!pat) return false;
+
     switch (matchType) {
         case 'exact': return url === pat;
         case 'startsWith': return url.startsWith(pat);
-        case 'regex': {
-            try { return new RegExp(pattern, 'i').test(tabUrl); } catch { return false; }
-        }
         case 'contains':
         default: return url.includes(pat);
     }
@@ -120,7 +123,6 @@ function scheduleNextTimeRule(rule) {
     }
 
     if (timeConditions.length === 0) return;
-    // Schedule based on the first time condition (compound AND evaluation happens at fire time)
     const condition = timeConditions[0];
     const isRange = condition.type === 'time_range';
     const [hour, minute] = isRange
@@ -232,8 +234,7 @@ async function executeSingleAction(action, selfId) {
 
 /**
  * Executes a single rule action with full trigger re-evaluation for
- * compound conditions. Supports both legacy single-action rules and
- * modern multi-action rules.
+ * compound conditions.
  */
 export async function executeRuleAction(rule) {
     if (!rule) return;
@@ -250,13 +251,7 @@ export async function executeRuleAction(rule) {
     console.log(`[modcore Automations] Executing rule: "${rule.name}"`);
     const selfId = chrome.runtime.id;
 
-    // Normalize to actions array (backward compatibility)
-    const actions = rule.actions || [{
-        type: rule.action,
-        targetType: rule.targetType,
-        targetIds: rule.targetIds
-    }];
-
+    const actions = Array.isArray(rule.actions) ? rule.actions : [];
     for (const action of actions) {
         if (!action) continue;
         await executeSingleAction(action, selfId);

@@ -48,11 +48,6 @@
                         <h2 id="rules-panel-heading">Your Automation Rules</h2>
                         <p>Manage rules to automatically enable, disable, or apply profiles.</p>
                     </div>
-                    <div class="header-actions">
-                        <button id="filter-btn" class="btn-icon" aria-label="Open filters" aria-expanded="false" aria-controls="filter-side-sheet" aria-haspopup="dialog">
-                            <span class="icon icon-filter" aria-hidden="true"></span>
-                        </button>
-                    </div>
                 </div>
 
                 <div class="search-and-controls">
@@ -64,13 +59,23 @@
                         <input
                             type="search"
                             id="rule-search-input"
-                            placeholder="Search rules by name or tag…"
+                            placeholder="Search rules by name…"
                             class="search-input"
-                            aria-label="Search rules by name or tag"
                             autocomplete="off"
                             spellcheck="false"
                         >
                     </div>
+                    <button
+                        type="button"
+                        id="filter-btn"
+                        class="btn-icon filter-trigger-btn"
+                        aria-label="Open filters"
+                        aria-expanded="false"
+                        aria-controls="filter-side-sheet"
+                        aria-haspopup="dialog"
+                    >
+                        <span class="icon icon-filter" aria-hidden="true"></span>
+                    </button>
                 </div>
 
                 <!-- Empty state: shown when zero rules exist -->
@@ -106,7 +111,7 @@
                     </table>
                 </div>
 
-                <!-- No-results placeholder: shown when filters return nothing -->
+                <!-- No-results placeholder -->
                 <div id="no-results-placeholder" class="placeholder" role="status" aria-live="polite" style="display: none;">
                     <span class="icon icon-search" aria-hidden="true"></span>
                     <h3>No Rules Match Your Filters</h3>
@@ -116,16 +121,23 @@
 
                 <!-- Bulk actions bar -->
                 <div id="bulk-actions-bar" class="bulk-actions-bar" style="display: none;" role="toolbar" aria-label="Bulk actions for selected rules">
-                    <span class="selected-count" id="selected-rules-count" aria-live="polite" aria-atomic="true">0 selected</span>
-                    <button type="button" class="btn primary" id="bulk-enable-btn" aria-label="Enable selected rules">
-                        <span class="icon icon-bulk-enable" aria-hidden="true"></span> Enable
-                    </button>
-                    <button type="button" class="btn tertiary" id="bulk-disable-btn" aria-label="Disable selected rules">
-                        <span class="icon icon-bulk-disable" aria-hidden="true"></span> Disable
-                    </button>
-                    <button type="button" class="btn danger" id="bulk-delete-btn" aria-label="Delete selected rules">
-                        <span class="icon icon-trash" aria-hidden="true"></span> Delete
-                    </button>
+                    <div class="bulk-actions-inner">
+                        <span class="bulk-count" id="selected-rules-count" aria-live="polite" aria-atomic="true">0 selected</span>
+                        <div class="bulk-buttons">
+                            <button type="button" class="btn primary" id="bulk-enable-btn" aria-label="Enable selected rules">
+                                <span class="icon icon-bulk-enable" aria-hidden="true"></span>
+                                <span class="bulk-btn-label">Enable</span>
+                            </button>
+                            <button type="button" class="btn secondary" id="bulk-disable-btn" aria-label="Disable selected rules">
+                                <span class="icon icon-bulk-disable" aria-hidden="true"></span>
+                                <span class="bulk-btn-label">Disable</span>
+                            </button>
+                            <button type="button" class="btn danger" id="bulk-delete-btn" aria-label="Delete selected rules">
+                                <span class="icon icon-trash" aria-hidden="true"></span>
+                                <span class="bulk-btn-label">Delete</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -137,69 +149,86 @@
                     </button>
                     <h2 id="form-panel-title">Create New Rule</h2>
                 </div>
+
                 <form id="rule-form" novalidate aria-label="Rule editor">
                     <input type="hidden" id="rule-id-input">
 
-                    <!-- Stepper -->
-                    <div class="form-stepper" role="tablist" aria-label="Rule creation steps">
-                        <div class="form-step active" data-step="1" role="tab" aria-selected="true" aria-controls="step-content-1" id="step-tab-1" tabindex="0">1. Basics</div>
-                        <div class="form-step" data-step="2" role="tab" aria-selected="false" aria-controls="step-content-2" id="step-tab-2" tabindex="-1">2. Triggers</div>
-                        <div class="form-step" data-step="3" role="tab" aria-selected="false" aria-controls="step-content-3" id="step-tab-3" tabindex="-1">3. Actions</div>
+                    <div class="flow-builder">
+
+                        <!-- STEP 1: BASICS -->
+                        <section class="flow-step" aria-labelledby="flow-step-1-title">
+                            <header class="flow-step-header">
+                                <span class="flow-step-badge" aria-hidden="true">1</span>
+                                <div class="flow-step-heading">
+                                    <h3 class="flow-step-title" id="flow-step-1-title">Basics</h3>
+                                    <p class="flow-step-desc">Give your rule a recognizable name.</p>
+                                </div>
+                            </header>
+                            <div class="flow-step-body">
+                                <div class="form-group">
+                                    <label for="rule-name-input" class="form-label">Rule Name <span aria-hidden="true">*</span></label>
+                                    <input
+                                        type="text"
+                                        id="rule-name-input"
+                                        placeholder="e.g., Work Focus Mode"
+                                        required
+                                        aria-required="true"
+                                        aria-describedby="rule-name-error"
+                                        autocomplete="off"
+                                        maxlength="80"
+                                    >
+                                    <p id="rule-name-error" class="error-message" aria-live="assertive" role="alert"></p>
+                                </div>
+                            </div>
+                        </section>
+
+                        <div class="flow-connector" aria-hidden="true"></div>
+
+                        <!-- STEP 2: TRIGGERS -->
+                        <section class="flow-step" aria-labelledby="flow-step-2-title">
+                            <header class="flow-step-header">
+                                <span class="flow-step-badge" aria-hidden="true">2</span>
+                                <div class="flow-step-heading">
+                                    <h3 class="flow-step-title" id="flow-step-2-title">Triggers</h3>
+                                    <p class="flow-step-desc">All conditions must be met (AND) before the rule runs.</p>
+                                </div>
+                            </header>
+                            <div class="flow-step-body">
+                                <div id="trigger-conditions-container" class="conditions-container" aria-label="Trigger conditions"></div>
+                                <button type="button" class="flow-add-btn" id="add-trigger-condition-btn">
+                                    <span class="icon icon-plus" aria-hidden="true"></span>
+                                    Add Condition
+                                </button>
+                                <p id="trigger-error" class="error-message" aria-live="assertive" role="alert"></p>
+                            </div>
+                        </section>
+
+                        <div class="flow-connector" aria-hidden="true"></div>
+
+                        <!-- STEP 3: ACTIONS -->
+                        <section class="flow-step" aria-labelledby="flow-step-3-title">
+                            <header class="flow-step-header">
+                                <span class="flow-step-badge" aria-hidden="true">3</span>
+                                <div class="flow-step-heading">
+                                    <h3 class="flow-step-title" id="flow-step-3-title">Actions</h3>
+                                    <p class="flow-step-desc">What happens when the triggers fire. Actions run top-to-bottom.</p>
+                                </div>
+                            </header>
+                            <div class="flow-step-body">
+                                <div id="actions-container" class="actions-container" aria-label="Rule actions"></div>
+                                <button type="button" class="flow-add-btn" id="add-action-btn">
+                                    <span class="icon icon-plus" aria-hidden="true"></span>
+                                    Add Action
+                                </button>
+                                <p id="actions-error" class="error-message" aria-live="assertive" role="alert"></p>
+                            </div>
+                        </section>
+
                     </div>
 
-                    <!-- Step 1: Basics -->
-                    <div class="form-step-content active" data-step-content="1" id="step-content-1" role="tabpanel" aria-labelledby="step-tab-1">
-                        <div class="form-group">
-                            <label for="rule-name-input" class="form-label">Rule Name <span aria-hidden="true">*</span></label>
-                            <input type="text" id="rule-name-input" placeholder="e.g., Work Focus Mode" required aria-required="true" aria-describedby="rule-name-hint rule-name-error">
-                            <p id="rule-name-hint" class="form-help-text">Give your rule a clear name so you can recognize it later.</p>
-                            <p id="rule-name-error" class="error-message" aria-live="assertive"></p>
-                        </div>
-                        <div class="form-group">
-                            <label for="rule-tags-input" class="form-label">Tags <span class="label-subtext">(comma-separated)</span></label>
-                            <input type="text" id="rule-tags-input" placeholder="e.g., work, productivity" aria-describedby="tags-hint">
-                            <p id="tags-hint" class="form-help-text">Tags help you filter and organize rules.</p>
-                        </div>
-                        <div class="form-actions step-actions">
-                            <button type="button" class="btn tertiary" id="cancel-rule-form">Cancel</button>
-                            <button type="button" class="btn primary" id="step-1-next">Next: Triggers</button>
-                        </div>
-                    </div>
-
-                    <!-- Step 2: Triggers -->
-                    <div class="form-step-content" data-step-content="2" id="step-content-2" role="tabpanel" aria-labelledby="step-tab-2">
-                        <div class="form-group">
-                            <label class="form-label">Trigger Conditions <span aria-hidden="true">*</span></label>
-                            <p class="form-help-text">All visible conditions must be met (AND logic) for this rule to run.</p>
-                        </div>
-                        <div id="trigger-conditions-container" class="conditions-container" aria-label="Trigger conditions"></div>
-                        <button type="button" class="btn secondary" id="add-trigger-condition-btn">
-                            <span class="icon icon-add" aria-hidden="true"></span> Add Condition
-                        </button>
-                        <p id="trigger-error" class="error-message" aria-live="assertive"></p>
-
-                        <div class="form-actions step-actions">
-                            <button type="button" class="btn tertiary" id="step-2-back">Back</button>
-                            <button type="button" class="btn primary" id="step-2-next">Next: Actions</button>
-                        </div>
-                    </div>
-
-                    <!-- Step 3: Actions -->
-                    <div class="form-step-content" data-step-content="3" id="step-content-3" role="tabpanel" aria-labelledby="step-tab-3">
-                        <div class="form-group">
-                            <label class="form-label">Actions <span aria-hidden="true">*</span></label>
-                            <p class="form-help-text">Define what happens when triggers fire. Actions run top-to-bottom.</p>
-                        </div>
-                        <div id="actions-container" class="actions-container" aria-label="Rule actions"></div>
-                        <button type="button" class="btn secondary" id="add-action-btn">
-                            <span class="icon icon-add" aria-hidden="true"></span> Add Action
-                        </button>
-                        <p id="actions-error" class="error-message" aria-live="assertive"></p>
-
-                        <div class="form-actions step-actions">
-                            <button type="button" class="btn tertiary" id="step-3-back">Back</button>
-                            <button type="submit" class="btn primary" id="save-rule-btn">Save Rule</button>
-                        </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn tertiary" id="cancel-rule-form">Cancel</button>
+                        <button type="submit" class="btn primary" id="save-rule-btn">Save Rule</button>
                     </div>
                 </form>
             </section>
@@ -232,7 +261,6 @@
                         <option value="all">All Triggers</option>
                         <option value="time">Time-based</option>
                         <option value="url">URL-based</option>
-                        <option value="compound">Compound</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -243,12 +271,6 @@
                         <option value="profile">Profiles</option>
                     </select>
                 </div>
-
-                <!-- Tag filter — only rendered when tags exist -->
-                <div class="form-group" id="filter-tags-group" style="display: none;">
-                    <label class="form-label" id="filter-tags-label">Filter by Tag</label>
-                    <div class="tag-chips-container" id="tag-chips-container" role="group" aria-labelledby="filter-tags-label"></div>
-                </div>
             </div>
             <div class="side-sheet-footer">
                 <button type="button" class="btn tertiary" id="reset-filters-btn">Reset</button>
@@ -257,20 +279,20 @@
         </div>
     </div>
 
-    <!-- CONFIRM DIALOG -->
-    <div id="confirm-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title" aria-describedby="confirm-dialog-message">
-        <div class="confirm-dialog-content">
-            <h3 id="confirm-dialog-title" class="sr-only">Confirmation</h3>
-            <p id="confirm-dialog-message"></p>
+    <!-- CONFIRM DIALOG (native <dialog>) -->
+    <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-dialog-title">
+        <form method="dialog">
+            <h3 id="confirm-dialog-title" class="confirm-dialog-title">Please confirm</h3>
+            <p id="confirm-dialog-message" class="confirm-dialog-message"></p>
             <div class="confirm-dialog-buttons">
-                <button type="button" class="btn tertiary" id="confirm-cancel-btn">Cancel</button>
-                <button type="button" class="btn danger" id="confirm-ok-btn">Confirm</button>
+                <button type="submit" value="cancel" class="btn tertiary">Cancel</button>
+                <button type="submit" value="confirm" class="btn danger">Confirm</button>
             </div>
-        </div>
-    </div>
+        </form>
+    </dialog>
 
     <script type="module" src="automations.js"></script>
-    
+
     <script src="../../js/features/report/report.js"></script>
     <script src="../../js/features/modcore-status/modcore-status.js"></script>
 </body>
