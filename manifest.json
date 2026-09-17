@@ -45,13 +45,5 @@
   "default_locale": "en",
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
-  },
-  "commands": {
-    "download-crx": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+D"
-      },
-      "description": "__MSG_command_download_crx__"
-    }
   }
 }

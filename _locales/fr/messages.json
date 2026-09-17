@@ -10,45 +10,5 @@
   "extensionDescription": {
     "message": "Gérez vos extensions de navigateur sans effort grâce à des fonctionnalités avancées de profils, d’analyses et de contrôle.",
     "description": "Description de l’extension."
-  },
-  
-  
-  
-  
-"command_download_crx": {
-    "message": "Télécharger l'extension en CRX",
-    "description": "Keyboard shortcut description."
-  },
-  "crx_features_menu": {
-    "message": "Fonctions CRX",
-    "description": "Parent context menu label."
-  },
-  "crx_download_menu": {
-    "message": "Télécharger CRX",
-    "description": "Context menu item to download CRX."
-  },
-  "zip_download_menu": {
-    "message": "Télécharger ZIP",
-    "description": "Context menu item to download ZIP."
-  },
-  
-  "donate_menu": { "message": "Soutenir modcore sur Patreon" },
-
-
-  "action_menu": {
-    "message": "Actions",
-    "description": "Parent menu label in the toolbar action context menu."
-  },
-  "action_enable_all": {
-    "message": "Activer toutes les extensions",
-    "description": "Menu item to enable every installed extension."
-  },
-  "action_disable_all": {
-    "message": "Désactiver toutes les extensions",
-    "description": "Menu item to disable every installed extension."
-  },
-  "action_export_list": {
-    "message": "Exporter la liste des extensions",
-    "description": "Menu item to download a JSON dump of all extensions."
   }
 }

@@ -10,42 +10,5 @@
   "extensionDescription": {
     "message": "Verwalte deine Browser-Erweiterungen mühelos mit erweiterten Profilen, Einblicken und Kontrollfunktionen.",
     "description": "Beschreibung der Erweiterung."
-  },
-
-  
-  
-"crx_features_menu": {
-    "message": "CRX-Funktionen",
-    "description": "Parent context menu label."
-  },
-  "crx_download_menu": {
-    "message": "CRX herunterladen",
-    "description": "Context menu item to download CRX."
-  },
-  "zip_download_menu": {
-    "message": "ZIP herunterladen",
-    "description": "Context menu item to download ZIP."
-  },
-  
-  "donate_menu": { "message": "Unterstütze modcore auf Patreon" },
-
-
-  
-  
-  "action_menu": {
-    "message": "Aktionen",
-    "description": "Parent menu label in the toolbar action context menu."
-  },
-  "action_enable_all": {
-    "message": "Alle Erweiterungen aktivieren",
-    "description": "Menu item to enable every installed extension."
-  },
-  "action_disable_all": {
-    "message": "Alle Erweiterungen deaktivieren",
-    "description": "Menu item to disable every installed extension."
-  },
-  "action_export_list": {
-    "message": "Erweiterungsliste exportieren",
-    "description": "Menu item to download a JSON dump of all extensions."
   }
 }

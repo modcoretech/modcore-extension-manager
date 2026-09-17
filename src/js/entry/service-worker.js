@@ -5,11 +5,16 @@
 
 'use strict';
 
-import { triggerCRXDownload, registerCrxListeners } from '../features/crx-downloader/crx-downloader.js';
 import {
     registerActionMenus,
     isActionMenuItem,
     handleActionMenuClick,
+    updateActionCrxMenu,
+    triggerCRXDownload,
+    registerCrxListeners,
+    ACTION_MENU_CRX_DOWNLOAD,
+    ACTION_MENU_CRX_DOCS,
+    CRX_DOCS_URL,
 } from '../features/actions-menu/actions-menu.js';
 import {
     EXTENSION_HISTORY_KEY,
@@ -40,14 +45,16 @@ const WEBSTORE_PATTERNS = [
     'https://chromewebstore.google.com/detail/*',
 ];
 
+// Contexts for the static, page-anchored CRX menu. Explicitly excludes
+// 'action' (and 'launcher') so it can never overlap with the dynamically
+// managed action-context submenu — that overlap is what produced
+// duplicated "CRX Features" entries in the toolbar context menu.
+const STATIC_CRX_CONTEXTS = ['page', 'frame', 'link', 'selection'];
+
 const MENU_CRX_FEATURES = 'crxFeatures';
 const MENU_CRX_DOWNLOAD = 'crxDownload';
-const MENU_ZIP_DOWNLOAD = 'zipDownload';
+const MENU_CRX_DOCS     = 'crxDocs';
 const MENU_DONATE       = 'donate';
-
-const ACTION_MENU_CRX_FEATURES = 'crxFeatures_action';
-const ACTION_MENU_CRX_DOWNLOAD = 'crxDownload_action';
-const ACTION_MENU_ZIP_DOWNLOAD = 'zipDownload_action';
 
 const DEFAULT_HISTORY_SETTINGS = {
     trackingEnabled:    true,
@@ -63,8 +70,6 @@ function clampInt(value, min, max, fallback) {
     if (!Number.isFinite(n)) return fallback;
     return Math.min(max, Math.max(min, n));
 }
-
-let actionCrxMenuVisible = false;
 
 // ==========================================================================
 // Extension state cache (for accurate update / permission-change detection)
@@ -294,22 +299,22 @@ function registerContextMenus() {
 
         chrome.contextMenus.create({
             id: MENU_CRX_FEATURES,
-            title: chrome.i18n.getMessage('crx_features_menu'),
-            contexts: ['all'],
+            title: 'CRX Features',
+            contexts: STATIC_CRX_CONTEXTS,
             documentUrlPatterns: WEBSTORE_PATTERNS,
         });
         chrome.contextMenus.create({
             id: MENU_CRX_DOWNLOAD,
             parentId: MENU_CRX_FEATURES,
-            title: chrome.i18n.getMessage('crx_download_menu'),
-            contexts: ['all'],
+            title: 'Get CRX File',
+            contexts: STATIC_CRX_CONTEXTS,
             documentUrlPatterns: WEBSTORE_PATTERNS,
         });
         chrome.contextMenus.create({
-            id: MENU_ZIP_DOWNLOAD,
+            id: MENU_CRX_DOCS,
             parentId: MENU_CRX_FEATURES,
-            title: chrome.i18n.getMessage('zip_download_menu'),
-            contexts: ['all'],
+            title: 'modcore Source',
+            contexts: STATIC_CRX_CONTEXTS,
             documentUrlPatterns: WEBSTORE_PATTERNS,
         });
 
@@ -317,63 +322,12 @@ function registerContextMenus() {
 
         chrome.contextMenus.create({
             id: MENU_DONATE,
-            title: chrome.i18n.getMessage('donate_menu'),
+            title: 'Support modcore on Patreon',
             contexts: ['action'],
         });
 
-        actionCrxMenuVisible = false;
         updateActionCrxMenu();
     });
-}
-
-async function updateActionCrxMenu() {
-    let url = '';
-    try {
-        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        url = tabs[0]?.url || '';
-    } catch (e) {
-        console.warn('updateActionCrxMenu: failed to query tabs', e);
-        return;
-    }
-
-    const shouldShow = url && (
-        url.includes('chrome.google.com/webstore/detail') ||
-        url.includes('chromewebstore.google.com/detail')
-    );
-
-    if (shouldShow && !actionCrxMenuVisible) {
-        try {
-            chrome.contextMenus.create({
-                id: ACTION_MENU_CRX_FEATURES,
-                title: chrome.i18n.getMessage('crx_features_menu'),
-                contexts: ['action'],
-            });
-            chrome.contextMenus.create({
-                id: ACTION_MENU_CRX_DOWNLOAD,
-                parentId: ACTION_MENU_CRX_FEATURES,
-                title: chrome.i18n.getMessage('crx_download_menu'),
-                contexts: ['action'],
-            });
-            chrome.contextMenus.create({
-                id: ACTION_MENU_ZIP_DOWNLOAD,
-                parentId: ACTION_MENU_CRX_FEATURES,
-                title: chrome.i18n.getMessage('zip_download_menu'),
-                contexts: ['action'],
-            });
-            actionCrxMenuVisible = true;
-        } catch (err) {
-            console.warn('Failed to create action CRX menu:', err);
-        }
-    } else if (!shouldShow && actionCrxMenuVisible) {
-        try {
-            chrome.contextMenus.remove(ACTION_MENU_ZIP_DOWNLOAD);
-            chrome.contextMenus.remove(ACTION_MENU_CRX_DOWNLOAD);
-            chrome.contextMenus.remove(ACTION_MENU_CRX_FEATURES);
-            actionCrxMenuVisible = false;
-        } catch (err) {
-            console.warn('Failed to remove action CRX menu:', err);
-        }
-    }
 }
 
 chrome.tabs.onActivated.addListener(() => updateActionCrxMenu());
@@ -541,14 +495,14 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 // ==========================================================================
-// CRX / ZIP / Actions / Donate Delegation
+// CRX / Actions / Docs / Donate Delegation
 // ==========================================================================
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
     if (info.menuItemId === MENU_CRX_DOWNLOAD || info.menuItemId === ACTION_MENU_CRX_DOWNLOAD) {
-        triggerCRXDownload(tab, 'crx');
-    } else if (info.menuItemId === MENU_ZIP_DOWNLOAD || info.menuItemId === ACTION_MENU_ZIP_DOWNLOAD) {
-        triggerCRXDownload(tab, 'zip');
+        triggerCRXDownload(tab);
+    } else if (info.menuItemId === MENU_CRX_DOCS || info.menuItemId === ACTION_MENU_CRX_DOCS) {
+        chrome.tabs.create({ url: CRX_DOCS_URL });
     } else if (isActionMenuItem(info.menuItemId)) {
         handleActionMenuClick(info.menuItemId);
     } else if (info.menuItemId === MENU_DONATE) {

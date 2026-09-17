@@ -10,45 +10,5 @@
   "extensionDescription": {
     "message": "Легко управляйте расширениями браузера с помощью расширенных профилей, аналитики и функций контроля.",
     "description": "Описание расширения."
-  },
-  
-  
-  
-  
-"command_download_crx": {
-    "message": "Скачать расширение как CRX",
-    "description": "Keyboard shortcut description."
-  },
-  "crx_features_menu": {
-    "message": "Функции CRX",
-    "description": "Parent context menu label."
-  },
-  "crx_download_menu": {
-    "message": "Скачать CRX",
-    "description": "Context menu item to download CRX."
-  },
-  "zip_download_menu": {
-    "message": "Скачать ZIP",
-    "description": "Context menu item to download ZIP."
-  },
-  
-  "donate_menu": { "message": "Поддержать modcore на Patreon" },
-
-
-  "action_menu": {
-    "message": "Действия",
-    "description": "Parent menu label in the toolbar action context menu."
-  },
-  "action_enable_all": {
-    "message": "Включить все расширения",
-    "description": "Menu item to enable every installed extension."
-  },
-  "action_disable_all": {
-    "message": "Отключить все расширения",
-    "description": "Menu item to disable every installed extension."
-  },
-  "action_export_list": {
-    "message": "Экспортировать список расширений",
-    "description": "Menu item to download a JSON dump of all extensions."
   }
 }

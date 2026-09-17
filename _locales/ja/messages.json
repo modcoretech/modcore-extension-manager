@@ -10,45 +10,5 @@
   "extensionDescription": {
     "message": "高度なプロファイル、分析、コントロール機能でブラウザ拡張機能を簡単に管理。",
     "description": "拡張機能の説明。"
-  },
-
-
-  
-
-"command_download_crx": {
-    "message": "拡張機能をCRXとしてダウンロード",
-    "description": "Keyboard shortcut description."
-  },
-  "crx_features_menu": {
-    "message": "CRX機能",
-    "description": "Parent context menu label."
-  },
-  "crx_download_menu": {
-    "message": "CRXをダウンロード",
-    "description": "Context menu item to download CRX."
-  },
-  "zip_download_menu": {
-    "message": "ZIPをダウンロード",
-    "description": "Context menu item to download ZIP."
-  },
-  
-  "donate_menu": { "message": "Patreon で modcore を支援する" },
-
-  
-  "action_menu": {
-    "message": "アクション",
-    "description": "Parent menu label in the toolbar action context menu."
-  },
-  "action_enable_all": {
-    "message": "すべての拡張機能を有効化",
-    "description": "Menu item to enable every installed extension."
-  },
-  "action_disable_all": {
-    "message": "すべての拡張機能を無効化",
-    "description": "Menu item to disable every installed extension."
-  },
-  "action_export_list": {
-    "message": "拡張機能リストをエクスポート",
-    "description": "Menu item to download a JSON dump of all extensions."
   }
 }
