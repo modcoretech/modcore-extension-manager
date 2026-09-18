@@ -7,45 +7,49 @@
  *
  * Usage:
  *   Status.toast('Saved', 'success');
- *   Status.error('Failed to save');           // toast + optional bar
+ *   Status.error('Failed to save');           // toast
  *   Status.bar('Critical: connection lost');  // persistent status bar
  *   Status.dismissBar();                       // hide status bar
  *   Status.clearToasts();                     // dismiss all toasts
+ *   Status.clearAll();                        // toasts + status bar
  */
 (function (global) {
     'use strict';
 
-    // ─── Asset path helper ───────────────────────────────────────────────────
-    function _icon(path) {
+    // ─── Asset path helper ───────────────────────────────────────────────
+    const ICON_PATH = '../../public/icons/svg/close.svg';
+
+    function _resolveIcon(path) {
         if (typeof chrome !== 'undefined' && chrome.runtime?.getURL) {
             return chrome.runtime.getURL(path);
         }
         return path;
     }
 
-    // ─── Constants ───────────────────────────────────────────────────────────
-    const STYLE_ID = '_modcore-status-styles';
-    const TOAST_CONTAINER_ID = '_modcore-toasts';
-    const STATUS_BAR_ID = '_modcore-status-bar';
-    const MAX_TOASTS = 3;
+    // ─── Constants ───────────────────────────────────────────────────────
+    const STYLE_ID          = '_modcore-status-styles';
+    const TOAST_CONTAINER_ID= '_modcore-toasts';
+    const STATUS_BAR_ID     = '_modcore-status-bar';
+    const MAX_TOASTS        = 3;
 
     const TYPE_META = {
-        info:    { role: 'status',  live: 'polite',    cls: '_mc-info' },
-        success: { role: 'status',  live: 'polite',    cls: '_mc-success' },
-        warning: { role: 'alert',   live: 'assertive', cls: '_mc-warning' },
-        error:   { role: 'alert',   live: 'assertive', cls: '_mc-error' },
+        info:    { role: 'status', cls: '_mc-info' },
+        success: { role: 'status', cls: '_mc-success' },
+        warning: { role: 'alert',  cls: '_mc-warning' },
+        error:   { role: 'alert',  cls: '_mc-error' },
     };
 
-    // ─── State ───────────────────────────────────────────────────────────────
+    // ─── State ───────────────────────────────────────────────────────────
     let _stylesInjected = false;
     let _toastContainer = null;
-    let _statusBar = null;
-    let _toastId = 0;
-    const _toasts = new Map(); // id → { el, timer }
+    let _statusBar      = null;
+    let _toastId        = 0;
+    const _toasts = new Map(); // id → { id, el, timer, startedAt, remaining, dedupKey }
+    const _dedup  = new Map(); // "type::message" → id
 
-    // ─── CSS ─────────────────────────────────────────────────────────────────
-    // Single background surface, colored borders + text. No blur, no glass.
-    const CSS = `
+    // ─── CSS ─────────────────────────────────────────────────────────────
+    // __ICON__ is replaced with the resolved close-icon URL at injection time.
+    const CSS_TEMPLATE = `
         /* ── Toast Container ── */
         #_modcore-toasts {
             position: fixed;
@@ -67,7 +71,7 @@
             display: flex;
             align-items: center;
             gap: var(--space-2, 8px);
-            padding: 8px 14px;
+            padding: 8px 12px;
             border-radius: var(--radius-md, 8px);
             border: 1.5px solid;
             background: var(--color-surface, #fff);
@@ -81,15 +85,11 @@
             width: max-content;
             box-shadow: var(--shadow-md, 0 2px 8px rgba(0,0,0,0.08));
             word-break: break-word;
-
             opacity: 0;
             transform: translateY(8px);
             transition: opacity 120ms ease-out, transform 120ms ease-out;
         }
-        ._mc-toast._mc-visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
+        ._mc-toast._mc-visible { opacity: 1; transform: translateY(0); }
         ._mc-toast._mc-exit {
             opacity: 0;
             transform: translateY(4px);
@@ -104,31 +104,44 @@
 
         ._mc-toast-msg { flex: 1 1 auto; }
 
-        ._mc-toast-close {
+        /* ── Shared close button (toast + bar) ── */
+        ._mc-toast-close,
+        ._mc-bar-close {
             all: unset;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
-            width: 18px;
-            height: 18px;
             border-radius: var(--radius-sm, 4px);
-            opacity: 0.55;
+            opacity: 0.6;
             transition: opacity 100ms ease;
         }
-        ._mc-toast-close:hover { opacity: 1; }
-        ._mc-toast-close:focus-visible {
+        ._mc-toast-close { width: 18px; height: 18px; }
+        ._mc-bar-close   { width: 22px; height: 22px; opacity: 0.75; }
+        ._mc-toast-close:hover,
+        ._mc-bar-close:hover { opacity: 1; }
+        ._mc-toast-close:focus-visible,
+        ._mc-bar-close:focus-visible {
             opacity: 1;
             outline: 2px solid currentColor;
             outline-offset: 1px;
         }
-        ._mc-toast-close img {
-            width: 12px;
-            height: 12px;
+        ._mc-toast-close-icon,
+        ._mc-bar-close-icon {
             display: block;
-            filter: var(--filter-icon, none);
+            background-color: currentColor;
+            -webkit-mask-image: url("__ICON__");
+                    mask-image: url("__ICON__");
+            -webkit-mask-size: contain;
+                    mask-size: contain;
+            -webkit-mask-repeat: no-repeat;
+                    mask-repeat: no-repeat;
+            -webkit-mask-position: center;
+                    mask-position: center;
         }
+        ._mc-toast-close-icon { width: 12px; height: 12px; }
+        ._mc-bar-close-icon   { width: 14px; height: 14px; }
 
         /* ── Status Bar ── */
         #_modcore-status-bar {
@@ -151,39 +164,8 @@
             box-shadow: var(--shadow-sm, 0 1px 4px rgba(0,0,0,0.06));
             word-break: break-word;
         }
-        #_modcore-status-bar._mc-bar-visible {
-            display: flex;
-        }
-        /* Live region on inner message, not the container (allows interactive children) */
-        #_modcore-status-bar ._mc-bar-live {
-            flex: 1 1 auto;
-        }
-        ._mc-bar-close {
-            all: unset;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            width: 22px;
-            height: 22px;
-            border-radius: var(--radius-sm, 4px);
-            opacity: 0.7;
-            transition: opacity 100ms ease;
-            color: inherit;
-        }
-        ._mc-bar-close:hover { opacity: 1; }
-        ._mc-bar-close:focus-visible {
-            opacity: 1;
-            outline: 2px solid currentColor;
-            outline-offset: 2px;
-        }
-        ._mc-bar-close img {
-            width: 14px;
-            height: 14px;
-            display: block;
-            filter: var(--filter-icon, none);
-        }
+        #_modcore-status-bar._mc-bar-visible { display: flex; }
+        #_modcore-status-bar ._mc-bar-live   { flex: 1 1 auto; }
 
         /* Reduced motion */
         @media (prefers-reduced-motion: reduce) {
@@ -196,19 +178,19 @@
         }
     `;
 
-    // ─── Style injection ─────────────────────────────────────────────────────
+    // ─── Style injection ─────────────────────────────────────────────────
     function _injectStyles() {
         if (_stylesInjected) return;
         if (typeof document === 'undefined') return;
         if (document.getElementById(STYLE_ID)) { _stylesInjected = true; return; }
         const s = document.createElement('style');
         s.id = STYLE_ID;
-        s.textContent = CSS;
+        s.textContent = CSS_TEMPLATE.replace(/__ICON__/g, _resolveIcon(ICON_PATH));
         document.head.appendChild(s);
         _stylesInjected = true;
     }
 
-    // ─── Toast Container ────────────────────────────────────────────────────
+    // ─── DOM getters ─────────────────────────────────────────────────────
     function _getToastContainer() {
         if (_toastContainer) return _toastContainer;
         _toastContainer = document.getElementById(TOAST_CONTAINER_ID);
@@ -216,33 +198,54 @@
             _toastContainer = document.createElement('div');
             _toastContainer.id = TOAST_CONTAINER_ID;
             document.body.appendChild(_toastContainer);
+
+            // One click listener handles every toast's close button.
+            _toastContainer.addEventListener('click', (e) => {
+                const btn = e.target.closest('._mc-toast-close');
+                if (!btn) return;
+                const el = btn.closest('._mc-toast');
+                if (!el) return;
+                _removeToast(Number(el.getAttribute('data-tid')), true);
+            });
         }
         return _toastContainer;
     }
 
-    // ─── Status Bar ──────────────────────────────────────────────────────────
     function _getStatusBar() {
         if (_statusBar) return _statusBar;
         _statusBar = document.getElementById(STATUS_BAR_ID);
         if (!_statusBar) {
             _statusBar = document.createElement('div');
             _statusBar.id = STATUS_BAR_ID;
-            // Use aria-live on container (not role=alert) so interactive children are allowed
             _statusBar.setAttribute('aria-live', 'assertive');
             _statusBar.setAttribute('aria-atomic', 'true');
             document.body.appendChild(_statusBar);
+
+            // Escape dismisses the bar.
+            document.addEventListener('keydown', (e) => {
+                if (e.key !== 'Escape') return;
+                if (!_statusBar.classList.contains('_mc-bar-visible')) return;
+                _hideBar();
+            });
         }
         return _statusBar;
     }
 
-    // ─── Build toast element  ──────────────────────────────
+    // ─── Icon builder ────────────────────────────────────────────────────
+    function _makeCloseIcon(className) {
+        const span = document.createElement('span');
+        span.className = className;
+        span.setAttribute('aria-hidden', 'true');
+        return span;
+    }
+
+    // ─── Toast element builder ───────────────────────────────────────────
     function _buildToast(id, message, type) {
         const meta = TYPE_META[type] || TYPE_META.info;
+
         const el = document.createElement('div');
         el.className = `_mc-toast ${meta.cls}`;
         el.setAttribute('role', meta.role);
-        el.setAttribute('aria-live', meta.live);
-        el.setAttribute('aria-atomic', 'true');
         el.setAttribute('data-tid', String(id));
 
         const msg = document.createElement('span');
@@ -254,30 +257,44 @@
         btn.className = '_mc-toast-close';
         btn.type = 'button';
         btn.setAttribute('aria-label', 'Dismiss notification');
-        const img = document.createElement('img');
-        img.src = _icon('../../public/icons/svg/close.svg');
-        img.alt = '';
-        img.setAttribute('aria-hidden', 'true');
-        img.width = 12;
-        img.height = 12;
-        btn.appendChild(img);
+        btn.appendChild(_makeCloseIcon('_mc-toast-close-icon'));
         el.appendChild(btn);
-
-        btn.addEventListener('click', () => _removeToast(id));
 
         return el;
     }
 
-    // ─── Build / update status bar ───────────────────────────────────────────
+    // ─── Pause / resume auto-dismiss ─────────────────────────────────────
+    function _pause(rec) {
+        if (!rec || !rec.timer) return;
+        clearTimeout(rec.timer);
+        rec.timer = null;
+        rec.remaining -= (Date.now() - rec.startedAt);
+        if (rec.remaining < 0) rec.remaining = 0;
+    }
+
+    function _resume(rec) {
+        if (!rec || rec.timer || rec.remaining <= 0) return;
+        if (!_toasts.has(rec.id)) return;
+        rec.startedAt = Date.now();
+        rec.timer = setTimeout(() => _removeToast(rec.id, true), rec.remaining);
+    }
+
+    // ─── Status Bar show / hide ──────────────────────────────────────────
+    function _hideBar() {
+        if (!_statusBar) return;
+        _statusBar.classList.remove('_mc-bar-visible');
+        _statusBar.setAttribute('aria-hidden', 'true');
+    }
+
     function _showStatusBar(message) {
         const bar = _getStatusBar();
 
-        // Clear then repopulate to force re-announcement even for same message
+        // Clear, re-announce, then repopulate so screen readers pick it up
+        // even when the same message is repeated.
         bar.replaceChildren();
         bar.classList.remove('_mc-bar-visible');
         bar.setAttribute('aria-hidden', 'true');
 
-        // Small delay to ensure screen readers detect the content change
         requestAnimationFrame(() => {
             const live = document.createElement('span');
             live.className = '_mc-bar-live';
@@ -288,34 +305,40 @@
             btn.className = '_mc-bar-close';
             btn.type = 'button';
             btn.setAttribute('aria-label', 'Dismiss error');
-            const img = document.createElement('img');
-            img.src = _icon('../../public/icons/svg/close.svg');
-            img.alt = '';
-            img.setAttribute('aria-hidden', 'true');
-            img.width = 14;
-            img.height = 14;
-            btn.appendChild(img);
+            btn.appendChild(_makeCloseIcon('_mc-bar-close-icon'));
+            btn.addEventListener('click', _hideBar);
             bar.appendChild(btn);
-
-            btn.addEventListener('click', () => {
-                bar.classList.remove('_mc-bar-visible');
-                bar.setAttribute('aria-hidden', 'true');
-            });
 
             bar.classList.add('_mc-bar-visible');
             bar.removeAttribute('aria-hidden');
 
-            // Move focus to the live region for keyboard users
+            // Move focus to the live region so keyboard users land on it.
             live.setAttribute('tabindex', '-1');
             live.focus({ preventScroll: true });
         });
     }
 
-    // ─── Toast lifecycle ─────────────────────────────────────────────────────
+    // ─── Toast lifecycle ─────────────────────────────────────────────────
     function _showToast(message, type, duration) {
         _injectStyles();
 
-        // Hard cap at 3: evict oldest
+        const dedupKey = `${type}::${message}`;
+        const existing = _dedup.get(dedupKey);
+
+        // Merge identical toasts: reset the existing one's timer.
+        if (existing !== undefined && _toasts.has(existing)) {
+            const rec = _toasts.get(existing);
+            if (rec.timer) clearTimeout(rec.timer);
+            rec.timer = null;
+            if (duration > 0) {
+                rec.remaining = duration;
+                rec.startedAt = Date.now();
+                rec.timer = setTimeout(() => _removeToast(rec.id, true), duration);
+            }
+            return existing;
+        }
+
+        // Evict oldest if at cap.
         if (_toasts.size >= MAX_TOASTS) {
             const oldest = _toasts.keys().next().value;
             _removeToast(oldest, false);
@@ -326,15 +349,30 @@
         const container = _getToastContainer();
         container.appendChild(el);
 
-        // Force reflow then animate in
+        // Force reflow, then animate in.
         void el.offsetWidth;
         requestAnimationFrame(() => el.classList.add('_mc-visible'));
 
-        const record = { el, timer: null };
-        _toasts.set(id, record);
+        const rec = {
+            id, el, timer: null,
+            startedAt: 0, remaining: 0,
+            dedupKey,
+        };
+        _toasts.set(id, rec);
+        _dedup.set(dedupKey, id);
+
+        // Pause auto-dismiss while the user hovers or focuses the toast.
+        el.addEventListener('mouseenter', () => _pause(rec));
+        el.addEventListener('mouseleave', () => _resume(rec));
+        el.addEventListener('focusin',    () => _pause(rec));
+        el.addEventListener('focusout',   (e) => {
+            if (!el.contains(e.relatedTarget)) _resume(rec);
+        });
 
         if (duration > 0) {
-            record.timer = setTimeout(() => _removeToast(id, true), duration);
+            rec.remaining = duration;
+            rec.startedAt = Date.now();
+            rec.timer = setTimeout(() => _removeToast(id, true), duration);
         }
 
         return id;
@@ -346,6 +384,7 @@
 
         if (rec.timer) { clearTimeout(rec.timer); rec.timer = null; }
         _toasts.delete(id);
+        if (rec.dedupKey) _dedup.delete(rec.dedupKey);
 
         if (!animate) {
             rec.el.remove();
@@ -355,32 +394,21 @@
         rec.el.classList.remove('_mc-visible');
         rec.el.classList.add('_mc-exit');
 
-        const onEnd = (e) => {
-            if (e.target === rec.el) {
-                rec.el.removeEventListener('transitionend', onEnd);
-                rec.el.remove();
-            }
-        };
-        rec.el.addEventListener('transitionend', onEnd);
-
-        // Safety fallback if transitionend never fires
-        setTimeout(() => {
-            if (rec.el.parentNode) {
-                rec.el.removeEventListener('transitionend', onEnd);
-                rec.el.remove();
-            }
-        }, 300);
+        const drop = () => { if (rec.el.parentNode) rec.el.remove(); };
+        rec.el.addEventListener('transitionend', drop, { once: true });
+        setTimeout(drop, 300); // safety net
 
         return true;
     }
 
-    // ─── Public API ──────────────────────────────────────────────────────────
+    // ─── Public API ──────────────────────────────────────────────────────
     const Status = {
         /**
          * Show a toast notification.
          * @param {string} message
          * @param {'info'|'success'|'warning'|'error'} [type='info']
          * @param {number} [duration=3000] ms; 0 = persistent
+         * @returns {number} toast id
          */
         toast(message, type = 'info', duration = 3000) {
             const validType = TYPE_META[type] ? type : 'info';
@@ -388,30 +416,22 @@
             return _showToast(message, validType, dur);
         },
 
-        /** Shorthand: info toast */
         info(message, duration) {
             return this.toast(message, 'info', duration ?? 3000);
         },
-
-        /** Shorthand: success toast */
         success(message, duration) {
             return this.toast(message, 'success', duration ?? 3000);
         },
-
-        /** Shorthand: warning toast */
         warning(message, duration) {
             return this.toast(message, 'warning', duration ?? 4000);
         },
-
-        /** Shorthand: error toast */
         error(message, duration) {
             return this.toast(message, 'error', duration ?? 5000);
         },
 
         /**
          * Show a persistent status bar for critical errors.
-         * Does NOT auto-dismiss. Must be dismissed manually.
-         * Accessible: uses aria-live (not role=alert) to allow interactive children.
+         * Does NOT auto-dismiss. Escape or the close button hides it.
          * @param {string} message
          */
         bar(message) {
@@ -419,26 +439,22 @@
             _showStatusBar(message);
         },
 
-        /** Hide the status bar */
+        /** Hide the status bar. */
         dismissBar() {
-            if (_statusBar) {
-                _statusBar.classList.remove('_mc-bar-visible');
-                _statusBar.setAttribute('aria-hidden', 'true');
-            }
+            _hideBar();
         },
 
-        /** Dismiss all toasts immediately (no animation) */
+        /** Dismiss all toasts immediately (no animation). */
         clearToasts() {
-            for (const id of [..._toasts.keys()]) {
-                _removeToast(id, false);
-            }
+            for (const id of [..._toasts.keys()]) _removeToast(id, false);
+            _dedup.clear();
         },
 
-        /** Dismiss everything: toasts + status bar */
+        /** Dismiss everything: toasts + status bar. */
         clearAll() {
             this.clearToasts();
             this.dismissBar();
-        }
+        },
     };
 
     global.Status = Status;
