@@ -1,13 +1,11 @@
 /**
- * sc-core.js — modcore Safety Center Core Layer
- * Shared utilities, constants, permission database, scoring engine, popup system.
+ * sc-core.js | modcore Safety Center Core
+ * Shared utilities, constants, permission database, scoring engine, popup.
  */
 (function (global) {
     'use strict';
 
-    /* ======================================================================== */
-    /* 1. CONSTANTS */
-    /* ======================================================================== */
+    /* Constants */
     const PERMISSIONS_JSON_URL = '../../shared/data/permissions.json';
 
     const RISK_LEVELS = Object.freeze({
@@ -15,70 +13,67 @@
             scoreMin: 85,
             class: 'risk-excellent',
             label: 'Excellent',
-            description: 'This extension requests minimal permissions and demonstrates exceptional respect for your security and privacy. Safe for use.'
+            description: 'Minimal permissions and exceptional respect for your security and privacy. Safe for use.'
         },
         good: {
             scoreMin: 70,
             class: 'risk-good',
             label: 'Good',
-            description: 'Requests standard permissions appropriate for its functionality. Generally safe with acceptable privacy practices.'
+            description: 'Standard permissions appropriate for its functionality. Generally safe with acceptable practices.'
         },
         moderate: {
             scoreMin: 50,
             class: 'risk-moderate',
             label: 'Moderate',
-            description: 'Requests permissions that warrant review. Verify the extensions purpose aligns with requested capabilities.'
+            description: 'Permissions that warrant review. Verify the extension purpose aligns with requested capabilities.'
         },
         concerning: {
             scoreMin: 30,
             class: 'risk-concerning',
             label: 'Concerning',
-            description: 'Requests sensitive permissions that could impact privacy or security. Carefully evaluate necessity before use.'
+            description: 'Sensitive permissions that could impact privacy or security. Evaluate necessity carefully.'
         },
         'high-risk': {
             scoreMin: 0,
             class: 'risk-high-risk',
             label: 'High Risk',
-            description: 'Requests extensive permissions with significant security and privacy implications. Only install from thoroughly trusted sources.'
+            description: 'Extensive permissions with significant security and privacy implications. Only install from trusted sources.'
         }
     });
 
     const LEVEL_PILL_MAP = Object.freeze({
-        critical: 'risk-high-risk',
-        high: 'risk-high-risk',
+        high:     'risk-high-risk',
         moderate: 'risk-moderate',
-        low: 'risk-good'
+        low:      'risk-good'
     });
 
     const JSON_TO_INTERNAL = Object.freeze({
-        low: 'low',
+        low:    'low',
         medium: 'moderate',
-        high: 'high',
+        high:   'high',
         varies: 'moderate'
     });
 
     const LEVEL_BASE_IMPACT = Object.freeze({
-        critical: { security: 90, privacy: 85 },
-        high: { security: 65, privacy: 70 },
+        high:     { security: 65, privacy: 70 },
         moderate: { security: 35, privacy: 38 },
-        low: { security: 8, privacy: 8 }
+        low:      { security:  8, privacy:  8 }
     });
 
     const CATEGORY_ORDER = Object.freeze(['high-risk', 'concerning', 'moderate', 'good', 'excellent']);
 
-    /* ======================================================================== */
-    /* 2. STATE */
-    /* ======================================================================== */
+    const RISK_ICON_LETTER = Object.freeze({ high: '!', moderate: '~', low: '✓' });
+
+    /* State */
     let permDB = {};
     let permCats = {};
     let permRiskMeta = {};
 
-    /* ======================================================================== */
-    /* 3. DOM UTILITIES */
-    /* ======================================================================== */
+    /* DOM utilities */
     const $ = id => document.getElementById(id);
 
     function clearEl(el) {
+        if (!el) return;
         while (el.firstChild) el.removeChild(el.firstChild);
     }
 
@@ -88,17 +83,15 @@
         if (opts.id) el.id = opts.id;
         if (opts.text != null) el.textContent = String(opts.text);
         if (opts.attrs) {
-            Object.entries(opts.attrs).forEach(([k, v]) => el.setAttribute(k, v));
+            Object.entries(opts.attrs).forEach(([k, v]) => {
+                if (v != null) el.setAttribute(k, v);
+            });
         }
         if (opts.events) {
-            Object.entries(opts.events).forEach(([evt, handler]) => {
-                el.addEventListener(evt, handler);
-            });
+            Object.entries(opts.events).forEach(([evt, handler]) => el.addEventListener(evt, handler));
         }
         if (opts.children) {
-            opts.children.forEach(child => {
-                if (child) el.appendChild(child);
-            });
+            opts.children.forEach(child => { if (child) el.appendChild(child); });
         }
         return el;
     }
@@ -115,9 +108,7 @@
         };
     }
 
-    /* ======================================================================== */
-    /* 4. DATA LOADING — Permissions DB */
-    /* ======================================================================== */
+    /* Data loading */
     async function loadPermissionsDB() {
         try {
             const r = await fetch(PERMISSIONS_JSON_URL);
@@ -131,83 +122,83 @@
         }
     }
 
-    /* ======================================================================== */
-    /* 5. PERMISSION RESOLVER */
-    /* ======================================================================== */
+    /* Permission resolver */
     function getPermInfo(permission, isHost = false) {
-        if (isHost) {
-            const base = permDB['<<all_urls>'] || permDB['host_permissions'] || {};
-            let riskLevel = 'varies';
-            let description = 'Access specific websites or patterns.';
-
-            if (permission === '<all_urls>') {
-                riskLevel = 'high';
-                description = 'Access data and modify behavior on ALL websites you visit.';
-            } else if (permission.includes('*')) {
-                riskLevel = 'medium';
-                description = `Access websites matching pattern: "${permission}". Can read and change data on matching sites.`;
-            } else {
-                riskLevel = 'low';
-                description = `Access specific site: "${permission}". Can read and change data on this site.`;
-            }
-
-            return {
-                level: JSON_TO_INTERNAL[riskLevel] || 'moderate',
-                rawLevel: riskLevel,
-                security_impact: riskLevel === 'high' ? 80 : riskLevel === 'medium' ? 50 : 15,
-                privacy_impact: riskLevel === 'high' ? 75 : riskLevel === 'medium' ? 45 : 12,
-                type: 'host',
-                categories: (base.category || ['functionality']).map(c => permCats[c]?.name || c.charAt(0).toUpperCase() + c.slice(1)),
-                description: description,
-                shortDescription: base.shortDescription || description,
-                detailedDescription: base.detailedDescription || 'Host permissions allow extensions to interact with specific websites.',
-                link: base.chromeLink || 'https://developer.chrome.com/docs/extensions/mv3/match_patterns/',
-                requiresHost: true,
-                mv3Compatible: base.mv3Compatible !== false,
-                commonUseCases: base.commonUseCases || ['Site-specific enhancements', 'Content modification'],
-                mitigationTips: base.mitigationTips || ['Use specific patterns', 'Avoid broad wildcards'],
-                displayName: permission
-            };
-        }
+        if (isHost) return resolveHostPermission(permission);
 
         let entry = permDB[permission];
-        if (!entry) {
-            if (/^https?:\/\/\*/.test(permission) || permission === '<all_urls>') {
-                entry = permDB['<<all_urls>'] || permDB['host_permissions'];
-            }
+        if (!entry && (/^https?:\/\/\*/.test(permission) || permission === '<all_urls>')) {
+            entry = permDB['<<all_urls>'] || permDB['host_permissions'];
+        }
+        if (!entry) return fallbackPerm(permission);
+
+        const jsonLevel = entry.riskLevel || 'low';
+        const internalLvl = JSON_TO_INTERNAL[jsonLevel] || 'low';
+        const cats = Array.isArray(entry.category) ? entry.category : [entry.category || 'functionality'];
+
+        let secImpact = LEVEL_BASE_IMPACT[internalLvl].security;
+        let privImpact = LEVEL_BASE_IMPACT[internalLvl].privacy;
+        if (cats.includes('privacy') || cats.includes('data')) privImpact = Math.min(100, privImpact * 1.25);
+        if (cats.includes('security')) secImpact = Math.min(100, secImpact * 1.25);
+
+        return {
+            level: internalLvl,
+            rawLevel: jsonLevel,
+            security_impact: secImpact,
+            privacy_impact: privImpact,
+            type: 'api',
+            categories: cats.map(c => permCats[c]?.name || titleCase(c)),
+            description: entry.detailedDescription || entry.shortDescription || 'No description available.',
+            shortDescription: entry.shortDescription || '',
+            detailedDescription: entry.detailedDescription || '',
+            link: entry.chromeLink || null,
+            requiresHost: entry.requiresHostPermission || false,
+            mv3Compatible: entry.mv3Compatible !== false,
+            commonUseCases: entry.commonUseCases || [],
+            mitigationTips: entry.mitigationTips || [],
+            displayName: entry.name || permission
+        };
+    }
+
+    function resolveHostPermission(permission) {
+        const base = permDB['<<all_urls>'] || permDB['host_permissions'] || {};
+        let rawLevel = 'varies';
+        let description = 'Access specific websites or patterns.';
+
+        if (permission === '<all_urls>') {
+            rawLevel = 'high';
+            description = 'Access data and modify behavior on ALL websites you visit.';
+        } else if (permission.includes('*')) {
+            rawLevel = 'medium';
+            description = `Access websites matching pattern: "${permission}". Can read and change data on matching sites.`;
+        } else {
+            rawLevel = 'low';
+            description = `Access specific site: "${permission}". Can read and change data on this site.`;
         }
 
-        if (entry) {
-            const jsonLevel = entry.riskLevel || 'low';
-            const internalLvl = JSON_TO_INTERNAL[jsonLevel] || 'low';
-            const cats = Array.isArray(entry.category) ? entry.category : [entry.category || 'functionality'];
+        const secMap  = { high: 80, medium: 50, low: 15 };
+        const privMap = { high: 75, medium: 45, low: 12 };
 
-            let secImpact = LEVEL_BASE_IMPACT[internalLvl].security;
-            let privImpact = LEVEL_BASE_IMPACT[internalLvl].privacy;
-            const hasPriv = cats.includes('privacy') || cats.includes('data');
-            const hasSec = cats.includes('security');
-            if (hasPriv) privImpact = Math.min(100, privImpact * 1.25);
-            if (hasSec) secImpact = Math.min(100, secImpact * 1.25);
+        return {
+            level: JSON_TO_INTERNAL[rawLevel] || 'moderate',
+            rawLevel,
+            security_impact: secMap[rawLevel] || 50,
+            privacy_impact: privMap[rawLevel] || 45,
+            type: 'host',
+            categories: (base.category || ['functionality']).map(c => permCats[c]?.name || titleCase(c)),
+            description,
+            shortDescription: base.shortDescription || description,
+            detailedDescription: base.detailedDescription || 'Host permissions allow extensions to interact with specific websites.',
+            link: base.chromeLink || 'https://developer.chrome.com/docs/extensions/mv3/match_patterns/',
+            requiresHost: true,
+            mv3Compatible: base.mv3Compatible !== false,
+            commonUseCases: base.commonUseCases || ['Site-specific enhancements', 'Content modification'],
+            mitigationTips: base.mitigationTips || ['Use specific patterns', 'Avoid broad wildcards'],
+            displayName: permission
+        };
+    }
 
-            return {
-                level: internalLvl,
-                rawLevel: jsonLevel,
-                security_impact: secImpact,
-                privacy_impact: privImpact,
-                type: 'api',
-                categories: cats.map(c => permCats[c]?.name || c.charAt(0).toUpperCase() + c.slice(1)),
-                description: entry.detailedDescription || entry.shortDescription || 'No description available.',
-                shortDescription: entry.shortDescription || '',
-                detailedDescription: entry.detailedDescription || '',
-                link: entry.chromeLink || null,
-                requiresHost: entry.requiresHostPermission || false,
-                mv3Compatible: entry.mv3Compatible !== false,
-                commonUseCases: entry.commonUseCases || [],
-                mitigationTips: entry.mitigationTips || [],
-                displayName: entry.name || permission
-            };
-        }
-
+    function fallbackPerm(permission) {
         return {
             level: 'moderate',
             rawLevel: 'medium',
@@ -217,6 +208,7 @@
             categories: ['Unclassified'],
             description: 'Unrecognised permission. Exercise caution as impact cannot be determined without additional analysis.',
             shortDescription: 'Unknown permission',
+            detailedDescription: 'This permission is not present in the modcore knowledge base.',
             link: null,
             requiresHost: false,
             mv3Compatible: true,
@@ -226,9 +218,11 @@
         };
     }
 
-    /* ======================================================================== */
-    /* 6. SCORING ENGINE */
-    /* ======================================================================== */
+    function titleCase(str) {
+        return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    /* Scoring */
     function calculateScores(apiPerms, hostPerms) {
         const all = [
             ...(apiPerms || []).map(p => ({ name: p, isHost: false })),
@@ -246,24 +240,25 @@
             };
         }
 
-        let totalSec = 0, totalPriv = 0;
-        const breakdown = [];
-
         const sorted = [...all].sort((a, b) => {
             const ia = getPermInfo(a.name, a.isHost);
             const ib = getPermInfo(b.name, b.isHost);
             return (ib.security_impact + ib.privacy_impact) - (ia.security_impact + ia.privacy_impact);
         });
 
+        let totalSec = 0;
+        let totalPriv = 0;
+        const breakdown = [];
+
         sorted.forEach((perm, idx) => {
             const info = getPermInfo(perm.name, perm.isHost);
             const dimFactor = Math.pow(0.88, idx);
-            const criticalBoost = info.level === 'critical' ? 1.5 : info.level === 'high' ? 1.15 : 1.0;
+            const levelBoost = info.level === 'high' ? 1.15 : 1.0;
 
-            const secContrib = info.security_impact * dimFactor * criticalBoost;
-            const privContrib = info.privacy_impact * dimFactor * criticalBoost;
+            const secContrib  = info.security_impact * dimFactor * levelBoost;
+            const privContrib = info.privacy_impact  * dimFactor * levelBoost;
 
-            totalSec += secContrib;
+            totalSec  += secContrib;
             totalPriv += privContrib;
 
             breakdown.push({
@@ -280,46 +275,74 @@
         totalPriv += sprawl;
 
         const maxImpact = 500;
-        const secScore = Math.max(0, Math.min(100, Math.round(100 - (totalSec / maxImpact) * 100)));
-        const privScore = Math.max(0, Math.min(100, Math.round(100 - (totalPriv / maxImpact) * 100)));
+        const secScore  = clamp(Math.round(100 - (totalSec  / maxImpact) * 100), 0, 100);
+        const privScore = clamp(Math.round(100 - (totalPriv / maxImpact) * 100), 0, 100);
 
         const lower = Math.min(secScore, privScore);
         const upper = Math.max(secScore, privScore);
         const overall = Math.round(lower * 0.6 + upper * 0.4);
 
-        let category = 'high-risk';
-        for (const [key, lvl] of Object.entries(RISK_LEVELS)) {
-            if (overall >= lvl.scoreMin) { category = key; break; }
-        }
-
         return {
             overallScore: overall,
             securityScore: secScore,
             privacyScore: privScore,
-            category,
+            category: categoryForScore(overall),
             count: all.length,
             breakdown
         };
     }
 
-    /* ======================================================================== */
-    /* 7. POPUP SYSTEM — Permission Detail Modal */
-    /* ======================================================================== */
+    function categoryForScore(score) {
+        for (const [key, lvl] of Object.entries(RISK_LEVELS)) {
+            if (score >= lvl.scoreMin) return key;
+        }
+        return 'high-risk';
+    }
+
+    function clamp(n, lo, hi) { return Math.min(hi, Math.max(lo, n)); }
+
+    /* Color helpers */
+    const _colorCache = new Map();
+    function categoryColor(category) {
+        if (_colorCache.has(category)) return _colorCache.get(category);
+        const c = getComputedStyle(document.documentElement)
+            .getPropertyValue(`--color-score-${category}`).trim() || 'var(--color-primary)';
+        _colorCache.set(category, c);
+        return c;
+    }
+
+    function getScoreArcOffset(score) {
+        const circumference = 2 * Math.PI * 42;
+        return circumference - (score / 100) * circumference;
+    }
+
+    /* Icons */
+    function getExtensionIconUrl(ext, minSize = 64) {
+        if (!ext.icons || ext.icons.length === 0) return null;
+        const sorted = [...ext.icons].sort((a, b) => b.size - a.size);
+        const best = sorted.find(i => i.size >= minSize) || sorted[0];
+        return best?.url || null;
+    }
+
+    /* Popup */
     const Popup = {
         els: {},
+        _lastFocus: null,
 
         init() {
-            this.els.overlay = $('permission-popup-overlay');
-            this.els.popup = $('permission-popup');
-            this.els.close = $('permission-popup-close');
-            this.els.title = $('permission-popup-title');
-            this.els.risk = $('permission-popup-risk');
-            this.els.category = $('permission-popup-category');
-            this.els.shortDesc = $('permission-popup-short-desc');
+            this.els.overlay      = $('permission-popup-overlay');
+            this.els.popup        = $('permission-popup');
+            this.els.close        = $('permission-popup-close');
+            this.els.title        = $('permission-popup-title');
+            this.els.risk         = $('permission-popup-risk');
+            this.els.category     = $('permission-popup-category');
+            this.els.shortDesc    = $('permission-popup-short-desc');
             this.els.detailedDesc = $('permission-popup-detailed-desc');
-            this.els.useCases = $('permission-popup-use-cases');
-            this.els.link = $('permission-popup-link');
-            this.els.icon = $('perm-popup-icon');
+            this.els.useCases     = $('permission-popup-use-cases');
+            this.els.link         = $('permission-popup-link');
+            this.els.icon         = $('perm-popup-icon');
+
+            if (!this.els.popup) return;
 
             this.els.close.addEventListener('click', () => this.close());
             this.els.overlay.addEventListener('click', () => this.close());
@@ -329,7 +352,8 @@
         },
 
         open(name, isHost, info) {
-            this.close();
+            if (!this.els.popup) return;
+            this._lastFocus = document.activeElement;
 
             setText(this.els.title, isHost ? `Host: ${name}` : (info.displayName || name));
 
@@ -337,24 +361,24 @@
             this.els.risk.className = `perm-popup-risk-badge ${LEVEL_PILL_MAP[info.level] || 'risk-moderate'}`;
             setText(this.els.risk, meta.name || `${info.level} risk`);
 
-            const iconLetter = { critical: '!', high: '!', moderate: '~', low: '✓' }[info.level] || '?';
-            this.els.icon.textContent = iconLetter;
+            this.els.icon.textContent = RISK_ICON_LETTER[info.level] || '?';
             this.els.icon.className = `perm-popup-icon ${LEVEL_PILL_MAP[info.level] || 'risk-moderate'}`;
 
             clearEl(this.els.category);
+            const catFrag = document.createDocumentFragment();
             info.categories.forEach(cat => {
-                this.els.category.appendChild(createEl('span', {
-                    className: 'perm-cat-badge',
-                    text: cat
-                }));
+                catFrag.appendChild(createEl('span', { className: 'perm-cat-badge', text: cat }));
             });
+            this.els.category.appendChild(catFrag);
 
             setText(this.els.shortDesc, info.shortDescription || info.description);
             setText(this.els.detailedDesc, info.detailedDescription || info.description);
 
             clearEl(this.els.useCases);
+            const useFrag = document.createDocumentFragment();
             const useCases = info.commonUseCases.length ? info.commonUseCases : ['General extension functionality'];
-            useCases.forEach(uc => this.els.useCases.appendChild(createEl('li', { text: uc })));
+            useCases.forEach(uc => useFrag.appendChild(createEl('li', { text: uc })));
+            this.els.useCases.appendChild(useFrag);
 
             if (info.link) {
                 this.els.link.href = info.link;
@@ -371,56 +395,30 @@
         },
 
         close() {
+            if (!this.els.popup || !this.els.popup.classList.contains('visible')) return;
             this.els.overlay.classList.remove('visible');
             this.els.overlay.setAttribute('aria-hidden', 'true');
             this.els.popup.classList.remove('visible');
             document.body.style.overflow = '';
+            if (this._lastFocus && typeof this._lastFocus.focus === 'function') {
+                this._lastFocus.focus();
+                this._lastFocus = null;
+            }
         }
     };
 
-    /* ======================================================================== */
-    /* 8. SCORE COLOR HELPERS */
-    /* ======================================================================== */
-    function applyScoreColor(circle, score) {
-        const varName = score >= 85 ? '--color-score-excellent' :
-                        score >= 70 ? '--color-score-good' :
-                        score >= 50 ? '--color-score-moderate' :
-                        score >= 30 ? '--color-score-concerning' : '--color-score-high-risk';
-        const color = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
-        circle.style.background = `conic-gradient(${color || 'var(--color-primary)'} calc(${score} * 1%), var(--color-border-strong) calc(${score} * 1%))`;
-    }
-
-    function getScoreArcOffset(score) {
-        const circumference = 2 * Math.PI * 34;
-        return circumference - (score / 100) * circumference;
-    }
-
-    /* ======================================================================== */
-    /* 9. ICON HELPERS */
-    /* ======================================================================== */
-    function getExtensionIconUrl(ext, minSize = 64) {
-        if (!ext.icons || ext.icons.length === 0) return null;
-        const sorted = [...ext.icons].sort((a, b) => b.size - a.size);
-        const best = sorted.find(i => i.size >= minSize) || sorted[0];
-        return best?.url || null;
-    }
-
-    /* ======================================================================== */
-    /* 10. VIEW SWITCHING */
-    /* ======================================================================== */
+    /* View switching */
     const Views = {
         els: {},
-
         init() {
             this.els.dashboard = $('all-extensions-view');
-            this.els.single = $('single-extension-view');
-            this.els.filtered = $('filtered-extensions-view');
+            this.els.single    = $('single-extension-view');
+            this.els.filtered  = $('filtered-extensions-view');
         },
-
         show(view) {
             this.els.dashboard.hidden = view !== 'dashboard';
-            this.els.single.hidden = view !== 'single';
-            this.els.filtered.hidden = view !== 'filtered';
+            this.els.single.hidden    = view !== 'single';
+            this.els.filtered.hidden  = view !== 'filtered';
 
             if (view === 'dashboard') {
                 const search = $('permission-search-input-inline');
@@ -429,27 +427,24 @@
         }
     };
 
-    /* ======================================================================== */
-    /* 11. TAB SYSTEM (Hash-based navigation) */
-    /* ======================================================================== */
+    /* Tabs */
     const Tabs = {
         tabs: [],
         panels: [],
 
         init(tabIds, panelIds) {
-            this.tabs = tabIds.map(id => $(id)).filter(Boolean);
+            this.tabs   = tabIds.map(id => $(id)).filter(Boolean);
             this.panels = panelIds.map(id => $(id)).filter(Boolean);
+            if (!this.tabs.length) return;
 
             this.tabs.forEach(tab => {
-                tab.addEventListener('click', e => {
+                const activate = e => {
                     e.preventDefault();
                     this.activate(tab.id.replace('tab-', ''));
-                });
+                };
+                tab.addEventListener('click', activate);
                 tab.addEventListener('keydown', e => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        this.activate(tab.id.replace('tab-', ''));
-                    }
+                    if (e.key === 'Enter' || e.key === ' ') activate(e);
                 });
             });
 
@@ -463,17 +458,9 @@
                 tab.setAttribute('aria-selected', String(isActive));
                 tab.setAttribute('tabindex', isActive ? '0' : '-1');
             });
-
             this.panels.forEach(panel => {
-                const isActive = panel.id === `panel-${tabName}`;
-                panel.hidden = !isActive;
-                if (isActive) {
-                    panel.classList.add('tab-panel-active');
-                } else {
-                    panel.classList.remove('tab-panel-active');
-                }
+                panel.hidden = panel.id !== `panel-${tabName}`;
             });
-
             if (window.location.hash !== `#${tabName}`) {
                 history.replaceState(null, '', `#${tabName}`);
             }
@@ -481,52 +468,37 @@
 
         syncFromHash() {
             const hash = window.location.hash.replace('#', '');
-            const valid = ['security', 'details'];
-            if (valid.includes(hash)) {
-                this.activate(hash);
-            } else {
-                this.activate('security');
-            }
+            this.activate(['security', 'details'].includes(hash) ? hash : 'security');
         }
     };
 
-    /* ======================================================================== */
-    /* 12. PUBLIC API */
-    /* ======================================================================== */
+    /* Public API */
     global.SafetyCenter = {
         RISK_LEVELS,
         LEVEL_PILL_MAP,
         CATEGORY_ORDER,
 
         loadPermissionsDB,
-
         getPermInfo,
         calculateScores,
+        categoryForScore,
         getExtensionIconUrl,
+        categoryColor,
 
-        $,
-        createEl,
-        clearEl,
-        setText,
-        debounce,
-        applyScoreColor,
+        $, createEl, clearEl, setText, debounce,
         getScoreArcOffset,
 
-        Popup,
-        Views,
-        Tabs
+        Popup, Views, Tabs
     };
 
-    /* ======================================================================== */
-    /* 13. BOOTSTRAP */
-    /* ======================================================================== */
+    /* Bootstrap */
     async function bootstrap() {
         try {
             await loadPermissionsDB();
             Views.init();
 
             if (SafetyCenter.Dashboard) SafetyCenter.Dashboard.init();
-            if (SafetyCenter.Report) SafetyCenter.Report.init();
+            if (SafetyCenter.Report)    SafetyCenter.Report.init();
 
             const params = new URLSearchParams(window.location.search);
             const extensionId = params.get('id');
@@ -536,13 +508,11 @@
                 const ext = extensions.find(e => e.id === extensionId);
                 if (ext && SafetyCenter.Report) {
                     SafetyCenter.Report.render(ext);
-                } else {
-                    if (window.Status) window.Status.error('Extension not found');
-                    if (SafetyCenter.Dashboard) SafetyCenter.Dashboard.render(extensions);
+                    return;
                 }
-            } else {
-                if (SafetyCenter.Dashboard) SafetyCenter.Dashboard.render(extensions);
+                if (window.Status) window.Status.error('Extension not found');
             }
+            if (SafetyCenter.Dashboard) SafetyCenter.Dashboard.render(extensions);
         } catch (err) {
             console.error('[SafetyCenter] Bootstrap error:', err);
             if (window.Status) window.Status.error('Failed to load extension data');
