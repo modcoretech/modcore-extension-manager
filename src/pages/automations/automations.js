@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const PROFILES_STORAGE_KEY = 'em_profiles';
-    const DEFAULT_ICON_PLACEHOLDER = '../../../public/icons/svg/updatelogo.svg';
+    const DEFAULT_ICON_PLACEHOLDER = '../../shared/assets/icons/svg/updatelogo.svg';
     const RULES_STORAGE_KEY = 'rules';
     const URL_PROTOCOL = 'https://';
     const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

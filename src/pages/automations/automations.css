@@ -58,20 +58,20 @@ strong { font-weight: var(--weight-semibold); }
     color: var(--color-icon);
     transition: color var(--duration-fast);
 }
-.icon-list    { -webkit-mask-image: url('../../../public/icons/svg/list.svg');       mask-image: url('../../../public/icons/svg/list.svg'); }
-.icon-add     { -webkit-mask-image: url('../../../public/icons/svg/plus.svg');       mask-image: url('../../../public/icons/svg/plus.svg'); }
-.icon-plus    { -webkit-mask-image: url('../../../public/icons/svg/plus.svg');       mask-image: url('../../../public/icons/svg/plus.svg'); }
-.icon-help    { -webkit-mask-image: url('../../../public/icons/svg/help.svg');       mask-image: url('../../../public/icons/svg/help.svg'); }
-.icon-search  { -webkit-mask-image: url('../../../public/icons/svg/search.svg');     mask-image: url('../../../public/icons/svg/search.svg'); }
-.icon-clock   { -webkit-mask-image: url('../../../public/icons/svg/clock.svg');      mask-image: url('../../../public/icons/svg/clock.svg'); }
-.icon-url     { -webkit-mask-image: url('../../../public/icons/svg/link.svg');       mask-image: url('../../../public/icons/svg/link.svg'); }
-.icon-edit    { -webkit-mask-image: url('../../../public/icons/svg/edit.svg');       mask-image: url('../../../public/icons/svg/edit.svg'); }
-.icon-trash   { -webkit-mask-image: url('../../../public/icons/svg/trash.svg');      mask-image: url('../../../public/icons/svg/trash.svg'); }
-.icon-arrow-left { -webkit-mask-image: url('../../../public/icons/svg/arrow-left.svg'); mask-image: url('../../../public/icons/svg/arrow-left.svg'); }
-.icon-bulk-enable  { -webkit-mask-image: url('../../../public/icons/svg/power.svg'); mask-image: url('../../../public/icons/svg/power.svg'); }
-.icon-bulk-disable { -webkit-mask-image: url('../../../public/icons/svg/power.svg'); mask-image: url('../../../public/icons/svg/power.svg'); }
-.icon-filter  { -webkit-mask-image: url('../../../public/icons/svg/filter.svg');     mask-image: url('../../../public/icons/svg/filter.svg'); }
-.icon-close   { -webkit-mask-image: url('../../../public/icons/svg/close.svg');      mask-image: url('../../../public/icons/svg/close.svg'); }
+.icon-list    { -webkit-mask-image: url('../../shared/assets/icons/svg/list.svg');       mask-image: url('../../shared/assets/icons/svg/list.svg'); }
+.icon-add     { -webkit-mask-image: url('../../shared/assets/icons/svg/plus.svg');       mask-image: url('../../shared/assets/icons/svg/plus.svg'); }
+.icon-plus    { -webkit-mask-image: url('../../shared/assets/icons/svg/plus.svg');       mask-image: url('../../shared/assets/icons/svg/plus.svg'); }
+.icon-help    { -webkit-mask-image: url('../../shared/assets/icons/svg/help.svg');       mask-image: url('../../shared/assets/icons/svg/help.svg'); }
+.icon-search  { -webkit-mask-image: url('../../shared/assets/icons/svg/search.svg');     mask-image: url('../../shared/assets/icons/svg/search.svg'); }
+.icon-clock   { -webkit-mask-image: url('../../shared/assets/icons/svg/clock.svg');      mask-image: url('../../shared/assets/icons/svg/clock.svg'); }
+.icon-url     { -webkit-mask-image: url('../../shared/assets/icons/svg/link.svg');       mask-image: url('../../shared/assets/icons/svg/link.svg'); }
+.icon-edit    { -webkit-mask-image: url('../../shared/assets/icons/svg/edit.svg');       mask-image: url('../../shared/assets/icons/svg/edit.svg'); }
+.icon-trash   { -webkit-mask-image: url('../../shared/assets/icons/svg/trash.svg');      mask-image: url('../../shared/assets/icons/svg/trash.svg'); }
+.icon-arrow-left { -webkit-mask-image: url('../../shared/assets/icons/svg/arrow-left.svg'); mask-image: url('../../shared/assets/icons/svg/arrow-left.svg'); }
+.icon-bulk-enable  { -webkit-mask-image: url('../../shared/assets/icons/svg/power.svg'); mask-image: url('../../shared/assets/icons/svg/power.svg'); }
+.icon-bulk-disable { -webkit-mask-image: url('../../shared/assets/icons/svg/power.svg'); mask-image: url('../../shared/assets/icons/svg/power.svg'); }
+.icon-filter  { -webkit-mask-image: url('../../shared/assets/icons/svg/filter.svg');     mask-image: url('../../shared/assets/icons/svg/filter.svg'); }
+.icon-close   { -webkit-mask-image: url('../../shared/assets/icons/svg/close.svg');      mask-image: url('../../shared/assets/icons/svg/close.svg'); }
 
 .sidebar-button .icon { width: 1.5em; height: 1.5em; margin-right: var(--space-2); opacity: 0.9; vertical-align: middle; }
 .btn .icon { width: 1.1em; height: 1.1em; vertical-align: middle; }
