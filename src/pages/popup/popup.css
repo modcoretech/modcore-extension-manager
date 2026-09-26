@@ -185,7 +185,7 @@ select:disabled, input[type="text"]:disabled {
 .filters-row select {
   padding-right: 24px; min-width: 0;
   cursor: pointer; appearance: none; -webkit-appearance: none; -moz-appearance: none;
-  background-image: url('../../../public/icons/svg/arrow-down.svg');
+  background-image: url('../../shared/assets/icons/svg/arrow-down.svg');
   background-repeat: no-repeat;
   background-position: right 0.5rem center;
   background-size: 0.85em auto;

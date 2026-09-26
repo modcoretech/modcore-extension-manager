@@ -2,8 +2,8 @@
 
 
 /* Base styles */
-@import 'base/variables.css';
-@import 'base/fonts.css';
+@import 'variables.css';
+@import 'fonts.css';
 
 /* Component styles */
-@import 'components/icons.css';
+@import 'icons.css';

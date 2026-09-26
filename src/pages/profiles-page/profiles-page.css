@@ -763,7 +763,7 @@ input[type="text"]:read-only:focus-visible {
 }
 .extension-search-wrap input {
   padding-left: 32px;
-  background-image: url('../../../public/icons/svg/search.svg');
+  background-image: url('../../shared/assets/icons/svg/search.svg');
   background-repeat: no-repeat;
   background-position: 10px center;
   background-size: 14px;

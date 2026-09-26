@@ -6,7 +6,7 @@
     'use strict';
 
     /* Constants */
-    const PERMISSIONS_JSON_URL = '../../shared/data/permissions.json';
+    const PERMISSIONS_JSON_URL = '../../shared/permissions.json';
 
     const RISK_LEVELS = Object.freeze({
         excellent: {

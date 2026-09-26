@@ -19,7 +19,7 @@
         Popup, Tabs
     } = SC;
 
-    const FALLBACK_ICON = '../../../public/icons/svg/code.svg';
+    const FALLBACK_ICON = '../../shared/assets/icons/svg/code.svg';
     const els = {};
 
     function cacheElements() {

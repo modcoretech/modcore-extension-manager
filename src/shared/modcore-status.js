@@ -17,7 +17,7 @@
     'use strict';
 
     // ─── Asset path helper ───────────────────────────────────────────────
-    const ICON_PATH = '../../public/icons/svg/close.svg';
+    const ICON_PATH = 'src/shared/assets/icons/svg/close.svg';
 
     function _resolveIcon(path) {
         if (typeof chrome !== 'undefined' && chrome.runtime?.getURL) {

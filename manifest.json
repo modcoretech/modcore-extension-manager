@@ -17,29 +17,30 @@
     "sidePanel"
   ],
   "background": {
-    "service_worker": "src/js/entry/service-worker.js",
+    "service_worker": "src/background/service-worker.js",
     "type": "module"
   },
   "host_permissions": [
     "https://chrome.google.com/webstore/detail/",
     "https://chromewebstore.google.com/detail/",
-    "https://clients2.google.com/"
+    "https://clients2.google.com/",
+    "https://sites.google.com/"
   ],
   "side_panel": {
-    "default_path": "src/views/popup/popup.html"
+    "default_path": "src/pages/popup/popup.html"
   },
   "action": {
     "default_title": "modcore Extension Manager",
-    "default_popup": "src/views/popup/popup.html",
+    "default_popup": "src/pages/popup/popup.html",
     "default_icon": {
-      "128": "public/icons/png/modcore-em.png"
+      "128": "src/shared/assets/icons/png/modcore-em.png"
     }
   },
   "icons": {
-    "128": "public/icons/png/modcore-em.png"
+    "128": "src/shared/assets/icons/png/modcore-em.png"
   },
   "options_ui": {
-    "page": "src/views/snapshot/snapshot.html",
+    "page": "src/pages/snapshot/snapshot.html",
     "open_in_tab": true
   },
   "default_locale": "en",

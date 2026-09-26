@@ -16,16 +16,16 @@
             <h1>modcore Extension Manager</h1>
             <div class="header-icons">
                 <a href="../profiles-page/profiles-page.html" target="_blank" class="header-icon-link" aria-label="Manage Profiles" title="Organize extensions into profiles for quick switching.">
-                    <img src="../../../public/icons/svg/profiles.svg" alt="" aria-hidden="true">
+                    <img src="../../shared/assets/icons/svg/profiles.svg" alt="" aria-hidden="true">
                 </a>
                 <a href="../safety-center/safety-center.html" target="_blank" class="header-icon-link" aria-label="Safety Center" title="Review extension permissions and security information.">
-                    <img src="../../../public/icons/svg/shield.svg" alt="" aria-hidden="true">
+                    <img src="../../shared/assets/icons/svg/shield.svg" alt="" aria-hidden="true">
                 </a>
                 <a href="../automations/automations.html" target="_blank" class="header-icon-link" aria-label="Manage Automations" title="Set up automations to control extension behavior.">
-                    <img src="../../../public/icons/svg/rules.svg" alt="" aria-hidden="true">
+                    <img src="../../shared/assets/icons/svg/rules.svg" alt="" aria-hidden="true">
                 </a>
                 <button id="help-modal-trigger" class="header-icon-btn" type="button" aria-label="Help and Quick Links" title="Get help, access resources, and learn more about modcore Extension Manager.">
-                    <img src="../../../public/icons/svg/dots-circle1.svg" alt="" aria-hidden="true">
+                    <img src="../../shared/assets/icons/svg/dots-circle1.svg" alt="" aria-hidden="true">
                 </button>
             </div>
         </div>
@@ -34,7 +34,7 @@
             <div class="search-input-wrapper">
                 <input type="text" id="search-input" placeholder="Search name, description, ID…" aria-label="Search extensions by name, description, or ID">
                 <button id="clear-search-btn" class="clear-search-btn" type="button" aria-label="Clear search" title="Clear search">
-                    <img src="../../../public/icons/svg/close.svg" alt="" aria-hidden="true">
+                    <img src="../../shared/assets/icons/svg/close.svg" alt="" aria-hidden="true">
                 </button>
             </div>
             <div id="filters" class="filters-row">
@@ -56,15 +56,15 @@
                 </div>
             </div>
             <button id="bulk-enable-button" class="button-small button-success" type="button" title="Enable all selected extensions.">
-                <img src="../../../public/icons/svg/power.svg" alt="" aria-hidden="true"> Enable
+                <img src="../../shared/assets/icons/svg/power.svg" alt="" aria-hidden="true"> Enable
             </button>
             <button id="bulk-disable-button" class="button-small button-danger" type="button" title="Disable all selected extensions.">
-                <img src="../../../public/icons/svg/power.svg" alt="" aria-hidden="true"> Disable
+                <img src="../../shared/assets/icons/svg/power.svg" alt="" aria-hidden="true"> Disable
             </button>
         </div>
 
         <div id="loading-indicator" class="loading-indicator" style="display: none;" aria-label="Loading extensions" role="status">
-             <img src="../../../public/icons/svg/loading.svg" alt="" class="spinner" aria-hidden="true">
+             <img src="../../shared/assets/icons/svg/loading.svg" alt="" class="spinner" aria-hidden="true">
              <span>Loading extensions…</span>
         </div>
 
@@ -83,21 +83,21 @@
         <div class="extension-item" role="listitem">
             <input type="checkbox" class="extension-select-checkbox">
             <img class="extension-icon" alt="" aria-hidden="true" loading="lazy"
-                 src="../../../public/icons/svg/updatelogo.svg">
+                 src="../../shared/assets/icons/svg/updatelogo.svg">
             <div class="extension-details">
                 <span class="extension-name"></span>
             </div>
             <div class="extension-actions">
                 <button class="toggle-button button-small" data-action="toggle" type="button">
-                    <img src="../../../public/icons/svg/power.svg" alt="" aria-hidden="true">
+                    <img src="../../shared/assets/icons/svg/power.svg" alt="" aria-hidden="true">
                     <span class="toggle-button-label">Enable</span>
                 </button>
                 <button class="details-button button-small icon-only" data-action="details" type="button">
-                    <img src="../../../public/icons/svg/info.svg" alt="" aria-hidden="true">
+                    <img src="../../shared/assets/icons/svg/info.svg" alt="" aria-hidden="true">
                 </button>
                 <button class="more-button button-small icon-only" data-action="more" type="button"
                         aria-haspopup="menu" aria-expanded="false" aria-label="More actions">
-                    <img src="../../../public/icons/svg/dots-circle1.svg" alt="" aria-hidden="true">
+                    <img src="../../shared/assets/icons/svg/dots-circle1.svg" alt="" aria-hidden="true">
                 </button>
             </div>
         </div>
@@ -109,25 +109,25 @@
     <!-- Help dialog (native <dialog>) -->
     <dialog id="help-modal" class="modal" aria-labelledby="help-modal-title">
         <button class="modal-close-button" type="button" aria-label="Close Help and Information" title="Close Help Modal">
-            <img src="../../../public/icons/svg/close.svg" alt="" aria-hidden="true">
+            <img src="../../shared/assets/icons/svg/close.svg" alt="" aria-hidden="true">
         </button>
         <h2 id="help-modal-title">Help &amp; Quick Links</h2>
         <div class="modal-section">
             <p class="modal-hint">Thank you for using modcore Extension Manager! Here are some resources to help you.</p>
             <ul class="help-links-list">
-                <li><a href="../automations/automations.html" target="_blank" rel="noopener noreferrer"><img src="../../../public/icons/svg/rules.svg" alt="" aria-hidden="true"><span>modcore Automations</span></a></li>
-                <li><a href="../safety-center/safety-center.html" target="_blank" rel="noopener noreferrer"><img src="../../../public/icons/svg/shield.svg" alt="" aria-hidden="true"><span>Safety Center</span></a></li>
-                <li><a href="../timeline/timeline.html" target="_blank" rel="noopener noreferrer"><img src="../../../public/icons/svg/calendar.svg" alt="" aria-hidden="true"><span>modcore Timeline</span></a></li>
-                <li><a href="../snapshot/snapshot.html" target="_blank" rel="noopener noreferrer"><img src="../../../public/icons/svg/groups.svg" alt="" aria-hidden="true"><span>modcore Snapshot</span></a></li>
+                <li><a href="../automations/automations.html" target="_blank" rel="noopener noreferrer"><img src="../../shared/assets/icons/svg/rules.svg" alt="" aria-hidden="true"><span>modcore Automations</span></a></li>
+                <li><a href="../safety-center/safety-center.html" target="_blank" rel="noopener noreferrer"><img src="../../shared/assets/icons/svg/shield.svg" alt="" aria-hidden="true"><span>Safety Center</span></a></li>
+                <li><a href="../timeline/timeline.html" target="_blank" rel="noopener noreferrer"><img src="../../shared/assets/icons/svg/calendar.svg" alt="" aria-hidden="true"><span>modcore Timeline</span></a></li>
+                <li><a href="../snapshot/snapshot.html" target="_blank" rel="noopener noreferrer"><img src="../../shared/assets/icons/svg/groups.svg" alt="" aria-hidden="true"><span>modcore Snapshot</span></a></li>
             </ul>
         </div>
         <p class="subtle-hint modal-hint text-center" id="footer-info"></p>
         <p class="subtle-hint modal-hint text-center">Need more help? <a href="https://sites.google.com/view/modcore-em-help" target="_blank" rel="noopener noreferrer">Visit our help center</a>.</p>
     </dialog>
 
-    <script src="../../js/vendor/fuze.js"></script>
-    <script src="../../js/features/report/report.js"></script>
-    <script src="../../js/features/modcore-status/modcore-status.js"></script>
+    <script src="../../shared/vendor/fuze.js"></script>
+    <script src="../../shared/report.js"></script>
+    <script src="../../shared/modcore-status.js"></script>
 
     <script type="module" src="popup.js"></script>
 </body>

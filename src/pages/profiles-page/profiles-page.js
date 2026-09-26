@@ -8,16 +8,16 @@ import {
     loadProfileStore, saveProfileStore, getOrderedProfileIds, generateProfileId,
     applyProfile, normalizeShortcut, getExistingShortcuts, validateShortcut,
     registerKeyboardShortcuts, cleanupOrphanedProfileEntries
-} from '../../shared/js/profiles.js';
+} from '../../shared/profiles.js';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
-const DEFAULT_ICON_PLACEHOLDER = '../../../public/icons/svg/updatelogo.svg';
+const DEFAULT_ICON_PLACEHOLDER = '../../shared/assets/icons/svg/updatelogo.svg';
 
 const ICON = {
-    configure: '../../../public/icons/svg/settings.svg',
-    duplicate: '../../../public/icons/svg/copy.svg',
-    delete:    '../../../public/icons/svg/trash.svg',
-    shortcut:  '../../../public/icons/svg/keyboard.svg',
+    configure: '../../shared/assets/icons/svg/settings.svg',
+    duplicate: '../../shared/assets/icons/svg/copy.svg',
+    delete:    '../../shared/assets/icons/svg/trash.svg',
+    shortcut:  '../../shared/assets/icons/svg/keyboard.svg',
 };
 
 const SELF_EXT_ID = chrome.runtime.id;

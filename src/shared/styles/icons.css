@@ -1,0 +1,131 @@
+/* ==========================================================================
+   icons.css
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. BASE
+   -------------------------------------------------------------------------- */
+.icon {
+    display: inline-block;
+    width: var(--icon-size, 20px);
+    height: var(--icon-size, 20px);
+    background-color: var(--color-icon);
+    -webkit-mask-image: var(--icon-url);
+    mask-image: var(--icon-url);
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    flex-shrink: 0;
+    vertical-align: middle;
+}
+
+/* Sizes */
+.icon-16 { --icon-size: 16px; }
+.icon-20 { --icon-size: 20px; }
+.icon-24 { --icon-size: 24px; }
+.icon-32 { --icon-size: 32px; }
+.icon-48 { --icon-size: 48px; }
+
+/* Colors (override background-color which shows through the mask) */
+.icon-primary  { background-color: var(--color-primary); }
+.icon-danger   { background-color: var(--color-danger); }
+.icon-success  { background-color: var(--color-success); }
+.icon-warning  { background-color: var(--color-warning); }
+.icon-info     { background-color: var(--color-info); }
+.icon-muted    { background-color: var(--color-text-muted); }
+.icon-disabled { background-color: var(--color-text-disabled); }
+
+/* --------------------------------------------------------------------------
+   2. NAVIGATION / ARROWS
+   -------------------------------------------------------------------------- */
+.icon-arrow-down  { --icon-url: url('../assets/icons/svg/arrow-down.svg'); }
+.icon-arrow-left  { --icon-url: url('../assets/icons/svg/arrow-left.svg'); }
+.icon-arrow-right { --icon-url: url('../assets/icons/svg/arrow-right.svg'); }
+.icon-arrow-up    { --icon-url: url('../assets/icons/svg/arrow-up.svg'); }
+
+/* --------------------------------------------------------------------------
+   3. UI ACTIONS
+   -------------------------------------------------------------------------- */
+.icon-check       { --icon-url: url('../assets/icons/svg/check.svg'); }
+.icon-close       { --icon-url: url('../assets/icons/svg/close.svg'); }
+.icon-copy        { --icon-url: url('../assets/icons/svg/copy.svg'); }
+.icon-edit        { --icon-url: url('../assets/icons/svg/edit.svg'); }
+.icon-filter      { --icon-url: url('../assets/icons/svg/filter.svg'); }
+.icon-grid        { --icon-url: url('../assets/icons/svg/grid.svg'); }
+.icon-list        { --icon-url: url('../assets/icons/svg/list.svg'); }
+.icon-move        { --icon-url: url('../assets/icons/svg/move.svg'); }
+.icon-pin         { --icon-url: url('../assets/icons/svg/pin.svg'); }
+.icon-plus        { --icon-url: url('../assets/icons/svg/plus.svg'); }
+.icon-refresh     { --icon-url: url('../assets/icons/svg/refresh.svg'); }
+.icon-save        { --icon-url: url('../assets/icons/svg/save.svg'); }
+.icon-search      { --icon-url: url('../assets/icons/svg/search.svg'); }
+.icon-search-off  { --icon-url: url('../assets/icons/svg/search-off.svg'); }
+.icon-settings    { --icon-url: url('../assets/icons/svg/settings.svg'); }
+.icon-trash       { --icon-url: url('../assets/icons/svg/trash.svg'); }
+.icon-download    { --icon-url: url('../assets/icons/svg/install.svg'); }
+.icon-upload      { --icon-url: url('../assets/icons/svg/upload.svg'); }
+
+/* --------------------------------------------------------------------------
+   4. COMMUNICATION
+   -------------------------------------------------------------------------- */
+.icon-chat        { --icon-url: url('../assets/icons/svg/chat.svg'); }
+.icon-feedback    { --icon-url: url('../assets/icons/svg/feedback.svg'); }
+.icon-help        { --icon-url: url('../assets/icons/svg/help.svg'); }
+.icon-support     { --icon-url: url('../assets/icons/svg/support.svg'); }
+
+/* --------------------------------------------------------------------------
+   5. CONTENT / FILES
+   -------------------------------------------------------------------------- */
+.icon-calendar    { --icon-url: url('../assets/icons/svg/calendar.svg'); }
+.icon-cloud       { --icon-url: url('../assets/icons/svg/cloud.svg'); }
+.icon-code        { --icon-url: url('../assets/icons/svg/code.svg'); }
+.icon-current     { --icon-url: url('../assets/icons/svg/current.svg'); }
+.icon-groups      { --icon-url: url('../assets/icons/svg/groups.svg'); }
+.icon-host        { --icon-url: url('../assets/icons/svg/host.svg'); }
+.icon-keyboard    { --icon-url: url('../assets/icons/svg/keyboard.svg'); }
+.icon-link        { --icon-url: url('../assets/icons/svg/link.svg'); }
+.icon-lock        { --icon-url: url('../assets/icons/svg/lock.svg'); }
+.icon-profiles    { --icon-url: url('../assets/icons/svg/profiles.svg'); }
+.icon-rules       { --icon-url: url('../assets/icons/svg/rules.svg'); }
+.icon-star        { --icon-url: url('../assets/icons/svg/star.svg'); }
+.icon-store       { --icon-url: url('../assets/icons/svg/store.svg'); }
+.icon-tag         { --icon-url: url('../assets/icons/svg/tag.svg'); }
+
+/* --------------------------------------------------------------------------
+   6. STATUS / FEEDBACK
+   -------------------------------------------------------------------------- */
+.icon-error       { --icon-url: url('../assets/icons/svg/error.svg'); }
+.icon-info-status   { --icon-url: url('../assets/icons/svg/info.svg'); }
+.icon-loading     { --icon-url: url('../assets/icons/svg/loading.svg'); }
+.icon-warning-status { --icon-url: url('../assets/icons/svg/warning.svg'); }
+
+/* --------------------------------------------------------------------------
+   7. SAFETY
+   -------------------------------------------------------------------------- */
+.icon-shield              { --icon-url: url('../assets/icons/svg/shield.svg'); }
+.icon-shield-illustration { --icon-url: url('../assets/icons/svg/shield-illustrations.svg'); }
+.icon-scan-illustration   { --icon-url: url('../assets/icons/svg/scan-illustrations.svg'); }
+
+/* --------------------------------------------------------------------------
+   8. EXTENSION ACTIONS
+   -------------------------------------------------------------------------- */
+.icon-api         { --icon-url: url('../assets/icons/svg/api.svg'); }
+.icon-clock       { --icon-url: url('../assets/icons/svg/clock.svg'); }
+.icon-dots        { --icon-url: url('../assets/icons/svg/dots-circle1.svg'); }
+.icon-install     { --icon-url: url('../assets/icons/svg/install.svg'); }
+.icon-power       { --icon-url: url('../assets/icons/svg/power.svg'); }
+.icon-update      { --icon-url: url('../assets/icons/svg/updatelogo.svg'); }
+
+/* --------------------------------------------------------------------------
+   9. ANIMATIONS
+   -------------------------------------------------------------------------- */
+.icon-loading {
+    animation: icon-spin 1s linear infinite;
+}
+
+@keyframes icon-spin {
+    to { transform: rotate(360deg); }
+}

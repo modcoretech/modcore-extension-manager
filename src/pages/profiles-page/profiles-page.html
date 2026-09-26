@@ -22,7 +22,7 @@
 
         <!-- Loading -->
         <div id="loading-indicator" class="loading-indicator" style="display: none;" aria-label="Loading" role="status">
-            <img src="../../../public/icons/svg/loading.svg" alt="" class="spinner" aria-hidden="true">
+            <img src="../../shared/assets/icons/svg/loading.svg" alt="" class="spinner" aria-hidden="true">
             <span>Loading profiles…</span>
         </div>
 
@@ -39,13 +39,13 @@
                                aria-describedby="create-profile-hint"
                                maxlength="50">
                         <button id="add-profile-btn" class="button-small button-primary" title="Add New Profile" aria-label="Add new profile">
-                            <img src="../../../public/icons/svg/plus.svg" alt="" aria-hidden="true"> Add
+                            <img src="../../shared/assets/icons/svg/plus.svg" alt="" aria-hidden="true"> Add
                         </button>
                     </div>
                     <p class="hint-text" id="create-profile-hint">Profiles let you switch between sets of enabled/disabled extensions for different workflows.</p>
                     <div class="secondary-actions">
                         <button id="create-from-state-btn" class="button-small" title="Create a new profile that mirrors the current state of your extensions." aria-label="Create new profile from current extension states.">
-                            <img src="../../../public/icons/svg/current.svg" alt="" aria-hidden="true"> From Current State
+                            <img src="../../shared/assets/icons/svg/current.svg" alt="" aria-hidden="true"> From Current State
                         </button>
                     </div>
                 </section>
@@ -74,7 +74,7 @@
                             <div class="search-input-wrap profile-search-wrap">
                                 <input type="text" id="profile-search-input" placeholder="Search profiles…" aria-label="Search profiles by name">
                                 <button id="clear-search-btn" class="button-small icon-only search-clear-btn" type="button" aria-label="Clear search" title="Clear search">
-                                    <img src="../../../public/icons/svg/close.svg" alt="" aria-hidden="true">
+                                    <img src="../../shared/assets/icons/svg/close.svg" alt="" aria-hidden="true">
                                 </button>
                             </div>
                         </div>
@@ -85,17 +85,17 @@
                             <span>Select All</span>
                         </label>
                         <button id="modal-bulk-delete-profiles-btn" class="button-small button-danger bulk-delete-btn" title="Delete selected profiles" disabled>
-                            <img src="../../../public/icons/svg/trash.svg" alt="" aria-hidden="true"> Delete Selected
+                            <img src="../../shared/assets/icons/svg/trash.svg" alt="" aria-hidden="true"> Delete Selected
                         </button>
                     </div>
                     <ul id="profile-management-list" role="list" aria-label="Your profiles"></ul>
                     <div id="no-profiles-msg" class="no-profiles-message" style="display: none;" role="status">
-                        <img src="../../../public/icons/svg/profiles.svg" alt="" class="empty-state-icon" aria-hidden="true">
+                        <img src="../../shared/assets/icons/svg/profiles.svg" alt="" class="empty-state-icon" aria-hidden="true">
                         <p>No profiles yet</p>
                         <p class="hint-text">Create your first profile using the form on the left to get started.</p>
                     </div>
                     <div id="no-search-results-msg" class="no-profiles-message" style="display: none;" role="status">
-                        <img src="../../../public/icons/svg/search-off.svg" alt="" class="empty-state-icon" aria-hidden="true">
+                        <img src="../../shared/assets/icons/svg/search-off.svg" alt="" class="empty-state-icon" aria-hidden="true">
                         <p>No profiles match your search</p>
                         <button id="clear-search-btn-alt" class="button-small">Clear Search</button>
                     </div>
@@ -127,10 +127,10 @@
                             <div class="shortcut-input-wrap">
                                 <input type="text" id="profile-config-shortcut-input" placeholder="Click Record to capture" aria-label="Keyboard shortcut to apply this profile" maxlength="20" readonly>
                                 <button id="shortcut-record-btn" type="button" class="button-small shortcut-record-btn" title="Record keyboard shortcut" aria-label="Record keyboard shortcut" aria-pressed="false">
-                                    <img src="../../../public/icons/svg/keyboard.svg" alt="" aria-hidden="true"> Record
+                                    <img src="../../shared/assets/icons/svg/keyboard.svg" alt="" aria-hidden="true"> Record
                                 </button>
                                 <button id="shortcut-clear-btn" type="button" class="button-small icon-only" title="Clear shortcut" aria-label="Clear shortcut">
-                                    <img src="../../../public/icons/svg/trash.svg" alt="" aria-hidden="true">
+                                    <img src="../../shared/assets/icons/svg/trash.svg" alt="" aria-hidden="true">
                                 </button>
                             </div>
                             <div class="shortcut-help" id="shortcut-help-text">
@@ -142,10 +142,10 @@
 
                         <div class="config-actions-bar" style="border-top: none; margin-top: var(--space-2); padding-top: 0;">
                             <button id="save-profile-config-btn" class="button-small button-primary" title="Save profile configuration">
-                                <img src="../../../public/icons/svg/save.svg" alt="" aria-hidden="true"> Save
+                                <img src="../../shared/assets/icons/svg/save.svg" alt="" aria-hidden="true"> Save
                             </button>
                             <button id="back-to-profiles-btn" class="button-small" title="Go back to profile list">
-                                <img src="../../../public/icons/svg/arrow-left.svg" alt="" aria-hidden="true"> Back
+                                <img src="../../shared/assets/icons/svg/arrow-left.svg" alt="" aria-hidden="true"> Back
                             </button>
                         </div>
                     </div>
@@ -210,8 +210,8 @@
             </div>
         </div>
     </div>
-    <script src="../../js/vendor/fuze.js"></script>
-    <script src="../../js/features/modcore-status/modcore-status.js"></script>
+    <script src="../../shared/vendor/fuze.js"></script>
+    <script src="../../shared/modcore-status.js"></script>
 
     <script type="module" src="profiles-page.js"></script>
 </body>

@@ -14,16 +14,16 @@ import {
     normalizeShortcut,
     loadProfileStore,
     getOrderedProfileIds
-} from '../../shared/js/profiles.js';
+} from '../../shared/profiles.js';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
-export const DEFAULT_ICON_PLACEHOLDER = '../../../public/icons/svg/updatelogo.svg';
+export const DEFAULT_ICON_PLACEHOLDER = '../../shared/assets/icons/svg/updatelogo.svg';
 
 export const ICON = Object.freeze({
-    delete:    '../../../public/icons/svg/trash.svg',
-    add:       '../../../public/icons/svg/plus.svg',
-    profiles:  '../../../public/icons/svg/profiles.svg',
-    configure: '../../../public/icons/svg/settings.svg',
+    delete:    '../../shared/assets/icons/svg/trash.svg',
+    add:       '../../shared/assets/icons/svg/plus.svg',
+    profiles:  '../../shared/assets/icons/svg/profiles.svg',
+    configure: '../../shared/assets/icons/svg/settings.svg',
 });
 
 // Safe Status fallback so the popup never hard-crashes if the external status script fails

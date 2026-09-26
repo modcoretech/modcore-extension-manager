@@ -15,7 +15,7 @@ import {
     ACTION_MENU_CRX_DOWNLOAD,
     ACTION_MENU_CRX_DOCS,
     CRX_DOCS_URL,
-} from '../features/actions-menu/actions-menu.js';
+} from './actions-menu.js';
 import {
     EXTENSION_HISTORY_KEY,
     HISTORY_SETTINGS_KEY,
@@ -26,7 +26,7 @@ import {
     handlePruneByTypes,
     handlePruneToLimit,
     handleRestoreHistory,
-} from '../features/timeline/timeline-manager.js';
+} from './timeline-manager.js';
 import {
     RULES_STORAGE_KEY,
     PROFILES_STORAGE_KEY,
@@ -34,7 +34,7 @@ import {
     updateAlarmsAndCache,
     executeRuleAction,
     handleRuleAlarm,
-} from '../features/automations/automations-manager.js';
+} from './automations-manager.js';
 
 // ==========================================================================
 // Context Menu Constants
