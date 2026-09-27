@@ -74,18 +74,6 @@ export async function handleActionMenuClick(menuItemId) {
 
 // ==========================================================================
 // Dynamic action-context CRX submenu
-//
-// Context-menu state lives in the browser process and survives MV3
-// service-worker restarts, but our in-memory flags do NOT. To avoid
-// duplicate menu entries we always clear first, and force a full re-sync
-// on the first invocation after each SW spin-up.
-//
-// Additionally, several independent events (tab activation, tab URL
-// change, SW startup, context-menu install) can trigger a sync
-// concurrently. Because each sync awaits `contextMenus.remove` before
-// creating, two interleaved syncs could each pass the "not yet created"
-// guard and both attempt to create — producing duplicates. We serialize
-// all syncs through a promise chain so only one runs at a time.
 // ==========================================================================
 
 let actionCrxMenuVisible     = false;
