@@ -304,25 +304,14 @@ strong { font-weight: var(--weight-semibold); }
     color: var(--color-text-muted);
     flex-shrink: 0;
 }
-.data-card-clear:hover {
+button.btn-icon.data-card-clear:not(:disabled):hover {
     color: var(--color-danger);
     background-color: var(--color-danger-container);
 }
 
 
 /* --------------------------------------------------------------------------
-   6. Page footer
-   -------------------------------------------------------------------------- */
-.page-footer {
-    text-align: center;
-    padding-top: var(--space-2);
-    font-size: var(--text-body-sm);
-    color: var(--color-text-muted);
-}
-
-
-/* --------------------------------------------------------------------------
-   7. Buttons
+   6. Buttons
    -------------------------------------------------------------------------- */
 button.btn, a.btn {
     font-family: inherit;
@@ -417,7 +406,7 @@ button.btn-icon:focus-visible {
 
 
 /* --------------------------------------------------------------------------
-   8. Dialogs (native <dialog>)
+   7. Dialogs (native <dialog>)
    -------------------------------------------------------------------------- */
 dialog.modal {
     /* reset UA styles */
@@ -527,7 +516,7 @@ dialog.modal[open]::backdrop {
 
 
 /* --------------------------------------------------------------------------
-   9. Option list
+   8. Option list
    -------------------------------------------------------------------------- */
 .option-list {
     display: flex;
@@ -535,7 +524,11 @@ dialog.modal[open]::backdrop {
     gap: var(--space-2);
 }
 
-.option { display: block; cursor: pointer; }
+.option {
+    display: block;
+    cursor: pointer;
+    position: relative;
+}
 
 .option-input {
     position: absolute;
@@ -631,7 +624,7 @@ dialog.modal[open]::backdrop {
 
 
 /* --------------------------------------------------------------------------
-   10. Upload zone
+   9. Upload zone
    -------------------------------------------------------------------------- */
 .upload-zone {
     position: relative;
@@ -697,7 +690,7 @@ dialog.modal[open]::backdrop {
 
 
 /* --------------------------------------------------------------------------
-   11. Restore review
+   10. Restore review
    -------------------------------------------------------------------------- */
 .restore-review {
     display: flex;
@@ -734,7 +727,7 @@ dialog.modal[open]::backdrop {
     color: var(--color-text-muted);
     flex-shrink: 0;
 }
-.file-chip-remove:hover {
+button.btn-icon.file-chip-remove:not(:disabled):hover {
     color: var(--color-danger);
     background-color: var(--color-danger-container);
 }
@@ -755,7 +748,7 @@ dialog.modal[open]::backdrop {
 
 
 /* --------------------------------------------------------------------------
-   12. Warning & errors
+   11. Warning & errors
    -------------------------------------------------------------------------- */
 .warning {
     display: flex;
@@ -791,7 +784,7 @@ dialog.modal[open]::backdrop {
 
 
 /* --------------------------------------------------------------------------
-   13. Loading overlay
+   12. Loading overlay
    -------------------------------------------------------------------------- */
 .loading-overlay {
     position: fixed;
@@ -827,7 +820,7 @@ dialog.modal[open]::backdrop {
 
 
 /* --------------------------------------------------------------------------
-   14. Animations
+   13. Animations
    -------------------------------------------------------------------------- */
 @keyframes fade-in {
     from { opacity: 0; transform: translateY(8px); }
@@ -837,7 +830,7 @@ dialog.modal[open]::backdrop {
 
 
 /* --------------------------------------------------------------------------
-   15. Accessibility
+   14. Accessibility
    -------------------------------------------------------------------------- */
 *:focus-visible {
     outline: 2px solid var(--color-primary);
@@ -858,7 +851,7 @@ dialog.modal[open]::backdrop {
 
 
 /* --------------------------------------------------------------------------
-   16. Responsive
+   15. Responsive
    -------------------------------------------------------------------------- */
 @media (max-width: 720px) {
     .app { padding: var(--space-5) var(--space-4) var(--space-8); gap: var(--space-8); }

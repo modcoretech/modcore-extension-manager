@@ -50,10 +50,6 @@
                 <div class="data-grid" id="data-grid"></div>
             </section>
         </main>
-
-        <footer class="page-footer">
-            <p>Backups help you move your data between devices or browsers.</p>
-        </footer>
     </div>
 
     <!-- ============================================================
@@ -116,7 +112,7 @@
                             <span class="icon icon-upload" aria-hidden="true"></span>
                         </span>
                         <span class="upload-text">Click to choose a file or drag it here</span>
-                        <span class="upload-hint" id="restore-upload-hint">Accepts .json files up to 10 MB</span>
+                        <span class="upload-hint" id="restore-upload-hint">Accepts .json files</span>
                     </label>
                 </div>
 
@@ -161,12 +157,15 @@
         <div class="modal-panel modal-panel-sm">
             <header class="modal-head">
                 <h2 class="modal-title" id="confirm-dialog-title">Are you sure?</h2>
+                <button type="button" class="btn-icon modal-close" data-close aria-label="Close">
+                    <span class="icon icon-close" aria-hidden="true"></span>
+                </button>
             </header>
             <div class="modal-body">
                 <p class="modal-message" id="confirm-dialog-message"></p>
             </div>
             <footer class="modal-foot">
-                <button type="button" class="btn secondary" id="confirm-cancel">Cancel</button>
+                <button type="button" class="btn secondary" id="confirm-cancel" data-close>Cancel</button>
                 <button type="button" class="btn danger" id="confirm-ok">Confirm</button>
             </footer>
         </div>
@@ -178,8 +177,8 @@
         <p id="loading-text">Working…</p>
     </div>
 
-    <script src="snapshot.js"></script>
     <script src="../../shared/report.js"></script>
     <script src="../../shared/modcore-status.js"></script>
+    <script src="snapshot.js"></script>
 </body>
 </html>

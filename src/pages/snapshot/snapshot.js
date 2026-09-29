@@ -4,11 +4,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // CONSTANTS
     // =====================================================================
     const SNAPSHOT_VERSION = '4.0';
-    const MAX_BACKUP_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
     const FILENAME_PREFIX = 'modcore_snapshot';
 
     // Internal mapping of user-facing categories to chrome.storage.local keys.
-    // Keys are never shown to the user.
     const DATA_CATEGORIES = {
         profiles: {
             name: 'Profiles',
@@ -36,6 +34,20 @@ document.addEventListener('DOMContentLoaded', () => {
         },
     };
     const CATEGORY_IDS = Object.keys(DATA_CATEGORIES);
+
+    // Safe notification helper
+    const notify = {
+        success: (msg) => {
+            if (typeof Status !== 'undefined' && Status.success) {
+                Status.success(msg);
+            }
+        },
+        error: (msg) => {
+            if (typeof Status !== 'undefined' && Status.error) {
+                Status.error(msg);
+            }
+        }
+    };
 
     // =====================================================================
     // DOM
@@ -65,7 +77,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const confirmDialog  = document.getElementById('confirm-dialog');
     const confirmMessage = document.getElementById('confirm-dialog-message');
     const confirmOk      = document.getElementById('confirm-ok');
-    const confirmCancel  = document.getElementById('confirm-cancel');
 
     const loadingOverlay = document.getElementById('loading-overlay');
     const loadingText    = document.getElementById('loading-text');
@@ -78,21 +89,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // =====================================================================
     // DIALOG WIRING (native <dialog>)
     // =====================================================================
-    // Close buttons: any element with [data-close] closes its ancestor dialog.
-    document.querySelectorAll('dialog [data-close]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-            const dialog = btn.closest('dialog');
+    // Global Event Delegation for Close buttons [data-close]
+    document.addEventListener('click', (e) => {
+        const closeBtn = e.target.closest('[data-close]');
+        if (closeBtn) {
+            const dialog = closeBtn.closest('dialog');
             if (dialog) dialog.close();
-        });
+        }
     });
 
-    // Backdrop click closes. In Chrome, clicks on the ::backdrop target the
-    // dialog element itself, so this is reliable.
+    // Backdrop click closes dialogs
     document.querySelectorAll('dialog.modal').forEach((dialog) => {
         dialog.addEventListener('click', (e) => {
             if (e.target === dialog) dialog.close();
         });
     });
+
+    backupDialog.addEventListener('close', () => resetBackupDialog());
+    restoreDialog.addEventListener('close', () => resetRestoreDialog());
 
     // =====================================================================
     // LOADING
@@ -106,7 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =====================================================================
-    // CONFIRM DIALOG (returns a promise)
+    // CONFIRM DIALOG
     // =====================================================================
     function showConfirm(message) {
         return new Promise((resolve) => {
@@ -250,6 +264,15 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const id of CATEGORY_IDS) {
             const built = buildOption(id, { checked: true });
             if (!built) continue;
+
+            built.input.addEventListener('change', () => {
+                const anyChecked = CATEGORY_IDS.some((k) => backupChecks[k] && backupChecks[k].checked);
+                if (anyChecked) {
+                    backupError.hidden = true;
+                    backupError.textContent = '';
+                }
+            });
+
             backupOptions.appendChild(built.label);
             backupChecks[id] = built.input;
         }
@@ -301,13 +324,13 @@ document.addEventListener('DOMContentLoaded', () => {
             a.remove();
             URL.revokeObjectURL(url);
 
-            Status.success('Backup saved.');
+            notify.success('Backup saved.');
             backupDialog.close();
         } catch (err) {
             console.error('Backup error:', err);
             backupError.textContent = `Could not create backup: ${err.message || err}`;
             backupError.hidden = false;
-            Status.error('Backup failed.');
+            notify.error('Backup failed.');
         } finally {
             hideLoading();
         }
@@ -338,8 +361,10 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         restoreUploadZone.classList.add('dragover');
     });
-    restoreUploadZone.addEventListener('dragleave', () => {
-        restoreUploadZone.classList.remove('dragover');
+    restoreUploadZone.addEventListener('dragleave', (e) => {
+        if (!restoreUploadZone.contains(e.relatedTarget)) {
+            restoreUploadZone.classList.remove('dragover');
+        }
     });
     restoreUploadZone.addEventListener('drop', (e) => {
         e.preventDefault();
@@ -383,11 +408,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    /**
-     * Render the restore option list for the categories that are actually
-     * present in the loaded backup. Categories not in the backup are not
-     * rendered at all so the dialog never looks half-finished.
-     */
     function renderRestoreOptions() {
         restoreOptions.textContent = '';
         for (const key of Object.keys(restoreChecks)) delete restoreChecks[key];
@@ -407,6 +427,16 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const id of usable) {
             const built = buildOption(id, { checked: true, statusText: 'Ready to restore' });
             if (!built) continue;
+
+            built.input.addEventListener('change', () => {
+                const anyChecked = Object.values(restoreChecks).some((cb) => cb && cb.checked);
+                restoreConfirm.disabled = !anyChecked;
+                if (anyChecked) {
+                    restoreError.hidden = true;
+                    restoreError.textContent = '';
+                }
+            });
+
             restoreOptions.appendChild(built.label);
             restoreChecks[id] = built.input;
         }
@@ -423,15 +453,6 @@ document.addEventListener('DOMContentLoaded', () => {
         restoreError.hidden = true;
         restoreError.textContent = '';
 
-        if (file.size > MAX_BACKUP_FILE_SIZE) {
-            const mb = Math.round(MAX_BACKUP_FILE_SIZE / 1024 / 1024);
-            restoreError.textContent = `That file is too large (limit is ${mb} MB).`;
-            restoreError.hidden = false;
-            Status.error('File too large.');
-            restoreFileInput.value = '';
-            return;
-        }
-
         showLoading('Reading backup file…');
         try {
             const text = await file.text();
@@ -443,12 +464,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             restoreUploadZone.hidden = true;
             restoreReview.hidden = false;
-            Status.success('Backup loaded.');
+            notify.success('Backup loaded.');
         } catch (err) {
             console.error('File read error:', err);
             restoreError.textContent = err.message || 'Could not read this file.';
             restoreError.hidden = false;
-            Status.error('Could not read that file.');
+            notify.error('Could not read that file.');
             restoreFileInput.value = '';
             currentBackup = null;
         } finally {
@@ -485,11 +506,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     successCount++;
                 } catch (err) {
                     console.error(`Could not restore "${id}":`, err);
-                    Status.error(`Could not restore ${DATA_CATEGORIES[id].name}.`);
+                    notify.error(`Could not restore ${DATA_CATEGORIES[id].name}.`);
                 }
             }
             if (successCount > 0) {
-                Status.success(
+                notify.success(
                     successCount === 1
                         ? 'Restore complete.'
                         : `Restored ${successCount} categories.`
@@ -500,7 +521,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Restore error:', err);
             restoreError.textContent = `Could not restore backup: ${err.message}`;
             restoreError.hidden = false;
-            Status.error('Restore failed.');
+            notify.error('Restore failed.');
         } finally {
             hideLoading();
         }
@@ -563,10 +584,10 @@ document.addEventListener('DOMContentLoaded', () => {
         showLoading('Clearing data…');
         try {
             await clearCategory(id);
-            Status.success(`${cat.name} cleared.`);
+            notify.success(`${cat.name} cleared.`);
         } catch (err) {
             console.error('Clear error:', err);
-            Status.error(`Could not clear ${cat.name}.`);
+            notify.error(`Could not clear ${cat.name}.`);
         } finally {
             hideLoading();
         }
