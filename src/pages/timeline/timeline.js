@@ -1,5 +1,11 @@
 /**
  * timeline.js - modcore Timeline
+ *
+ * UI controller. Responsibilities:
+ *  - fetch history + settings, keep in-memory state
+ *  - filter / sort / paginate
+ *  - render list, detail dialog, filter popover
+ *  - delegate user input events
  */
 (() => {
     'use strict';
@@ -7,12 +13,35 @@
     /* ---------------------------------------------------------------------- */
     /*  Config                                                                */
     /* ---------------------------------------------------------------------- */
-    const SEARCH_DEBOUNCE_MS      = 200;
+    const SEARCH_DEBOUNCE_MS        = 200;
     const SETTINGS_SAVE_DEBOUNCE_MS = 400;
-    const TOAST_DURATION_MS       = 3000;
-    const UNDO_DURATION_MS        = 8000;
-    const MAX_DETAIL_HISTORY_ROWS = 5;
-    const EVENT_TYPES             = ['installed', 'uninstalled', 'updated', 'permissions_updated', 'enabled', 'disabled'];
+    const MAX_DETAIL_HISTORY_ROWS   = 6;
+
+    const EVENT_TYPES = [
+        'installed', 'uninstalled', 'updated',
+        'permissions_updated', 'enabled', 'disabled',
+    ];
+
+    /**
+     * Schema-driven settings bindings. Each entry maps a settings key to the
+     * DOM element, the property to read/write, and how to coerce the value.
+     * Adding a setting means adding a single line here.
+     */
+    const SETTINGS_BINDINGS = [
+        { key: 'trackingEnabled', domKey: 'trackingEnabledToggle', prop: 'checked', kind: 'bool' },
+        { key: 'sortOrder',       domKey: 'sortOrderSelect',       prop: 'value',  kind: 'string' },
+        { key: 'logsPerPage',     domKey: 'logsPerPageInput',      prop: 'value',  kind: 'int', min: 5,   max: 500 },
+        { key: 'pruneDays',       domKey: 'pruneDaysInput',        prop: 'value',  kind: 'int', min: 1,   max: 3650 },
+        { key: 'recordLimit',     domKey: 'recordLimitInput',      prop: 'value',  kind: 'int', min: 100, max: 10000 },
+    ];
+
+    const DEFAULT_SETTINGS = {
+        trackingEnabled: true,
+        sortOrder:       'desc',
+        logsPerPage:     25,
+        pruneDays:       90,
+        recordLimit:     1000,
+    };
 
     /* ---------------------------------------------------------------------- */
     /*  State                                                                 */
@@ -20,29 +49,21 @@
     let allHistoryRecords = [];
     let filteredRecords   = [];
     let installedExtensions = new Map();
-    let currentFilters    = {
+    let settings = { ...DEFAULT_SETTINGS };
+
+    let currentFilters = {
         searchTerm: '',
         eventTypes: new Set(EVENT_TYPES),
         startDate:  null,
-        endDate:    null
+        endDate:    null,
     };
-    // Note: extension icons and event timestamps are always shown in the
-    // timeline; those are no longer user-configurable, so there's nothing
-    // to store for them here.
-    let settings = {
-        trackingEnabled:      true,
-        sortOrder:            'desc',
-        logsPerPage:          25,
-        pruneDays:            90,
-        recordLimit:          1000,
-        relativeTimestamps:   false,
-    };
-    let currentPage  = 1;
-    let totalPages   = 1;
 
-    /* ---------------------------------------------------------------------- */
-    /*  DOM Cache                                                             */
-    /* ---------------------------------------------------------------------- */
+    let currentPage = 1;
+    let totalPages  = 1;
+
+    /** Map of recordId -> record, for event delegation on the list. */
+    const renderedRecords = new Map();
+
     const dom = {};
 
     /* ---------------------------------------------------------------------- */
@@ -55,287 +76,182 @@
 
     const escapeHtml = (str) => {
         if (str === null || str === undefined) return '';
-        return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+        return String(str).replace(/[&<>"']/g, m => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        }[m]));
     };
 
     const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
     const highlightMatch = (text, term) => {
         if (!term || !text) return escapeHtml(text);
-        const parts = text.split(new RegExp(`(${escapeRegex(term)})`, 'gi'));
-        return parts.map(part => 
-            part.toLowerCase() === term.toLowerCase() ? `<mark>${escapeHtml(part)}</mark>` : escapeHtml(part)
-        ).join('');
+        const re = new RegExp(`(${escapeRegex(term)})`, 'gi');
+        return String(text).split(re)
+            .map(part => part.toLowerCase() === term.toLowerCase()
+                ? `<mark>${escapeHtml(part)}</mark>`
+                : escapeHtml(part))
+            .join('');
     };
 
-    const showToast = (message, type = 'info', duration = TOAST_DURATION_MS, action = null) => {
-        if (!dom.toastContainer) return;
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        if (action) {
-            toast.classList.add('undo');
-            const p = document.createElement('p');
-            p.textContent = message;
-            const btn = document.createElement('button');
-            btn.className = 'btn secondary';
-            btn.textContent = 'Undo';
-            btn.addEventListener('click', action.handler, { once: true });
-            toast.append(p, btn);
+    const status = (typeof window !== 'undefined' && window.Status) ? window.Status : null;
+    const notify = {
+        info:    (m, d) => status ? status.info(m, d)    : console.log('[info]', m),
+        success: (m, d) => status ? status.success(m, d) : console.log('[success]', m),
+        warning: (m, d) => status ? status.warning(m, d) : console.warn('[warning]', m),
+        error:   (m, d) => status ? status.error(m, d)   : console.error('[error]', m),
+    };
+
+    const formatEventType = (t) => t.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+    const formatFullDate = (ts) => new Date(ts).toLocaleString(undefined, {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+    });
+
+    const formatShortDate = (ts) => new Date(ts).toLocaleDateString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric',
+    });
+
+    const recordKey = (r) =>
+        r.id || `${r.timestamp}-${r.extensionId}-${r.eventType}`;
+
+    /* ---------------------------------------------------------------------- */
+    /*  DOM cache                                                             */
+    /* ---------------------------------------------------------------------- */
+    const cacheDomElements = () => {
+        const get = (id) => document.getElementById(id);
+
+        dom.contentArea      = document.querySelector('.content-area');
+        dom.initialLoading   = get('initial-loading-indicator');
+        dom.currentYear      = get('current-year');
+        dom.panels           = document.querySelectorAll('.content-panel');
+        dom.sidebarButtons   = document.querySelectorAll('.sidebar-button[data-panel-target]');
+        dom.panelLinkButtons = document.querySelectorAll('[data-panel-target]');
+
+        /* History */
+        dom.historyList        = get('history-list');
+        dom.noHistoryMessage   = get('no-history-message');
+        dom.searchInput        = get('search-input');
+        dom.clearSearchBtn     = get('clear-search-btn');
+        dom.filterToggleButton = get('filter-toggle-btn');
+        dom.filterPanel        = get('filter-panel');
+        dom.eventTypeFilters   = get('event-type-filters');
+        dom.startDateInput     = get('start-date-input');
+        dom.endDateInput       = get('end-date-input');
+        dom.clearAllButton     = get('clear-all-btn');
+        dom.resetFiltersBtn    = get('reset-filters-btn');
+        dom.selectAllFiltersBtn  = get('select-all-filters-btn');
+        dom.selectNoneFiltersBtn = get('select-none-filters-btn');
+
+        /* Pagination */
+        dom.paginationControls = get('pagination-controls');
+        dom.prevPageBtn        = get('prev-page-btn');
+        dom.nextPageBtn        = get('next-page-btn');
+        dom.currentPageDisplay = get('current-page-display');
+        dom.totalPagesDisplay  = get('total-pages-display');
+
+        /* Settings */
+        dom.trackingEnabledToggle  = get('tracking-enabled-toggle');
+        dom.pruneDaysInput         = get('prune-days-input');
+        dom.pruneNowButton         = get('prune-now-btn');
+        dom.sortOrderSelect        = get('sort-order-select');
+        dom.logsPerPageInput       = get('logs-per-page-input');
+        dom.recordLimitInput       = get('record-limit-input');
+        dom.resetDefaultsBtn       = get('reset-defaults-btn');
+        dom.settingsSavedIndicator = get('settings-saved-indicator');
+        dom.pruneInactiveBtn       = get('prune-inactive-btn');
+        dom.pruneByTypeBtn         = get('prune-by-type-btn');
+
+        /* Dialogs */
+        dom.pruneByTypeModal    = get('prune-by-type-modal');
+        dom.pruneTypeOptions    = get('prune-type-options');
+        dom.pruneTypeCancelBtn  = get('prune-type-cancel-btn');
+        dom.pruneTypeConfirmBtn = get('prune-type-confirm-btn');
+
+        dom.detailModal     = get('detail-modal');
+        dom.detailContent   = get('detail-content');
+        dom.closeDetailBtn  = get('close-detail-btn');
+        dom.copyDetailIdBtn = get('copy-detail-id-btn');
+
+        dom.checkboxTemplate = get('checkbox-template');
+    };
+
+    /* ---------------------------------------------------------------------- */
+    /*  Dialog helpers                                                        */
+    /* ---------------------------------------------------------------------- */
+    const showDialog = (dialog) => {
+        if (!dialog) return;
+        if (typeof dialog.showModal === 'function') {
+            if (!dialog.open) dialog.showModal();
         } else {
-            toast.textContent = message;
+            dialog.setAttribute('open', '');
         }
-        dom.toastContainer.appendChild(toast);
-        requestAnimationFrame(() => {
-            toast.classList.add('show');
-            setTimeout(() => {
-                toast.classList.remove('show');
-                toast.addEventListener('transitionend', () => toast.remove(), { once: true });
-            }, duration);
-        });
     };
 
+    const closeDialog = (dialog) => {
+        if (!dialog) return;
+        if (typeof dialog.close === 'function') {
+            if (dialog.open) dialog.close();
+        } else {
+            dialog.removeAttribute('open');
+        }
+    };
+
+    /* ---------------------------------------------------------------------- */
+    /*  Shared UI builders                                                    */
+    /* ---------------------------------------------------------------------- */
+    const buildCheckbox = (type, checked) => {
+        const node = dom.checkboxTemplate.content.firstElementChild.cloneNode(true);
+        const input = node.querySelector('input');
+        input.value = type;
+        input.checked = checked;
+        node.querySelector('.checkbox-label').textContent = formatEventType(type);
+        return node;
+    };
+
+    const buildEmptyState = () => {
+        const wrap = document.createElement('div');
+        wrap.className = 'empty-state';
+        const icon = document.createElement('span');
+        icon.className = 'icon icon-search-off';
+        icon.style.cssText = 'width:48px;height:48px;margin-bottom:var(--space-3);opacity:.5';
+        icon.setAttribute('aria-hidden', 'true');
+        const msg = document.createElement('p');
+        msg.textContent = 'No events found.';
+        const hint = document.createElement('p');
+        hint.className = 'text-secondary';
+        hint.textContent = 'Try adjusting your filters or search terms.';
+        wrap.append(icon, msg, hint);
+        return wrap;
+    };
+
+    /* ---------------------------------------------------------------------- */
+    /*  Loading                                                               */
+    /* ---------------------------------------------------------------------- */
     const setBusyState = (busy) => {
         if (!dom.initialLoading || !dom.contentArea) return;
         dom.initialLoading.style.display = busy ? 'flex' : 'none';
-        dom.contentArea.style.opacity    = busy ? '0.5' : '1';
+        dom.contentArea.style.opacity = busy ? '0.5' : '1';
         dom.contentArea.style.pointerEvents = busy ? 'none' : 'auto';
         dom.sidebarButtons.forEach(b => b.disabled = busy);
     };
 
     const setActionLoading = (busy) => {
-        [dom.clearAllButton, dom.pruneNowButton, dom.pruneInactiveBtn, dom.pruneByTypeBtn,
-         dom.resetDefaultsBtn].forEach(b => { if (b) b.disabled = busy; });
-    };
-
-    const showModal = (id) => {
-        const m = dom[id];
-        if (!m) return;
-        dom.modalBackdrop.hidden = false;
-        m.hidden = false;
-        m.setAttribute('aria-hidden', 'false');
-        requestAnimationFrame(() => m.classList.add('is-visible'));
-    };
-
-    const hideModal = (id) => {
-        const m = dom[id];
-        if (!m) return;
-        m.classList.remove('is-visible');
-        m.addEventListener('transitionend', () => {
-            dom.modalBackdrop.hidden = true;
-            m.hidden = true;
-            m.setAttribute('aria-hidden', 'true');
-        }, { once: true });
-    };
-
-    const formatEventType = (t) => t.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-
-    const formatRelativeTime = (ts) => {
-        const diff = Date.now() - ts;
-        const sec  = Math.floor(diff / 1000);
-        const min  = Math.floor(sec / 60);
-        const hr   = Math.floor(min / 60);
-        const day  = Math.floor(hr / 24);
-        const week = Math.floor(day / 7);
-        const month= Math.floor(day / 30);
-        if (sec < 10)  return 'Just now';
-        if (sec < 60)  return `${sec}s ago`;
-        if (min < 60)  return `${min}m ago`;
-        if (hr < 24)   return `${hr}h ago`;
-        if (day < 7)   return `${day}d ago`;
-        if (week < 4)  return `${week}w ago`;
-        if (month < 12)return `${month}mo ago`;
-        return new Date(ts).toLocaleDateString();
-    };
-
-    const formatFullDate = (ts) => {
-        const d = new Date(ts);
-        return d.toLocaleString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' });
-    };
-
-    const showSaveIndicator = () => {
-        if (!dom.settingsSavedIndicator) return;
-        dom.settingsSavedIndicator.hidden = false;
-        dom.settingsSavedIndicator.classList.add('visible');
-        clearTimeout(dom.settingsSavedIndicator._t);
-        dom.settingsSavedIndicator._t = setTimeout(() => dom.settingsSavedIndicator.classList.remove('visible'), 2000);
+        [dom.clearAllButton, dom.pruneNowButton, dom.pruneInactiveBtn,
+         dom.pruneByTypeBtn, dom.resetDefaultsBtn]
+            .forEach(b => { if (b) b.disabled = busy; });
     };
 
     /* ---------------------------------------------------------------------- */
-    /*  Init                                                                  */
-    /* ---------------------------------------------------------------------- */
-    const initializeApp = async () => {
-        cacheDomElements();
-        setupEventListeners();
-        await loadSettings();
-        setBusyState(true);
-        await Promise.all([loadInstalledExtensions(), loadInitialData(false)]);
-        buildFilterCheckboxes();
-        if (dom.currentYear) dom.currentYear.textContent = new Date().getFullYear();
-        checkHistoryLimit();
-        setBusyState(false);
-    };
-
-    const cacheDomElements = () => {
-        dom.sidebar           = document.querySelector('.sidebar');
-        dom.contentArea       = document.querySelector('.content-area');
-        dom.toastContainer    = document.getElementById('toast-container');
-        dom.initialLoading    = document.getElementById('initial-loading-indicator');
-        dom.currentYear       = document.getElementById('current-year');
-        dom.panels            = document.querySelectorAll('.content-panel');
-        dom.sidebarButtons    = document.querySelectorAll('.sidebar-button[data-panel-target]');
-        dom.panelLinkButtons  = document.querySelectorAll('[data-panel-target]');
-
-        /* History */
-        dom.historyContentWrapper = document.getElementById('history-content-wrapper');
-        dom.historyList           = document.getElementById('history-list');
-        dom.noHistoryMessage      = document.getElementById('no-history-message');
-        dom.searchInput           = document.getElementById('search-input');
-        dom.clearSearchBtn        = document.getElementById('clear-search-btn');
-        dom.filterToggleButton    = document.getElementById('filter-toggle-btn');
-        dom.filterPanel           = document.getElementById('filter-panel');
-        dom.filterBackdrop        = document.getElementById('filter-backdrop');
-        dom.closeFilterSheet      = document.getElementById('close-filter-sheet');
-        dom.eventTypeFilters      = document.getElementById('event-type-filters');
-        dom.startDateInput        = document.getElementById('start-date-input');
-        dom.endDateInput          = document.getElementById('end-date-input');
-        dom.clearAllButton        = document.getElementById('clear-all-btn');
-        dom.resetFiltersBtn       = document.getElementById('reset-filters-btn');
-        dom.selectAllFiltersBtn   = document.getElementById('select-all-filters-btn');
-        dom.selectNoneFiltersBtn  = document.getElementById('select-none-filters-btn');
-        dom.recordCountDisplay    = document.getElementById('record-count-display');
-
-        /* Pagination */
-        dom.paginationControls   = document.getElementById('pagination-controls');
-        dom.prevPageBtn          = document.getElementById('prev-page-btn');
-        dom.nextPageBtn          = document.getElementById('next-page-btn');
-        dom.currentPageDisplay   = document.getElementById('current-page-display');
-        dom.totalPagesDisplay    = document.getElementById('total-pages-display');
-
-        /* Settings */
-        dom.trackingEnabledToggle      = document.getElementById('tracking-enabled-toggle');
-        dom.pruneDaysInput             = document.getElementById('prune-days-input');
-        dom.pruneNowButton             = document.getElementById('prune-now-btn');
-        dom.sortOrderSelect            = document.getElementById('sort-order-select');
-        dom.logsPerPageInput           = document.getElementById('logs-per-page-input');
-        dom.recordLimitInput           = document.getElementById('record-limit-input');
-        dom.relativeTimestampsToggle   = document.getElementById('relative-timestamps-toggle');
-        dom.resetDefaultsBtn           = document.getElementById('reset-defaults-btn');
-        dom.settingsSavedIndicator     = document.getElementById('settings-saved-indicator');
-        dom.pruneInactiveBtn           = document.getElementById('prune-inactive-btn');
-        dom.pruneByTypeBtn             = document.getElementById('prune-by-type-btn');
-
-        /* Modals */
-        dom.pruneByTypeModal   = document.getElementById('prune-by-type-modal');
-        dom.modalBackdrop      = document.getElementById('modal-backdrop');
-        dom.pruneTypeOptions   = document.getElementById('prune-type-options');
-        dom.pruneTypeCancelBtn = document.getElementById('prune-type-cancel-btn');
-        dom.pruneTypeConfirmBtn= document.getElementById('prune-type-confirm-btn');
-
-        /* Detail Modal */
-        dom.detailModal        = document.getElementById('detail-modal');
-        dom.detailContent      = document.getElementById('detail-content');
-        dom.closeDetailBtn     = document.getElementById('close-detail-btn');
-        dom.copyDetailIdBtn    = document.getElementById('copy-detail-id-btn');
-    };
-
-    const setupEventListeners = () => {
-        /* Navigation */
-        dom.panelLinkButtons.forEach(btn => {
-            btn.addEventListener('click', () => switchPanel(btn.dataset.panelTarget));
-        });
-
-        /* History */
-        dom.searchInput.addEventListener('input', debounce(handleSearchInput, SEARCH_DEBOUNCE_MS));
-        dom.clearSearchBtn.addEventListener('click', handleClearSearch);
-        dom.filterToggleButton.addEventListener('click', toggleFilterPanel);
-        dom.closeFilterSheet?.addEventListener('click', toggleFilterPanel);
-        dom.filterBackdrop?.addEventListener('click', toggleFilterPanel);
-        dom.resetFiltersBtn.addEventListener('click', handleResetFilters);
-        dom.selectAllFiltersBtn.addEventListener('click', handleSelectAllFilters);
-        dom.selectNoneFiltersBtn.addEventListener('click', handleSelectNoneFilters);
-        dom.clearAllButton.addEventListener('click', handleClearAllHistory);
-        dom.eventTypeFilters.addEventListener('change', handleFilterChange);
-        dom.startDateInput.addEventListener('change', handleDateFilterChange);
-        dom.endDateInput.addEventListener('change', handleDateFilterChange);
-
-        /* Pagination */
-        dom.prevPageBtn.addEventListener('click', () => handlePageChange(-1));
-        dom.nextPageBtn.addEventListener('click', () => handlePageChange(1));
-
-        /* Settings - auto-save wiring */
-        const autoSaveToggles = [
-            dom.trackingEnabledToggle, dom.relativeTimestampsToggle, dom.sortOrderSelect
-        ];
-        autoSaveToggles.forEach(el => el && el.addEventListener('change', () => debouncedAutoSave()));
-
-        const numericAutoSave = [
-            { el: dom.pruneDaysInput,   min: 1,    max: 3650 },
-            { el: dom.logsPerPageInput, min: 5,    max: 500 },
-            { el: dom.recordLimitInput, min: 100,  max: 10000 },
-        ];
-        numericAutoSave.forEach(({ el, min, max }) => {
-            if (!el) return;
-            el.addEventListener('change', () => {
-                let v = parseInt(el.value, 10);
-                if (isNaN(v) || v < min) v = min;
-                if (v > max) v = max;
-                el.value = v;
-                debouncedAutoSave();
-            });
-        });
-
-        dom.pruneNowButton.addEventListener('click', handlePruneNow);
-        dom.pruneInactiveBtn.addEventListener('click', handlePruneInactive);
-        dom.pruneByTypeBtn.addEventListener('click', handlePruneByTypeModalOpen);
-        dom.resetDefaultsBtn.addEventListener('click', handleResetDefaults);
-
-        /* Modals */
-        dom.pruneTypeCancelBtn.addEventListener('click', () => hideModal('pruneByTypeModal'));
-        dom.pruneTypeConfirmBtn.addEventListener('click', handlePruneByTypeConfirm);
-
-        /* Detail Modal */
-        if (dom.closeDetailBtn) dom.closeDetailBtn.addEventListener('click', () => hideModal('detailModal'));
-        if (dom.copyDetailIdBtn) dom.copyDetailIdBtn.addEventListener('click', handleCopyDetailId);
-
-        /* Keyboard shortcuts */
-        document.addEventListener('keydown', handleGlobalKeydown);
-
-        /* Modal backdrop click */
-        dom.modalBackdrop.addEventListener('click', () => {
-            hideModal('pruneByTypeModal');
-            hideModal('detailModal');
-        });
-    };
-
-    const handleGlobalKeydown = (e) => {
-        if (e.key === 'Escape') {
-            if (!dom.detailModal.hidden) { hideModal('detailModal'); return; }
-            if (!dom.pruneByTypeModal.hidden) { hideModal('pruneByTypeModal'); return; }
-            if (dom.filterPanel.classList.contains('is-visible')) {
-                toggleFilterPanel();
-                return;
-            }
-            if (document.activeElement === dom.searchInput) {
-                handleClearSearch();
-                return;
-            }
-        }
-        if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.tagName !== 'SELECT') {
-            e.preventDefault();
-            dom.searchInput.focus();
-        }
-    };
-
-    /* ---------------------------------------------------------------------- */
-    /*  Data & State                                                          */
+    /*  Data loading                                                          */
     /* ---------------------------------------------------------------------- */
     const loadInstalledExtensions = async () => {
         try {
             const exts = await chrome.management.getAll();
-            installedExtensions = new Map(exts.map(e => [e.id, { 
-                name: e.name, 
+            installedExtensions = new Map(exts.map(e => [e.id, {
+                name:    e.name,
                 enabled: e.enabled,
-                iconUrl: e.icons?.[e.icons.length - 1]?.url || e.icons?.[0]?.url || null
+                iconUrl: e.icons?.[e.icons.length - 1]?.url || e.icons?.[0]?.url || null,
             }]));
         } catch (e) {
             console.warn('Failed to load installed extensions:', e);
@@ -345,11 +261,11 @@
     const loadSettings = async () => {
         try {
             const res = await chrome.runtime.sendMessage({ type: 'GET_HISTORY_SETTINGS' });
-            if (res?.settings) settings = { ...settings, ...res.settings };
+            if (res?.settings) settings = { ...DEFAULT_SETTINGS, ...res.settings };
             syncSettingsToUI();
         } catch (e) {
             console.error('Error loading settings:', e);
-            showToast('Failed to load settings.', 'error');
+            notify.error('Failed to load settings.');
         }
     };
 
@@ -368,9 +284,9 @@
             checkHistoryLimit();
         } catch (e) {
             console.error('Error loading history:', e);
-            showToast('Failed to load history data.', 'error');
+            notify.error('Failed to load history data.');
             if (dom.noHistoryMessage) {
-                dom.noHistoryMessage.innerHTML = '<div class="empty-state"><p>Could not load history.</p></div>';
+                dom.noHistoryMessage.replaceChildren(buildEmptyState());
                 dom.noHistoryMessage.hidden = false;
             }
         } finally {
@@ -378,116 +294,136 @@
         }
     };
 
+    /* ---------------------------------------------------------------------- */
+    /*  Filtering / sorting / pagination                                      */
+    /* ---------------------------------------------------------------------- */
     const applyFiltersAndSort = () => {
         const term = currentFilters.searchTerm;
+        const types = currentFilters.eventTypes;
+        const s = currentFilters.startDate;
+        const e = currentFilters.endDate;
+
         filteredRecords = allHistoryRecords.filter(r => {
-            const searchMatch = !term ||
-                (r.extensionName || '').toLowerCase().includes(term) ||
-                (r.extensionId || '').toLowerCase().includes(term) ||
-                (r.details || '').toLowerCase().includes(term);
-            const typeMatch = currentFilters.eventTypes.has(r.eventType);
-            const s = currentFilters.startDate;
-            const e = currentFilters.endDate;
-            const dateMatch = (!s || r.timestamp >= s) && (!e || r.timestamp <= e);
-            return searchMatch && typeMatch && dateMatch;
+            if (!types.has(r.eventType)) return false;
+            if (s && r.timestamp < s) return false;
+            if (e && r.timestamp > e) return false;
+            if (!term) return true;
+            return (r.extensionName || '').toLowerCase().includes(term)
+                || (r.extensionId   || '').toLowerCase().includes(term)
+                || (r.details       || '').toLowerCase().includes(term);
         });
 
         const so = settings.sortOrder;
         if (so === 'desc' || so === 'asc') {
-            filteredRecords.sort((a, b) => so === 'desc' ? b.timestamp - a.timestamp : a.timestamp - b.timestamp);
-        } else if (so === 'name') {
-            filteredRecords.sort((a, b) => (a.extensionName || '').localeCompare(b.extensionName || '') || b.timestamp - a.timestamp);
+            const dir = so === 'desc' ? -1 : 1;
+            filteredRecords.sort((a, b) => dir * (a.timestamp - b.timestamp));
+        } else if (so === 'name' || so === 'group') {
+            filteredRecords.sort((a, b) =>
+                (a.extensionName || '').localeCompare(b.extensionName || '')
+                || (b.timestamp - a.timestamp));
         } else if (so === 'type') {
-            filteredRecords.sort((a, b) => a.eventType.localeCompare(b.eventType) || b.timestamp - a.timestamp);
-        } else if (so === 'group') {
-            filteredRecords.sort((a, b) => (a.extensionName || '').localeCompare(b.extensionName || '') || b.timestamp - a.timestamp);
+            filteredRecords.sort((a, b) =>
+                a.eventType.localeCompare(b.eventType)
+                || (b.timestamp - a.timestamp));
         }
 
         currentPage = 1;
         totalPages  = Math.max(1, Math.ceil(filteredRecords.length / settings.logsPerPage));
         renderHistory();
-        updateRecordCount();
     };
 
-    const updateSettingsControlsState = () => {
-        const on = dom.trackingEnabledToggle.checked;
-        [dom.pruneNowButton, dom.pruneDaysInput, dom.recordLimitInput,
-         dom.pruneInactiveBtn, dom.pruneByTypeBtn].forEach(el => { if (el) el.disabled = !on; });
-    };
-
-    const checkHistoryLimit = () => {
-        if (!settings.trackingEnabled || allHistoryRecords.length <= settings.recordLimit) return;
-        handleAutoPrune();
-    };
-
-    const handleAutoPrune = async () => {
-        try {
-            await chrome.runtime.sendMessage({ type: 'PRUNE_HISTORY_TO_LIMIT', payload: { limit: settings.recordLimit } });
-            await loadInitialData(false);
-            showToast(`History pruned to ${settings.recordLimit} records.`, 'success');
-        } catch (e) {
-            console.error('Auto-prune failed:', e);
+    const handlePageChange = (dir) => {
+        const np = currentPage + dir;
+        if (np > 0 && np <= totalPages) {
+            currentPage = np;
+            renderHistory();
         }
     };
 
     /* ---------------------------------------------------------------------- */
-    /*  UI Rendering                                                          */
+    /*  History list rendering                                                */
     /* ---------------------------------------------------------------------- */
-    const switchPanel = (targetId) => {
-        const targetPanel = document.getElementById(targetId);
-        if (!targetPanel) return;
-        dom.sidebarButtons.forEach(btn => {
-            const active = btn.dataset.panelTarget === targetId;
-            btn.classList.toggle('active', active);
-            btn.setAttribute('aria-current', active ? 'page' : 'false');
-        });
-        dom.panels.forEach(panel => {
-            const isTarget = panel.id === targetId;
-            panel.hidden = !isTarget;
-            panel.classList.toggle('active', isTarget);
-        });
+    const getDayKey = (ts) => {
+        const fmt = (d) => d.toLocaleDateString(undefined,
+            { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        const todayStr     = fmt(new Date());
+        const yesterdayStr = fmt(new Date(Date.now() - 864e5));
+        const key = fmt(new Date(ts));
+        if (key === todayStr) return 'Today';
+        if (key === yesterdayStr) return 'Yesterday';
+        return key;
     };
 
-    const buildFilterCheckboxes = () => {
-        while (dom.eventTypeFilters.firstChild) dom.eventTypeFilters.removeChild(dom.eventTypeFilters.firstChild);
-        const frag = document.createDocumentFragment();
-        EVENT_TYPES.forEach(type => {
-            const label = document.createElement('label');
-            label.className = 'checkbox-container';
-            const input = document.createElement('input');
-            input.type = 'checkbox';
-            input.value = type;
-            input.checked = currentFilters.eventTypes.has(type);
-            const checkmark = document.createElement('span');
-            checkmark.className = 'checkmark';
-            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            svg.setAttribute('viewBox', '0 0 24 24');
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            path.setAttribute('d', 'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z');
-            svg.appendChild(path);
-            checkmark.appendChild(svg);
-            const text = document.createTextNode(formatEventType(type));
-            label.append(input, checkmark, text);
-            frag.appendChild(label);
-        });
-        dom.eventTypeFilters.appendChild(frag);
+    const buildHistoryItem = (record) => {
+        const item = document.createElement('div');
+        item.className = 'history-item';
+        const key = recordKey(record);
+        item.dataset.recordId = key;
+        item.setAttribute('tabindex', '0');
+        item.setAttribute('role', 'listitem');
+        item.setAttribute('aria-label',
+            `${record.extensionName || 'Unknown'}, ${formatEventType(record.eventType)}`);
+        renderedRecords.set(key, record);
+
+        /* Icon + badge */
+        const iconWrap = document.createElement('div');
+        iconWrap.className = 'item-icon';
+        const ext = installedExtensions.get(record.extensionId);
+        const iconImg = document.createElement('img');
+        iconImg.className = 'extension-icon-img';
+        iconImg.alt = '';
+        iconImg.loading = 'lazy';
+        iconImg.src = ext?.iconUrl || `chrome://extension-icon/${record.extensionId}/32/0`;
+        iconWrap.appendChild(iconImg);
+
+        const badge = document.createElement('span');
+        badge.className = `status-badge status-badge-${record.eventType}`;
+        iconWrap.appendChild(badge);
+
+        /* Content */
+        const content = document.createElement('div');
+        content.className = 'history-item-content';
+
+        const header = document.createElement('div');
+        header.className = 'history-item-header';
+        header.innerHTML = highlightMatch(
+            `${record.extensionName || 'Unknown'} (v${record.extensionVersion || 'N/A'})`,
+            currentFilters.searchTerm
+        );
+
+        const metaRow = document.createElement('div');
+        metaRow.className = 'history-item-meta-row';
+        const details = document.createElement('span');
+        details.className = 'history-item-details';
+        const detailText = formatEventType(record.eventType)
+            + (record.details ? ` — ${record.details}` : '');
+        details.innerHTML = highlightMatch(detailText, currentFilters.searchTerm);
+        metaRow.appendChild(details);
+
+        content.append(header, metaRow);
+        item.append(iconWrap, content);
+
+        const time = document.createElement('div');
+        time.className = 'history-item-meta';
+        time.textContent = new Date(record.timestamp).toLocaleTimeString();
+        item.appendChild(time);
+
+        return item;
     };
 
     const renderHistory = () => {
         if (!dom.historyList) return;
-        while (dom.historyList.firstChild) dom.historyList.removeChild(dom.historyList.firstChild);
-        const start = (currentPage - 1) * settings.logsPerPage;
-        const page  = filteredRecords.slice(start, start + settings.logsPerPage);
+        dom.historyList.replaceChildren();
+        renderedRecords.clear();
+
+        const page = filteredRecords.slice(
+            (currentPage - 1) * settings.logsPerPage,
+            currentPage * settings.logsPerPage
+        );
 
         if (filteredRecords.length === 0) {
+            dom.noHistoryMessage.replaceChildren(buildEmptyState());
             dom.noHistoryMessage.hidden = false;
-            dom.noHistoryMessage.innerHTML = `
-                <div class="empty-state">
-                    <span class="icon icon-search-off" style="width: 48px; height: 48px; margin-bottom: var(--space-3); opacity: 0.5;"></span>
-                    <p>No events found.</p>
-                    <p class="text-secondary">Try adjusting your filters or search terms.</p>
-                </div>
-            `;
             dom.paginationControls.hidden = true;
             return;
         }
@@ -497,217 +433,23 @@
 
         const frag = document.createDocumentFragment();
         const isGroup = settings.sortOrder === 'group';
+        let lastGroupKey = null;
 
-        if (isGroup) {
-            let lastGroup = null;
-            page.forEach(r => {
-                const groupName = r.extensionName || 'Unknown Extension';
-                if (groupName !== lastGroup) {
-                    const h = document.createElement('h3');
-                    h.className = 'history-group-header';
-                    h.textContent = groupName;
-                    frag.appendChild(h);
-                    lastGroup = groupName;
-                }
-                frag.appendChild(createHistoryItemElement(r));
-            });
-        } else {
-            let lastDay = null;
-            page.forEach(r => {
-                const dayKey = getDayKey(r.timestamp);
-                if (dayKey !== lastDay) {
-                    const h = document.createElement('h3');
-                    h.className = 'history-day-header';
-                    h.textContent = dayKey;
-                    frag.appendChild(h);
-                    lastDay = dayKey;
-                }
-                frag.appendChild(createHistoryItemElement(r));
-            });
+        for (const r of page) {
+            const groupKey = isGroup ? (r.extensionName || 'Unknown Extension')
+                                     : getDayKey(r.timestamp);
+            if (groupKey !== lastGroupKey) {
+                const h = document.createElement('h3');
+                h.className = isGroup ? 'history-group-header' : 'history-day-header';
+                h.textContent = groupKey;
+                frag.appendChild(h);
+                lastGroupKey = groupKey;
+            }
+            frag.appendChild(buildHistoryItem(r));
         }
 
         dom.historyList.appendChild(frag);
         renderPagination();
-    };
-
-    const getDayKey = (ts) => {
-        const today = new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-        const yesterday = new Date(Date.now()-864e5).toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-        let key = new Date(ts).toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-        if (key === today) key = 'Today';
-        else if (key === yesterday) key = 'Yesterday';
-        return key;
-    };
-
-    const createHistoryItemElement = (record) => {
-        const item = document.createElement('div');
-        item.className = 'history-item';
-        item.dataset.recordId = record.id || `${record.timestamp}-${record.extensionId}-${record.eventType}`;
-        item.setAttribute('tabindex', '0');
-        item.setAttribute('role', 'listitem');
-        item.setAttribute('aria-label', `${record.extensionName || 'Unknown'}, ${formatEventType(record.eventType)}`);
-
-        const iconWrap = document.createElement('div');
-        iconWrap.className = 'item-icon';
-
-        const ext = installedExtensions.get(record.extensionId);
-
-        const iconImg = document.createElement('img');
-        iconImg.className = 'extension-icon-img';
-        iconImg.alt = '';
-        iconImg.loading = 'lazy';
-        iconImg.src = ext?.iconUrl || `chrome://extension-icon/${record.extensionId}/32/0`;
-        // Attached via addEventListener (not an inline `onerror="..."` attribute)
-        // so this keeps working under the extension's content-security-policy,
-        // which disallows inline event handlers.
-        iconImg.addEventListener('error', () => {
-            iconImg.style.display = 'none';
-            const fallback = document.createElement('div');
-            fallback.className = 'extension-icon-fallback';
-            fallback.textContent = (record.extensionName || '?').charAt(0).toUpperCase();
-            iconWrap.appendChild(fallback);
-        }, { once: true });
-        iconWrap.appendChild(iconImg);
-
-        const badge = document.createElement('span');
-        badge.className = `status-badge status-badge-${record.eventType}`;
-        iconWrap.appendChild(badge);
-
-        const content = document.createElement('div');
-        content.className = 'history-item-content';
-        const header = document.createElement('div');
-        header.className = 'history-item-header';
-        header.innerHTML = highlightMatch(`${record.extensionName || 'Unknown'} (v${record.extensionVersion || 'N/A'})`, currentFilters.searchTerm);
-
-        const metaRow = document.createElement('div');
-        metaRow.className = 'history-item-meta-row';
-
-        const details = document.createElement('span');
-        details.className = 'history-item-details';
-        const detailText = formatEventType(record.eventType) + (record.details ? ` — ${record.details}` : '');
-        details.innerHTML = highlightMatch(detailText, currentFilters.searchTerm);
-
-        metaRow.appendChild(details);
-        content.append(header, metaRow);
-
-        item.append(iconWrap, content);
-
-        const time = document.createElement('div');
-        time.className = 'history-item-meta';
-        time.textContent = settings.relativeTimestamps
-            ? formatRelativeTime(record.timestamp)
-            : new Date(record.timestamp).toLocaleTimeString();
-        item.appendChild(time);
-
-        item.addEventListener('click', () => openDetailModal(record));
-        item.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetailModal(record); } });
-        return item;
-    };
-
-    const openDetailModal = (record) => {
-        if (!dom.detailContent) return;
-        const ext = installedExtensions.get(record.extensionId);
-        const isInstalled = !!ext;
-        const iconUrl = ext?.iconUrl || `chrome://extension-icon/${record.extensionId}/32/0`;
-        
-        const extHistory = allHistoryRecords
-            .filter(r => r.extensionId === record.extensionId)
-            .slice(0, MAX_DETAIL_HISTORY_ROWS);
-
-        dom.detailContent.innerHTML = `
-            <div class="detail-header">
-                <img src="${escapeHtml(iconUrl)}" alt="" class="detail-icon">
-                <div class="detail-header-info">
-                    <h4>${escapeHtml(record.extensionName || 'Unknown Extension')}</h4>
-                    <span class="detail-version">Version ${escapeHtml(record.extensionVersion || 'N/A')}</span>
-                </div>
-            </div>
-            
-            <div class="detail-grid">
-                <div class="detail-cell">
-                    <strong>Event</strong>
-                    <span class="detail-event detail-event-${record.eventType}">${formatEventType(record.eventType)}</span>
-                </div>
-                <div class="detail-cell">
-                    <strong>Current Status</strong>
-                    <span class="extension-status ${isInstalled ? (ext.enabled ? 'status-enabled' : 'status-disabled') : 'status-uninstalled'}">
-                        ${isInstalled ? (ext.enabled ? 'Enabled' : 'Disabled') : 'Uninstalled'}
-                    </span>
-                </div>
-                <div class="detail-cell">
-                    <strong>Date</strong>
-                    <span>${formatFullDate(record.timestamp)}</span>
-                </div>
-                <div class="detail-cell">
-                    <strong>Relative Time</strong>
-                    <span>${formatRelativeTime(record.timestamp)}</span>
-                </div>
-            </div>
-
-            <div class="detail-row">
-                <strong>Extension ID</strong>
-                <code class="detail-code" id="detail-extension-id">${escapeHtml(record.extensionId)}</code>
-            </div>
-
-            ${record.details ? `
-            <div class="detail-row detail-details">
-                <strong>Event Details</strong>
-                <p>${escapeHtml(record.details)}</p>
-            </div>` : ''}
-
-            ${extHistory.length > 1 ? `
-            <div class="detail-recent">
-                <strong>Recent Activity for This Extension</strong>
-                <ul class="detail-recent-list">
-                    ${extHistory.map(r => `
-                        <li>
-                            <span class="detail-recent-event detail-event-${r.eventType}">${formatEventType(r.eventType)}</span>
-                            <span class="detail-recent-time">${settings.relativeTimestamps ? formatRelativeTime(r.timestamp) : new Date(r.timestamp).toLocaleTimeString()}</span>
-                        </li>
-                    `).join('')}
-                </ul>
-            </div>` : ''}
-        `;
-        
-        const detailIcon = dom.detailContent.querySelector('.detail-icon');
-        // Attached via addEventListener, not an inline `onerror` attribute,
-        // so it isn't blocked by the extension page's content-security-policy.
-        detailIcon?.addEventListener('error', () => { detailIcon.style.display = 'none'; }, { once: true });
-
-        if (dom.copyDetailIdBtn) dom.copyDetailIdBtn.disabled = false;
-        showModal('detailModal');
-    };
-
-    const handleCopyDetailId = async () => {
-        const idEl = document.getElementById('detail-extension-id');
-        if (!idEl) return;
-        try {
-            await navigator.clipboard.writeText(idEl.textContent);
-            showToast('Extension ID copied to clipboard.', 'success');
-        } catch (err) {
-            showToast('Failed to copy.', 'error');
-        }
-    };
-
-    const toggleFilterPanel = () => {
-        const visible = !dom.filterPanel.classList.contains('is-visible');
-        if (visible) {
-            dom.filterPanel.hidden = false;
-            dom.filterBackdrop.hidden = false;
-            requestAnimationFrame(() => {
-                dom.filterPanel.classList.add('is-visible');
-                dom.filterBackdrop.classList.add('is-visible');
-            });
-            dom.filterToggleButton.setAttribute('aria-expanded', 'true');
-        } else {
-            dom.filterPanel.classList.remove('is-visible');
-            dom.filterBackdrop.classList.remove('is-visible');
-            dom.filterPanel.addEventListener('transitionend', () => {
-                dom.filterPanel.hidden = true;
-                dom.filterBackdrop.hidden = true;
-            }, { once: true });
-            dom.filterToggleButton.setAttribute('aria-expanded', 'false');
-        }
     };
 
     const renderPagination = () => {
@@ -719,67 +461,286 @@
         dom.totalPagesDisplay.textContent = totalPages;
     };
 
-    const updateRecordCount = () => {
-        if (!dom.recordCountDisplay) return;
-        const start = Math.min((currentPage - 1) * settings.logsPerPage + 1, filteredRecords.length);
-        const end   = Math.min(currentPage * settings.logsPerPage, filteredRecords.length);
-        dom.recordCountDisplay.textContent = filteredRecords.length
-            ? `${start}-${end} of ${filteredRecords.length} records`
-            : '0 records';
+    /* ---------------------------------------------------------------------- */
+    /*  Detail dialog                                                         */
+    /* ---------------------------------------------------------------------- */
+    const openDetailModal = (record) => {
+        if (!dom.detailContent) return;
+
+        const ext = installedExtensions.get(record.extensionId);
+        const iconUrl = ext?.iconUrl || `chrome://extension-icon/${record.extensionId}/32/0`;
+
+        const extHistory = allHistoryRecords.filter(r => r.extensionId === record.extensionId);
+        const totalEvents = extHistory.length;
+        const firstSeen = totalEvents ? Math.min(...extHistory.map(r => r.timestamp)) : record.timestamp;
+        const lastSeen  = totalEvents ? Math.max(...extHistory.map(r => r.timestamp)) : record.timestamp;
+        const recent = extHistory
+            .slice()
+            .sort((a, b) => b.timestamp - a.timestamp)
+            .slice(0, MAX_DETAIL_HISTORY_ROWS);
+
+        const frag = document.createDocumentFragment();
+
+        /* Header */
+        const header = document.createElement('div');
+        header.className = 'detail-header';
+        const icon = document.createElement('img');
+        icon.className = 'detail-icon';
+        icon.alt = '';
+        icon.src = iconUrl;
+        icon.addEventListener('error', () => { icon.style.display = 'none'; }, { once: true });
+        const headerInfo = document.createElement('div');
+        headerInfo.className = 'detail-header-info';
+        const h4 = document.createElement('h4');
+        h4.textContent = record.extensionName || 'Unknown Extension';
+        const versionSpan = document.createElement('span');
+        versionSpan.className = 'detail-version';
+        versionSpan.textContent = `Version ${record.extensionVersion || 'N/A'}`;
+        headerInfo.append(h4, versionSpan);
+        header.append(icon, headerInfo);
+        frag.appendChild(header);
+
+        /* Event + When */
+        frag.append(
+            makeDetailRow('Event', formatEventType(record.eventType)),
+            makeDetailRow('When',  formatFullDate(record.timestamp)),
+        );
+
+        /* Extension ID */
+        const idRow = document.createElement('div');
+        idRow.className = 'detail-row';
+        const idLabel = document.createElement('strong');
+        idLabel.textContent = 'Extension ID';
+        const idCode = document.createElement('code');
+        idCode.className = 'detail-code';
+        idCode.id = 'detail-extension-id';
+        idCode.textContent = record.extensionId;
+        idRow.append(idLabel, idCode);
+        frag.appendChild(idRow);
+
+        /* Optional details */
+        if (record.details) {
+            const detailsRow = document.createElement('div');
+            detailsRow.className = 'detail-row detail-details';
+            const detailsLabel = document.createElement('strong');
+            detailsLabel.textContent = 'Event Details';
+            const detailsPara = document.createElement('p');
+            detailsPara.textContent = record.details;
+            detailsRow.append(detailsLabel, detailsPara);
+            frag.appendChild(detailsRow);
+        }
+
+        /* Insights */
+        const insightsTitle = document.createElement('h5');
+        insightsTitle.className = 'detail-section-title';
+        insightsTitle.textContent = 'Insights';
+        frag.appendChild(insightsTitle);
+
+        const statsGrid = document.createElement('div');
+        statsGrid.className = 'detail-stats-grid';
+        statsGrid.append(
+            makeStatCell('Total Events', String(totalEvents)),
+            makeStatCell('Current Status',
+                ext ? (ext.enabled ? 'Enabled' : 'Disabled') : 'Uninstalled'),
+            makeStatCell('First Seen', formatShortDate(firstSeen)),
+            makeStatCell('Last Seen',  formatShortDate(lastSeen)),
+        );
+        frag.appendChild(statsGrid);
+
+        /* Recent activity */
+        if (recent.length > 0) {
+            const recentTitle = document.createElement('h5');
+            recentTitle.className = 'detail-section-title';
+            recentTitle.textContent = 'Recent Activity';
+            frag.appendChild(recentTitle);
+
+            const list = document.createElement('ul');
+            list.className = 'detail-recent-list';
+            for (const r of recent) {
+                const li = document.createElement('li');
+                const left = document.createElement('div');
+                left.className = 'detail-recent-event';
+                const typeSpan = document.createElement('strong');
+                typeSpan.textContent = formatEventType(r.eventType);
+                left.appendChild(typeSpan);
+                if (r.details) {
+                    const detailsSpan = document.createElement('span');
+                    detailsSpan.className = 'detail-recent-details';
+                    detailsSpan.textContent = r.details;
+                    left.appendChild(detailsSpan);
+                }
+                const timeSpan = document.createElement('span');
+                timeSpan.className = 'detail-recent-time';
+                timeSpan.textContent = formatFullDate(r.timestamp);
+                li.append(left, timeSpan);
+                list.appendChild(li);
+            }
+            frag.appendChild(list);
+        }
+
+        dom.detailContent.replaceChildren(frag);
+        if (dom.copyDetailIdBtn) dom.copyDetailIdBtn.disabled = false;
+        showDialog(dom.detailModal);
+    };
+
+    const makeDetailRow = (label, value) => {
+        const div = document.createElement('div');
+        div.className = 'detail-row';
+        const strong = document.createElement('strong');
+        strong.textContent = label;
+        const span = document.createElement('span');
+        span.textContent = value;
+        div.append(strong, span);
+        return div;
+    };
+
+    const makeStatCell = (label, value) => {
+        const div = document.createElement('div');
+        div.className = 'detail-cell';
+        const strong = document.createElement('strong');
+        strong.textContent = label;
+        const span = document.createElement('span');
+        span.textContent = value;
+        div.append(strong, span);
+        return div;
+    };
+
+    const handleCopyDetailId = async () => {
+        const idEl = document.getElementById('detail-extension-id');
+        if (!idEl) return;
+        try {
+            await navigator.clipboard.writeText(idEl.textContent);
+            notify.success('Extension ID copied to clipboard.');
+        } catch {
+            notify.error('Failed to copy.');
+        }
     };
 
     /* ---------------------------------------------------------------------- */
-    /*  Settings helpers                                                      */
+    /*  Settings                                                              */
     /* ---------------------------------------------------------------------- */
     const syncSettingsToUI = () => {
-        dom.trackingEnabledToggle.checked    = settings.trackingEnabled;
-        dom.pruneDaysInput.value             = settings.pruneDays;
-        dom.sortOrderSelect.value            = settings.sortOrder;
-        dom.logsPerPageInput.value           = settings.logsPerPage;
-        dom.recordLimitInput.value           = settings.recordLimit;
-        dom.relativeTimestampsToggle.checked = settings.relativeTimestamps;
+        for (const b of SETTINGS_BINDINGS) {
+            const el = dom[b.domKey];
+            if (el) el[b.prop] = settings[b.key];
+        }
         updateSettingsControlsState();
     };
 
     const readSettingsFromUI = () => {
-        settings.trackingEnabled      = dom.trackingEnabledToggle.checked;
-        settings.pruneDays            = Math.max(1, Math.min(3650, parseInt(dom.pruneDaysInput.value,10)||90));
-        settings.sortOrder            = dom.sortOrderSelect.value;
-        settings.logsPerPage          = Math.max(5, Math.min(500, parseInt(dom.logsPerPageInput.value,10)||25));
-        settings.recordLimit          = Math.max(100, Math.min(10000, parseInt(dom.recordLimitInput.value,10)||1000));
-        settings.relativeTimestamps   = dom.relativeTimestampsToggle.checked;
+        for (const b of SETTINGS_BINDINGS) {
+            const el = dom[b.domKey];
+            if (!el) continue;
+            let v = el[b.prop];
+            if (b.kind === 'bool') {
+                v = !!v;
+            } else if (b.kind === 'int') {
+                v = parseInt(v, 10);
+                if (!Number.isFinite(v)) v = settings[b.key];
+                if (b.min != null) v = Math.max(b.min, v);
+                if (b.max != null) v = Math.min(b.max, v);
+            }
+            settings[b.key] = v;
+        }
+    };
+
+    const updateSettingsControlsState = () => {
+        const on = dom.trackingEnabledToggle.checked;
+        [dom.pruneNowButton, dom.pruneDaysInput, dom.recordLimitInput,
+         dom.pruneInactiveBtn, dom.pruneByTypeBtn]
+            .forEach(el => { if (el) el.disabled = !on; });
+    };
+
+    const showSaveIndicator = () => {
+        if (!dom.settingsSavedIndicator) return;
+        dom.settingsSavedIndicator.hidden = false;
+        dom.settingsSavedIndicator.classList.add('visible');
+        clearTimeout(dom.settingsSavedIndicator._t);
+        dom.settingsSavedIndicator._t = setTimeout(
+            () => dom.settingsSavedIndicator.classList.remove('visible'), 2000);
     };
 
     const saveSettings = async (showFeedback = true) => {
         readSettingsFromUI();
         try {
-            await chrome.runtime.sendMessage({ type: 'UPDATE_HISTORY_SETTINGS', payload: settings });
-            if (showFeedback) showToast('Settings saved.', 'success');
+            await chrome.runtime.sendMessage({
+                type: 'UPDATE_HISTORY_SETTINGS',
+                payload: settings,
+            });
+            if (showFeedback) notify.success('Settings saved.');
             else showSaveIndicator();
             applyFiltersAndSort();
             checkHistoryLimit();
         } catch (e) {
             console.error('Error saving settings:', e);
-            showToast('Failed to save settings.', 'error');
+            notify.error('Failed to save settings.');
         }
     };
 
     const debouncedAutoSave = debounce(() => saveSettings(false), SETTINGS_SAVE_DEBOUNCE_MS);
 
+    const checkHistoryLimit = () => {
+        if (!settings.trackingEnabled) return;
+        if (allHistoryRecords.length <= settings.recordLimit) return;
+        handleAutoPrune();
+    };
+
+    const handleAutoPrune = async () => {
+        try {
+            await chrome.runtime.sendMessage({
+                type: 'PRUNE_HISTORY_TO_LIMIT',
+                payload: { limit: settings.recordLimit },
+            });
+            await loadInitialData(false);
+            notify.success(`History pruned to ${settings.recordLimit} records.`);
+        } catch (e) {
+            console.error('Auto-prune failed:', e);
+        }
+    };
+
     const handleResetDefaults = async () => {
         if (!confirm('Reset all settings to defaults?')) return;
-        settings = {
-            trackingEnabled: true, sortOrder: 'desc', logsPerPage: 25, pruneDays: 90,
-            recordLimit: 1000, relativeTimestamps: false,
-        };
+        settings = { ...DEFAULT_SETTINGS };
         syncSettingsToUI();
         await saveSettings();
-        showToast('Settings reset to defaults.', 'success');
+        notify.success('Settings reset to defaults.');
     };
 
     /* ---------------------------------------------------------------------- */
-    /*  Event Handlers                                                        */
+    /*  Filter checkboxes                                                     */
     /* ---------------------------------------------------------------------- */
+    const buildFilterCheckboxes = () => {
+        const frag = document.createDocumentFragment();
+        for (const type of EVENT_TYPES) {
+            frag.appendChild(buildCheckbox(type, currentFilters.eventTypes.has(type)));
+        }
+        dom.eventTypeFilters.replaceChildren(frag);
+    };
+
+    /* ---------------------------------------------------------------------- */
+    /*  Handlers                                                              */
+    /* ---------------------------------------------------------------------- */
+    const switchPanel = (targetId) => {
+        const target = document.getElementById(targetId);
+        if (!target) return;
+
+        dom.sidebarButtons.forEach(btn => {
+            const active = btn.dataset.panelTarget === targetId;
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-current', active ? 'page' : 'false');
+        });
+        dom.panels.forEach(panel => {
+            const isTarget = panel.id === targetId;
+            panel.hidden = !isTarget;
+            panel.classList.toggle('active', isTarget);
+        });
+
+        // Close the filter popover when leaving the history panel.
+        if (dom.filterPanel?.matches(':popover-open')) {
+            dom.filterPanel.hidePopover();
+        }
+    };
+
     const handleSearchInput = (e) => {
         currentFilters.searchTerm = e.target.value.trim().toLowerCase();
         dom.clearSearchBtn.hidden = !currentFilters.searchTerm;
@@ -803,29 +764,30 @@
     const handleDateFilterChange = () => {
         const s = dom.startDateInput.value;
         const e = dom.endDateInput.value;
-        if (s && e) {
-            const startDate = new Date(s);
-            const endDate = new Date(e);
-            if (startDate > endDate) {
-                showToast('Start date cannot be after end date.', 'error');
-                dom.endDateInput.value = '';
-                return;
-            }
+        if (s && e && new Date(s) > new Date(e)) {
+            notify.error('Start date cannot be after end date.');
+            dom.endDateInput.value = '';
+            return;
         }
         currentFilters.startDate = s ? new Date(s).getTime() : null;
-        currentFilters.endDate   = e ? new Date(e).setHours(23,59,59,999) : null;
+        currentFilters.endDate   = e ? new Date(e).setHours(23, 59, 59, 999) : null;
         applyFiltersAndSort();
     };
 
     const handleResetFilters = () => {
-        currentFilters = { searchTerm:'', eventTypes:new Set(EVENT_TYPES), startDate:null, endDate:null };
+        currentFilters = {
+            searchTerm: '',
+            eventTypes: new Set(EVENT_TYPES),
+            startDate: null,
+            endDate: null,
+        };
         dom.searchInput.value = '';
         dom.clearSearchBtn.hidden = true;
         dom.startDateInput.value = '';
         dom.endDateInput.value = '';
         buildFilterCheckboxes();
         applyFiltersAndSort();
-        showToast('Filters reset.', 'info');
+        notify.info('Filters reset.');
     };
 
     const handleSelectAllFilters = () => {
@@ -840,52 +802,44 @@
         applyFiltersAndSort();
     };
 
-    const handlePageChange = (dir) => {
-        const np = currentPage + dir;
-        if (np > 0 && np <= totalPages) { currentPage = np; renderHistory(); updateRecordCount(); }
-    };
-
     const handleClearAllHistory = async () => {
         if (!allHistoryRecords.length) {
-            showToast('No history to clear.', 'info');
+            notify.info('No history to clear.');
             return;
         }
-        const previous = [...allHistoryRecords];
-        const undo = async () => {
-            try {
-                await chrome.runtime.sendMessage({ type: 'RESTORE_HISTORY', payload: previous });
-                await loadInitialData();
-                showToast('History restored.', 'success');
-            } catch (e) {
-                showToast('Failed to restore history.', 'error');
-                console.error(e);
-            }
-        };
-        if (!confirm('Delete ALL history records? You can undo this for a few seconds.')) return;
+        if (!confirm('Delete ALL history records? This cannot be undone.')) return;
         try {
             await chrome.runtime.sendMessage({ type: 'CLEAR_EXTENSION_HISTORY' });
             allHistoryRecords = [];
             applyFiltersAndSort();
-            showToast('All history cleared.', 'success', UNDO_DURATION_MS, { handler: undo });
+            notify.success('All history cleared.');
         } catch (e) {
             console.error('Error clearing history:', e);
-            showToast('Failed to clear history.', 'error');
+            notify.error('Failed to clear history.');
         }
     };
 
     const handlePruneNow = async () => {
         const days = parseInt(dom.pruneDaysInput.value, 10);
-        if (isNaN(days) || days < 1) { showToast('Enter a valid number of days (1+).', 'error'); return; }
+        if (!Number.isFinite(days) || days < 1) {
+            notify.error('Enter a valid number of days (1+).');
+            return;
+        }
         if (!confirm(`Prune all records older than ${days} days?`)) return;
         setActionLoading(true);
         try {
-            await chrome.runtime.sendMessage({ type: 'PRUNE_HISTORY_BY_DAYS', payload: { daysToKeep: days } });
+            await chrome.runtime.sendMessage({
+                type: 'PRUNE_HISTORY_BY_DAYS',
+                payload: { daysToKeep: days },
+            });
             await loadInitialData();
-            showToast(`Records older than ${days} days pruned.`, 'success');
+            notify.success(`Records older than ${days} days pruned.`);
         } catch (e) {
             console.error('Prune failed:', e);
-            showToast('Failed to prune history.', 'error');
-        } finally { setActionLoading(false); }
+            notify.error('Failed to prune history.');
+        } finally {
+            setActionLoading(false);
+        }
     };
 
     const handlePruneInactive = async () => {
@@ -894,60 +848,186 @@
         try {
             await chrome.runtime.sendMessage({ type: 'PRUNE_INACTIVE_EXTENSIONS' });
             await loadInitialData();
-            showToast('Inactive extension history pruned.', 'success');
+            notify.success('Inactive extension history pruned.');
         } catch (e) {
             console.error('Prune inactive failed:', e);
-            showToast('Failed to prune inactive history.', 'error');
-        } finally { setActionLoading(false); }
+            notify.error('Failed to prune inactive history.');
+        } finally {
+            setActionLoading(false);
+        }
     };
 
-    const handlePruneByTypeModalOpen = () => {
-        while (dom.pruneTypeOptions.firstChild) dom.pruneTypeOptions.removeChild(dom.pruneTypeOptions.firstChild);
+    const openPruneByTypeModal = () => {
         const frag = document.createDocumentFragment();
-        EVENT_TYPES.forEach(type => {
-            const label = document.createElement('label');
-            label.className = 'checkbox-container';
-            const input = document.createElement('input');
-            input.type = 'checkbox';
-            input.value = type;
-            input.addEventListener('change', () => {
-                dom.pruneTypeConfirmBtn.disabled = dom.pruneTypeOptions.querySelectorAll('input:checked').length === 0;
-            });
-            const checkmark = document.createElement('span');
-            checkmark.className = 'checkmark';
-            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            svg.setAttribute('viewBox', '0 0 24 24');
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            path.setAttribute('d', 'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z');
-            svg.appendChild(path);
-            checkmark.appendChild(svg);
-            const text = document.createTextNode(formatEventType(type));
-            label.append(input, checkmark, text);
-            frag.appendChild(label);
-        });
-        dom.pruneTypeOptions.appendChild(frag);
+        for (const type of EVENT_TYPES) {
+            frag.appendChild(buildCheckbox(type, false));
+        }
+        dom.pruneTypeOptions.replaceChildren(frag);
         dom.pruneTypeConfirmBtn.disabled = true;
-        showModal('pruneByTypeModal');
+        showDialog(dom.pruneByTypeModal);
     };
 
     const handlePruneByTypeConfirm = async () => {
-        const types = Array.from(dom.pruneTypeOptions.querySelectorAll('input:checked')).map(i => i.value);
+        const types = Array.from(
+            dom.pruneTypeOptions.querySelectorAll('input:checked')
+        ).map(i => i.value);
         if (!types.length) return;
-        if (!confirm(`Delete all history records for the selected event types?`)) return;
         setActionLoading(true);
         try {
-            await chrome.runtime.sendMessage({ type: 'PRUNE_HISTORY_BY_TYPES', payload: types });
+            await chrome.runtime.sendMessage({
+                type: 'PRUNE_HISTORY_BY_TYPES',
+                payload: types,
+            });
             await loadInitialData();
-            showToast('Selected event types pruned.', 'success');
-            hideModal('pruneByTypeModal');
+            notify.success('Selected event types pruned.');
+            closeDialog(dom.pruneByTypeModal);
         } catch (e) {
             console.error('Prune by type failed:', e);
-            showToast('Failed to prune by type.', 'error');
-        } finally { setActionLoading(false); }
+            notify.error('Failed to prune by type.');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleGlobalKeydown = (e) => {
+        if (e.key === 'Escape' && document.activeElement === dom.searchInput && dom.searchInput.value) {
+            handleClearSearch();
+            return;
+        }
+        if (e.key === '/' &&
+            !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
+            e.preventDefault();
+            dom.searchInput.focus();
+        }
     };
 
     /* ---------------------------------------------------------------------- */
-    /*  Entry Point                                                           */
+    /*  Event wiring                                                          */
     /* ---------------------------------------------------------------------- */
+    const setupEventListeners = () => {
+        /* Navigation */
+        dom.panelLinkButtons.forEach(btn => {
+            btn.addEventListener('click', () => switchPanel(btn.dataset.panelTarget));
+        });
+
+        /* Search */
+        dom.searchInput.addEventListener('input', debounce(handleSearchInput, SEARCH_DEBOUNCE_MS));
+        dom.clearSearchBtn.addEventListener('click', handleClearSearch);
+
+        /* Filter panel — native popover handles toggle/light-dismiss/Escape.
+           We only sync aria-expanded and initial checkbox building. */
+        dom.filterPanel.addEventListener('toggle', (e) => {
+            dom.filterToggleButton.setAttribute(
+                'aria-expanded',
+                e.newState === 'open' ? 'true' : 'false'
+            );
+        });
+        dom.resetFiltersBtn.addEventListener('click', handleResetFilters);
+        dom.selectAllFiltersBtn.addEventListener('click', handleSelectAllFilters);
+        dom.selectNoneFiltersBtn.addEventListener('click', handleSelectNoneFilters);
+        dom.eventTypeFilters.addEventListener('change', handleFilterChange);
+        dom.startDateInput.addEventListener('change', handleDateFilterChange);
+        dom.endDateInput.addEventListener('change', handleDateFilterChange);
+
+        /* History list — event delegation (no per-item listeners) */
+        dom.historyList.addEventListener('click', (e) => {
+            const item = e.target.closest('.history-item');
+            if (!item) return;
+            const record = renderedRecords.get(item.dataset.recordId);
+            if (record) openDetailModal(record);
+        });
+        dom.historyList.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const item = e.target.closest('.history-item');
+            if (!item) return;
+            e.preventDefault();
+            const record = renderedRecords.get(item.dataset.recordId);
+            if (record) openDetailModal(record);
+        });
+        /* Icon load failures bubble via capture phase (error doesn't bubble) */
+        dom.historyList.addEventListener('error', (e) => {
+            const img = e.target;
+            if (!(img instanceof HTMLImageElement)) return;
+            if (!img.classList.contains('extension-icon-img')) return;
+            img.style.display = 'none';
+            const wrap = img.parentElement;
+            if (!wrap || wrap.querySelector('.extension-icon-fallback')) return;
+            const fallback = document.createElement('div');
+            fallback.className = 'extension-icon-fallback';
+            const record = renderedRecords.get(wrap.parentElement?.dataset?.recordId);
+            fallback.textContent = (record?.extensionName || '?').charAt(0).toUpperCase();
+            wrap.appendChild(fallback);
+        }, true);
+
+        /* Pagination */
+        dom.prevPageBtn.addEventListener('click', () => handlePageChange(-1));
+        dom.nextPageBtn.addEventListener('click', () => handlePageChange(1));
+
+        /* Settings — bind change events via schema */
+        for (const b of SETTINGS_BINDINGS) {
+            const el = dom[b.domKey];
+            if (!el) continue;
+            el.addEventListener('change', () => {
+                if (b.kind === 'int') {
+                    let v = parseInt(el.value, 10);
+                    if (!Number.isFinite(v)) v = b.min ?? 0;
+                    if (b.min != null) v = Math.max(b.min, v);
+                    if (b.max != null) v = Math.min(b.max, v);
+                    el.value = v;
+                }
+                debouncedAutoSave();
+            });
+        }
+        dom.trackingEnabledToggle.addEventListener('change', updateSettingsControlsState);
+
+        /* Data management */
+        dom.pruneNowButton.addEventListener('click', handlePruneNow);
+        dom.pruneInactiveBtn.addEventListener('click', handlePruneInactive);
+        dom.pruneByTypeBtn.addEventListener('click', openPruneByTypeModal);
+        dom.clearAllButton.addEventListener('click', handleClearAllHistory);
+        dom.resetDefaultsBtn.addEventListener('click', handleResetDefaults);
+
+        /* Prune dialog */
+        dom.pruneTypeCancelBtn.addEventListener('click', () => closeDialog(dom.pruneByTypeModal));
+        dom.pruneTypeConfirmBtn.addEventListener('click', handlePruneByTypeConfirm);
+        dom.pruneTypeOptions.addEventListener('change', () => {
+            dom.pruneTypeConfirmBtn.disabled =
+                dom.pruneTypeOptions.querySelectorAll('input:checked').length === 0;
+        });
+
+        /* Detail dialog */
+        dom.closeDetailBtn?.addEventListener('click', () => closeDialog(dom.detailModal));
+        dom.copyDetailIdBtn?.addEventListener('click', handleCopyDetailId);
+
+        /* Click outside dialog = close (native dialog doesn't do this by default) */
+        [dom.pruneByTypeModal, dom.detailModal].forEach(dlg => {
+            dlg?.addEventListener('click', (e) => {
+                if (e.target === dlg) dlg.close();
+            });
+        });
+
+        document.addEventListener('keydown', handleGlobalKeydown);
+    };
+
+    /* ---------------------------------------------------------------------- */
+    /*  Entry point                                                           */
+    /* ---------------------------------------------------------------------- */
+    const initializeApp = async () => {
+        cacheDomElements();
+        setupEventListeners();
+        setBusyState(true);
+
+        await Promise.all([
+            loadSettings(),
+            loadInstalledExtensions(),
+            loadInitialData(false),
+        ]);
+
+        buildFilterCheckboxes();
+        if (dom.currentYear) dom.currentYear.textContent = new Date().getFullYear();
+        checkHistoryLimit();
+        setBusyState(false);
+    };
+
     document.addEventListener('DOMContentLoaded', initializeApp);
 })();

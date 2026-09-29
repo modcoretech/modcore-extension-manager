@@ -44,18 +44,14 @@
 
         <main class="content-area">
             <div id="initial-loading-indicator" class="loading-overlay" role="status" aria-live="polite">
-                <div class="spinner" aria-hidden="true"></div>
+                <span class="icon icon-loading icon-32 icon-primary" aria-hidden="true"></span>
                 <p>Loading History...</p>
             </div>
 
             <section id="panel-history" class="content-panel active" aria-labelledby="history-panel-title" tabindex="-1">
                 <header class="panel-header">
                     <h2 id="history-panel-title">Extension Activity</h2>
-                    <p id="history-panel-description">
-                        Review a chronological log of events for all your extensions. Looking to clear or prune
-                        records? Head to
-                        <button type="button" class="link-button" data-panel-target="panel-settings">Settings &rarr; Data Management</button>.
-                    </p>
+                    <p id="history-panel-description">Review a chronological log of events for all your extensions.</p>
                 </header>
                 <div class="panel-content">
                     <div class="history-controls">
@@ -63,21 +59,24 @@
                             <label for="search-input" class="visually-hidden">Search history by name, ID, or details</label>
                             <span class="icon icon-search" aria-hidden="true"></span>
                             <input type="search" id="search-input" class="text-input" placeholder="Search by name, ID, or details..." aria-controls="history-list-container">
-                            <button id="clear-search-btn" class="clear-search-btn" aria-label="Clear search" hidden>&times;</button>
+                            <button type="button" id="clear-search-btn" class="clear-search-btn" aria-label="Clear search" hidden>&times;</button>
                         </div>
                         <div class="header-actions">
-                            <span id="record-count-display" class="record-count"></span>
-                            <button id="filter-toggle-btn" class="btn secondary" aria-controls="filter-panel" aria-expanded="false" aria-label="Toggle filters">
+                            <button type="button" id="filter-toggle-btn" class="btn secondary"
+                                    popovertarget="filter-panel"
+                                    aria-controls="filter-panel" aria-expanded="false">
                                 <span class="icon icon-filter" aria-hidden="true"></span>
                                 <span class="btn-text">Filter</span>
                             </button>
                         </div>
                     </div>
 
-                    <div id="filter-panel" class="filter-panel" hidden>
+                    <div id="filter-panel" class="filter-panel" popover="auto" aria-label="Filters">
                         <div class="filter-sheet-header">
                             <h3>Filters</h3>
-                            <button id="close-filter-sheet" class="btn tertiary small" aria-label="Close filters">
+                            <button type="button" id="close-filter-sheet" class="btn tertiary small"
+                                    popovertarget="filter-panel" popovertargetaction="hide"
+                                    aria-label="Close filters">
                                 <span class="icon icon-close" aria-hidden="true"></span>
                             </button>
                         </div>
@@ -86,8 +85,8 @@
                                 <div class="filter-group-header">
                                     <strong class="filter-title">Event Types</strong>
                                     <div class="filter-quick-actions">
-                                        <button id="select-all-filters-btn" class="btn tertiary small">All</button>
-                                        <button id="select-none-filters-btn" class="btn tertiary small">None</button>
+                                        <button type="button" id="select-all-filters-btn" class="btn tertiary small">All</button>
+                                        <button type="button" id="select-none-filters-btn" class="btn tertiary small">None</button>
                                     </div>
                                 </div>
                                 <div class="checkbox-group" id="event-type-filters"></div>
@@ -103,23 +102,22 @@
                             </div>
                         </div>
                         <div class="filter-sheet-footer">
-                            <button id="reset-filters-btn" class="btn tertiary">Reset All</button>
+                            <button type="button" id="reset-filters-btn" class="btn tertiary">Reset All</button>
                         </div>
                     </div>
-                    <div id="filter-backdrop" class="filter-backdrop" hidden></div>
 
                     <div id="history-content-wrapper" class="content-section" aria-live="polite">
                         <div id="history-list-container">
                             <div id="history-list" class="history-list" role="list" aria-label="Extension activity records"></div>
                             <p id="no-history-message" class="placeholder-message" hidden>No history records found.</p>
                             <div id="pagination-controls" class="pagination-controls" hidden>
-                                <button id="prev-page-btn" class="btn tertiary" disabled>
+                                <button type="button" id="prev-page-btn" class="btn tertiary" disabled>
                                     <span class="icon icon-arrow-left" aria-hidden="true"></span> Previous
                                 </button>
                                 <div class="page-info">
                                     Page <span id="current-page-display">1</span> of <span id="total-pages-display">1</span>
                                 </div>
-                                <button id="next-page-btn" class="btn tertiary" disabled>
+                                <button type="button" id="next-page-btn" class="btn tertiary" disabled>
                                     Next <span class="icon icon-arrow-right" aria-hidden="true"></span>
                                 </button>
                             </div>
@@ -175,13 +173,6 @@
                                 <span aria-hidden="true">logs</span>
                             </div>
                         </div>
-                        <div class="setting-item">
-                            <div class="setting-label">
-                                <label for="relative-timestamps-toggle"><strong>Relative Timestamps</strong></label>
-                                <p class="text-secondary" id="relative-timestamps-desc">Show times like &ldquo;2 hours ago&rdquo; instead of an exact clock time.</p>
-                            </div>
-                            <input type="checkbox" id="relative-timestamps-toggle" class="toggle-switch" aria-describedby="relative-timestamps-desc">
-                        </div>
                     </fieldset>
 
                     <fieldset class="content-section settings-fieldset">
@@ -206,26 +197,20 @@
                                 <label for="prune-days-input" class="visually-hidden">Days to keep</label>
                                 <input type="number" id="prune-days-input" class="text-input" value="90" min="1" max="3650" aria-describedby="prune-days-desc">
                                 <span aria-hidden="true">days</span>
-                                <button id="prune-now-btn" class="btn secondary">Prune Now</button>
+                                <button type="button" id="prune-now-btn" class="btn secondary">Prune Now</button>
                             </div>
                         </div>
                     </fieldset>
 
-                    <fieldset class="content-section settings-fieldset danger-zone">
-                        <legend class="section-title small-title danger-zone-title">
-                            <span class="icon icon-warning-status icon-danger" aria-hidden="true"></span>
-                            Data Management
-                        </legend>
-                        <p class="text-secondary danger-zone-intro">
-                            These actions permanently remove history records. Clearing all history can be undone for a
-                            few seconds right after you do it; the others cannot be undone.
-                        </p>
+                    <fieldset class="content-section settings-fieldset">
+                        <legend class="section-title small-title">Data Management</legend>
+                        <p class="text-secondary">These actions permanently remove history records and cannot be undone.</p>
                         <div class="setting-item">
                             <div class="setting-label">
                                 <strong>Prune Inactive Extensions</strong>
                                 <p class="text-secondary">Remove history for extensions that are no longer installed.</p>
                             </div>
-                            <button id="prune-inactive-btn" class="btn secondary">
+                            <button type="button" id="prune-inactive-btn" class="btn secondary">
                                 <span class="icon icon-trash" aria-hidden="true"></span>
                                 <span>Prune Inactive</span>
                             </button>
@@ -235,7 +220,7 @@
                                 <strong>Prune by Event Type</strong>
                                 <p class="text-secondary">Choose specific event types (e.g. "Enabled"/"Disabled") to delete from your history.</p>
                             </div>
-                            <button id="prune-by-type-btn" class="btn secondary">
+                            <button type="button" id="prune-by-type-btn" class="btn secondary">
                                 <span class="icon icon-filter" aria-hidden="true"></span>
                                 <span>Prune by Type&hellip;</span>
                             </button>
@@ -245,7 +230,7 @@
                                 <strong>Clear All History</strong>
                                 <p class="text-secondary">Delete every recorded event. This is the most destructive option here.</p>
                             </div>
-                            <button id="clear-all-btn" class="btn danger" aria-label="Clear all history">
+                            <button type="button" id="clear-all-btn" class="btn danger" aria-label="Clear all history">
                                 <span class="icon icon-trash" aria-hidden="true"></span>
                                 <span class="btn-text">Clear All</span>
                             </button>
@@ -254,44 +239,54 @@
 
                     <div class="settings-actions">
                         <span id="settings-saved-indicator" class="save-indicator" role="status" hidden>Saved automatically</span>
-                        <button id="reset-defaults-btn" class="btn tertiary">Reset to Defaults</button>
+                        <button type="button" id="reset-defaults-btn" class="btn tertiary">Reset to Defaults</button>
                     </div>
                 </div>
             </section>
         </main>
     </div>
 
-    <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
-
-    <div id="prune-by-type-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="prune-modal-title" hidden>
-        <div class="modal-content">
+    <dialog id="prune-by-type-modal" class="app-dialog" aria-labelledby="prune-modal-title">
+        <div class="dialog-body">
             <h3 id="prune-modal-title">Prune by Event Type</h3>
             <p>Select which types of events to delete from your history.</p>
             <div class="checkbox-group" id="prune-type-options"></div>
-            <div class="modal-actions">
-                <button id="prune-type-cancel-btn" class="btn secondary">Cancel</button>
-                <button id="prune-type-confirm-btn" class="btn danger" disabled>Prune</button>
+            <div class="dialog-actions">
+                <button type="button" id="prune-type-cancel-btn" class="btn secondary">Cancel</button>
+                <button type="button" id="prune-type-confirm-btn" class="btn danger" disabled>Prune</button>
             </div>
         </div>
-    </div>
+    </dialog>
 
-    <div id="detail-modal" class="modal detail-modal" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title" hidden>
-        <div class="modal-content">
-            <div class="modal-header">
+    <dialog id="detail-modal" class="app-dialog detail-dialog" aria-labelledby="detail-modal-title">
+        <div class="dialog-body">
+            <div class="dialog-header">
                 <h3 id="detail-modal-title">Record Details</h3>
-                <button id="close-detail-btn" class="btn tertiary small" aria-label="Close details">
+                <button type="button" id="close-detail-btn" class="btn tertiary small" aria-label="Close details">
                     <span class="icon icon-close" aria-hidden="true"></span>
                 </button>
             </div>
             <div id="detail-content" class="detail-content"></div>
-            <div class="modal-actions">
-                <button id="copy-detail-id-btn" class="btn secondary">Copy Extension ID</button>
+            <div class="dialog-actions">
+                <button type="button" id="copy-detail-id-btn" class="btn secondary">Copy Extension ID</button>
             </div>
         </div>
-    </div>
+    </dialog>
 
-    <div id="modal-backdrop" class="modal-backdrop" hidden></div>
+    <!-- Reusable checkbox template (used by filter panel + prune dialog) -->
+    <template id="checkbox-template">
+        <label class="checkbox-container">
+            <input type="checkbox">
+            <span class="checkmark">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                </svg>
+            </span>
+            <span class="checkbox-label"></span>
+        </label>
+    </template>
 
+    <script src="../../shared/modcore-status.js"></script>
     <script src="timeline.js"></script>
     <script src="../../shared/report.js"></script>
 </body>
