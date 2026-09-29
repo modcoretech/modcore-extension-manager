@@ -1,8 +1,8 @@
 /**
- * profiles.js – modcore Profile Data Layer (Shared)
+ * profiles.js – modcore Profile Data Layer (Shared & Optimized)
  */
 
-'use strict';
+'use me strict';
 
 const PROFILES_STORAGE_KEY = 'em_profiles';
 
@@ -13,6 +13,18 @@ const Status = globalThis.Status ?? {
     success: (msg) => console.log('[modcore]', msg),
     info: (msg) => console.info('[modcore]', msg)
 };
+
+// --- Storage Lock to Prevent Race Conditions ---
+let storageMutex = Promise.resolve();
+
+function runInStorageLock(task) {
+    storageMutex = storageMutex.then(task).catch(err => {
+        console.error('[modcore] Mutex task failed:', err);
+    });
+    return storageMutex;
+}
+
+// --- Core Data Layer ---
 
 export async function loadProfileStore() {
     try {
@@ -28,16 +40,18 @@ export async function loadProfileStore() {
         const order = Array.isArray(raw.order) ? raw.order.filter(id => typeof id === 'string') : [];
 
         for (const [id, p] of Object.entries(profiles)) {
-            if (!p || typeof p !== 'object') { delete profiles[id]; continue; }
+            if (!p || typeof p !== 'object') { 
+                delete profiles[id]; 
+                continue; 
+            }
             p.id = String(id);
             p.name = typeof p.name === 'string' && p.name.trim() ? p.name.trim() : 'Unnamed';
-            const states = p.extensionStates;
-            p.extensionStates = (states && typeof states === 'object' && !Array.isArray(states))
-                ? states : {};
+            p.extensionStates = (p.extensionStates && typeof p.extensionStates === 'object' && !Array.isArray(p.extensionStates))
+                ? p.extensionStates : {};
             p.shortcut = typeof p.shortcut === 'string' && p.shortcut.trim() ? p.shortcut.trim() : null;
         }
 
-        const validOrder = [...new Set(order)].filter(id => profiles[id]);
+        const validOrder = [...new Set(order)].filter(id => Object.hasOwn(profiles, id));
         return { profiles, order: validOrder };
     } catch (e) {
         console.error('loadProfileStore error:', e);
@@ -62,17 +76,20 @@ export async function saveProfileStore(store) {
     }
 }
 
-export async function getOrderedProfileIds() {
-    const { profiles, order } = await loadProfileStore();
-    const inOrder = [...new Set(order)].filter(id => profiles[id]);
-    const notInOrder = Object.keys(profiles)
-        .filter(id => !inOrder.includes(id))
-        .sort((a, b) => (profiles[a].name || '').localeCompare(profiles[b].name || '', undefined, { sensitivity: 'base' }));
-    return [...inOrder, ...notInOrder];
+export function generateProfileId() {
+    return `profile_${crypto.randomUUID()}`;
 }
 
-export function generateProfileId() {
-    return `profile_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+export async function getOrderedProfileIds() {
+    const { profiles, order } = await loadProfileStore();
+    const inOrder = [...new Set(order)].filter(id => Object.hasOwn(profiles, id));
+    const inOrderSet = new Set(inOrder);
+
+    const notInOrder = Object.keys(profiles)
+        .filter(id => !inOrderSet.has(id))
+        .sort((a, b) => (profiles[a].name || '').localeCompare(profiles[b].name || '', undefined, { sensitivity: 'base' }));
+
+    return [...inOrder, ...notInOrder];
 }
 
 export async function getProfileById(profileId) {
@@ -82,19 +99,24 @@ export async function getProfileById(profileId) {
 
 export async function cleanupOrphanedProfileEntries(validExtensionIds) {
     if (!validExtensionIds?.size) return;
-    const store = await loadProfileStore();
-    let changed = false;
-    for (const profile of Object.values(store.profiles)) {
-        if (!profile?.extensionStates) continue;
-        for (const extId of Object.keys(profile.extensionStates)) {
-            if (!validExtensionIds.has(extId)) {
-                delete profile.extensionStates[extId];
-                changed = true;
+    return runInStorageLock(async () => {
+        const store = await loadProfileStore();
+        let changed = false;
+
+        for (const profile of Object.values(store.profiles)) {
+            if (!profile?.extensionStates) continue;
+            for (const extId of Object.keys(profile.extensionStates)) {
+                if (!validExtensionIds.has(extId)) {
+                    delete profile.extensionStates[extId];
+                    changed = true;
+                }
             }
         }
-    }
-    if (changed) await saveProfileStore(store);
+        if (changed) await saveProfileStore(store);
+    });
 }
+
+// --- Profile Application ---
 
 export async function applyProfile(profileId, extensionMap) {
     try {
@@ -115,21 +137,22 @@ export async function applyProfile(profileId, extensionMap) {
             return { ok: true, changed: 0, errors: 0, noChange: 0, skipped: 0 };
         }
 
-        // Never allow disabling the extension itself
         const selfId = chrome.runtime.id;
-
         let success = 0, errors = 0, noChange = 0, skipped = 0;
 
-        const ops = entries.map(([extId, shouldEnable]) => new Promise(resolve => {
-            if (extId === selfId) return resolve({ status: 'skipped', id: extId });
+        const ops = entries.map(async ([extId, shouldEnable]) => {
+            if (extId === selfId) return { status: 'skipped', id: extId };
             const cur = extensionMap.get(extId);
-            if (!cur || !cur.mayDisable) return resolve({ status: 'skipped', id: extId });
-            if (cur.enabled === shouldEnable) return resolve({ status: 'nochange', id: extId });
-            chrome.management.setEnabled(extId, shouldEnable, () => {
-                if (chrome.runtime.lastError) resolve({ status: 'error', id: extId, error: chrome.runtime.lastError.message, shouldEnable });
-                else resolve({ status: 'success', id: extId, shouldEnable });
-            });
-        }));
+            if (!cur || !cur.mayDisable) return { status: 'skipped', id: extId };
+            if (cur.enabled === shouldEnable) return { status: 'nochange', id: extId };
+
+            try {
+                await chrome.management.setEnabled(extId, shouldEnable);
+                return { status: 'success', id: extId, shouldEnable };
+            } catch (err) {
+                return { status: 'error', id: extId, error: err.message, shouldEnable };
+            }
+        });
 
         const results = await Promise.all(ops);
         results.forEach(r => {
@@ -165,6 +188,8 @@ export async function applyProfile(profileId, extensionMap) {
     }
 }
 
+// --- Shortcut Handling ---
+
 export function normalizeShortcut(shortcut) {
     if (!shortcut) return null;
     const parts = shortcut.toLowerCase().split('+').map(p => p.trim());
@@ -174,13 +199,14 @@ export function normalizeShortcut(shortcut) {
 
     parts.forEach(part => {
         if (lowerModifiers.includes(part)) {
-            modifiers.push(part.charAt(0).toUpperCase() + part.slice(1));
-        } else if ('abcdefghijklmnopqrstuvwxyz0123456789'.includes(part)) {
+            const formatted = part.charAt(0).toUpperCase() + part.slice(1);
+            if (!modifiers.includes(formatted)) modifiers.push(formatted);
+        } else if (part.length > 0) {
             key = part.toUpperCase();
         }
     });
 
-    if (!key || modifiers.length > 2 || (!modifiers.includes('Ctrl') && !modifiers.includes('Alt'))) return null;
+    if (!key || modifiers.length === 0) return null;
 
     modifiers.sort((a, b) => {
         if (a === 'Ctrl') return -1; if (b === 'Ctrl') return 1;
@@ -208,7 +234,6 @@ export function validateShortcut(shortcut, existingShortcuts) {
     if (!normalized) return { isValid: false, message: 'Invalid format. Use Ctrl+Shift+<Key> or Alt+Shift+<Key>.', normalizedShortcut: null };
 
     const parts = normalized.split('+');
-    const key = parts[parts.length - 1];
     const modifiers = parts.slice(0, -1);
 
     if (!modifiers.some(m => ['Ctrl', 'Alt'].includes(m)))
@@ -232,62 +257,63 @@ export async function registerKeyboardShortcuts() {
     });
 }
 
+// --- Bulk Profile Modifications ---
+
 export async function assignExtensionsToProfile(extensionIds, profileId, enabled = true) {
     if (!extensionIds?.size || !profileId) return;
-    const store = await loadProfileStore();
-    const profile = store.profiles[profileId];
-    if (!profile) { Status.error('Profile not found.'); return; }
+    return runInStorageLock(async () => {
+        const store = await loadProfileStore();
+        const profile = store.profiles[profileId];
+        if (!profile) { Status.error('Profile not found.'); return; }
 
-    let changed = false;
-    extensionIds.forEach(extId => {
-        if (profile.extensionStates[extId] !== enabled) { profile.extensionStates[extId] = enabled; changed = true; }
+        let changed = false;
+        extensionIds.forEach(extId => {
+            if (profile.extensionStates[extId] !== enabled) { 
+                profile.extensionStates[extId] = enabled; 
+                changed = true; 
+            }
+        });
+
+        if (changed) {
+            await saveProfileStore(store);
+            Status.success(`${extensionIds.size} extension(s) ${enabled ? 'added to' : 'updated in'} "${profile.name}".`);
+        } else {
+            Status.info(`All selected extensions were already in "${profile.name}".`);
+        }
     });
-
-    if (changed) {
-        await saveProfileStore(store);
-        Status.success(`${extensionIds.size} extension(s) ${enabled ? 'added to' : 'updated in'} "${profile.name}".`);
-    } else {
-        Status.info(`All selected extensions were already in "${profile.name}".`);
-    }
 }
 
 export async function removeExtensionsFromAllProfiles(extensionIds) {
     if (!extensionIds?.size) return;
-    const store = await loadProfileStore();
-    let changed = false;
-    Object.values(store.profiles).forEach(profile => {
-        extensionIds.forEach(extId => {
-            if (Object.prototype.hasOwnProperty.call(profile.extensionStates, extId)) {
-                delete profile.extensionStates[extId];
-                changed = true;
+    return runInStorageLock(async () => {
+        const store = await loadProfileStore();
+        let changed = false;
+
+        Object.values(store.profiles).forEach(profile => {
+            if (!profile?.extensionStates) return;
+            for (const extId of Object.keys(profile.extensionStates)) {
+                if (extensionIds.has(extId)) {
+                    delete profile.extensionStates[extId];
+                    changed = true;
+                }
             }
         });
+
+        if (changed) {
+            await saveProfileStore(store);
+            Status.success(`${extensionIds.size} extension(s) removed from all profiles.`);
+        } else {
+            Status.info('Selected extensions were not in any profiles.');
+        }
     });
-    if (changed) {
-        await saveProfileStore(store);
-        Status.success(`${extensionIds.size} extension(s) removed from all profiles.`);
-    } else {
-        Status.info('Selected extensions were not in any profiles.');
-    }
 }
 
-export async function addExtensionToProfile(extensionId, profileId, isEnabled) {
-    const store = await loadProfileStore();
-    const profile = store.profiles[profileId];
-    if (!profile) return;
-    profile.extensionStates[extensionId] = isEnabled;
-    await saveProfileStore(store);
-    Status.success(`Added to "${profile.name}".`, 2000);
+export async function addExtensionToProfile(extensionId, profileId, isEnabled = true) {
+    if (!extensionId) return;
+    return assignExtensionsToProfile(new Set([extensionId]), profileId, isEnabled);
 }
 
 export async function removeExtensionFromAllProfiles(extensionId) {
-    const store = await loadProfileStore();
-    let changed = false;
-    Object.values(store.profiles).forEach(profile => {
-        if (Object.prototype.hasOwnProperty.call(profile.extensionStates, extensionId)) {
-            delete profile.extensionStates[extensionId];
-            changed = true;
-        }
-    });
-    if (changed) { await saveProfileStore(store); Status.success('Removed from all profiles.', 2000); }
+    if (!extensionId) return;
+    return removeExtensionsFromAllProfiles(new Set([extensionId]));
 }
