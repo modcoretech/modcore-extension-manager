@@ -1,11 +1,5 @@
 /**
  * timeline.js - modcore Timeline
- *
- * UI controller. Responsibilities:
- *  - fetch history + settings, keep in-memory state
- *  - filter / sort / paginate
- *  - render list, detail dialog, filter popover
- *  - delegate user input events
  */
 (() => {
     'use strict';

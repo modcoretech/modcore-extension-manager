@@ -1,17 +1,6 @@
 /**
  * @file timeline-manager.js
  * modcore Extension Manager - Timeline background logic.
- *
- * Self-contained subsystem:
- *   • owns the activity log (chrome.storage.local)
- *   • tracks extension state to detect updates / permission changes
- *   • registers chrome.management listeners
- *   • registers its own poll alarm
- *   • registers its own chrome.runtime.onMessage handler
- *   • registers its own chrome.alarms.onAlarm handler
- *
- * The service worker just calls `initTimelineManager()` — no timeline
- * plumbing leaks into service-worker.js.
  */
 
 'use strict';

@@ -1,13 +1,8 @@
 /**
  * @file service-worker.js
  * modcore Extension Manager - background service worker.
- *
- * Thin orchestrator. Feature logic lives in dedicated modules:
- *   - actions-menu.js       (CRX + toolbar actions)
- *   - automations-manager.js (rules, profiles, alarms)
- *   - timeline-manager.js   (activity log, extension state cache,
- *                            management listeners, poll alarm, messages)
- */
+ * 
+ **/
 
 'use strict';
 
