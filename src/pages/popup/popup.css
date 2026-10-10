@@ -297,7 +297,6 @@ select:disabled, input[type="text"]:disabled {
   display: block;
 }
 .submenu .context-menu-placeholder {
-  border-top: 1px dashed var(--color-border);
   padding-top: var(--space-2);
   margin-top: var(--space-1);
 }
