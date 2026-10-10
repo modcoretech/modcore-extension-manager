@@ -1,7 +1,7 @@
 /**
  * @file service-worker.js
  * modcore Extension Manager - background service worker.
- * 
+ *
  **/
 
 'use strict';
@@ -28,8 +28,6 @@ import {
     initTimelineManager,
     onTimelineInstalled,
     onTimelineStartup,
-    recordExtensionActivity,
-    updateCacheEntry,
 } from './timeline-manager.js';
 
 // ==========================================================================
@@ -98,9 +96,6 @@ function registerContextMenus() {
 }
 
 chrome.tabs.onActivated.addListener(updateActionCrxMenu);
-chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
-    if (changeInfo.url) updateActionCrxMenu();
-});
 
 // ==========================================================================
 // Lifecycle Events
@@ -114,20 +109,9 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     }
 
     await updateAlarmsAndCache();
+    // Also records this extension's own install/update in the timeline.
     await onTimelineInstalled(details);
     registerContextMenus();
-
-    if (details.reason === 'install' || details.reason === 'update') {
-        const eventType = details.reason === 'install' ? 'installed' : 'updated';
-        try {
-            const selfInfo = await chrome.management.get(chrome.runtime.id);
-            await recordExtensionActivity(
-                eventType, selfInfo,
-                `modcore EM was ${eventType} (reason: ${details.reason}).`
-            );
-            await updateCacheEntry(selfInfo);
-        } catch (_) { /* ignore */ }
-    }
 
     chrome.runtime.setUninstallURL(
         'https://sites.google.com/view/modcore-apps/modcore-apps/modcore-extension-manager/ui/uninstall'
@@ -167,14 +151,16 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 });
 
 // ==========================================================================
-// Tab URL-Rule Watcher
+// Tab updates: action-menu refresh + URL-rule watcher
 // ==========================================================================
 
 chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+    if (changeInfo.url) updateActionCrxMenu();
+
     if (changeInfo.status !== 'complete' || !tab.url) return;
 
     const rules = getUrlRulesCache();
-    if (!rules || rules.length === 0) return;
+    if (!rules?.length) return;
 
     for (const rule of rules) {
         if (rule.enabled && rule.trigger?.url && tab.url.includes(rule.trigger.url)) {

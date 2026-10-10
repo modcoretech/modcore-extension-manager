@@ -7,30 +7,34 @@
     /* ---------------------------------------------------------------------- */
     /*  Config                                                                */
     /* ---------------------------------------------------------------------- */
-    const SEARCH_DEBOUNCE_MS        = 200;
-    const SETTINGS_SAVE_DEBOUNCE_MS = 400;
-    const MAX_DETAIL_HISTORY_ROWS   = 6;
+    const SEARCH_DEBOUNCE_MS  = 200;
+    const SAVE_DEBOUNCE_MS    = 400;
+    const REFRESH_DEBOUNCE_MS = 150;
+    const DETAIL_RECENT_ROWS  = 6;
+    const HISTORY_KEY         = 'timeline_activity'; // must match timeline-manager.js
+    const DAY_MS              = 864e5;
 
-    const EVENT_TYPES = [
-        'installed', 'uninstalled', 'updated',
-        'permissions_updated', 'enabled', 'disabled',
-    ];
+    const TYPE_LABELS = {
+        installed:           'Installed',
+        uninstalled:         'Uninstalled',
+        updated:             'Updated',
+        permissions_updated: 'Permissions updated',
+        enabled:             'Enabled',
+        disabled:            'Disabled',
+    };
+    const EVENT_TYPES = Object.keys(TYPE_LABELS);
 
-    /**
-     * Schema-driven settings bindings. Each entry maps a settings key to the
-     * DOM element, the property to read/write, and how to coerce the value.
-     * Adding a setting means adding a single line here.
-     */
-    const SETTINGS_BINDINGS = [
-        { key: 'trackingEnabled', domKey: 'trackingEnabledToggle', prop: 'checked', kind: 'bool' },
-        { key: 'sortOrder',       domKey: 'sortOrderSelect',       prop: 'value',  kind: 'string' },
-        { key: 'logsPerPage',     domKey: 'logsPerPageInput',      prop: 'value',  kind: 'int', min: 5,   max: 500 },
-        { key: 'pruneDays',       domKey: 'pruneDaysInput',        prop: 'value',  kind: 'int', min: 1,   max: 3650 },
-        { key: 'recordLimit',     domKey: 'recordLimitInput',      prop: 'value',  kind: 'int', min: 100, max: 10000 },
+    /** Settings <-> DOM. Min/max for numbers come from the input's own attributes. */
+    const SETTING_FIELDS = [
+        { key: 'trackingEnabled', id: 'tracking-enabled-toggle', prop: 'checked' },
+        { key: 'sortOrder',       id: 'sort-order-select',       prop: 'value' },
+        { key: 'logsPerPage',     id: 'logs-per-page-input',     prop: 'value', int: true },
+        { key: 'recordLimit',     id: 'record-limit-input',      prop: 'value', int: true },
+        { key: 'pruneDays',       id: 'prune-days-input',        prop: 'value', int: true },
     ];
 
     const DEFAULT_SETTINGS = {
-        trackingEnabled: true,
+        trackingEnabled: false,
         sortOrder:       'desc',
         logsPerPage:     25,
         pruneDays:       90,
@@ -38,990 +42,695 @@
     };
 
     /* ---------------------------------------------------------------------- */
-    /*  State                                                                 */
+    /*  Helpers                                                               */
     /* ---------------------------------------------------------------------- */
-    let allHistoryRecords = [];
-    let filteredRecords   = [];
-    let installedExtensions = new Map();
-    let settings = { ...DEFAULT_SETTINGS };
+    const $ = (id) => document.getElementById(id);
 
-    let currentFilters = {
-        searchTerm: '',
-        eventTypes: new Set(EVENT_TYPES),
-        startDate:  null,
-        endDate:    null,
-    };
-
-    let currentPage = 1;
-    let totalPages  = 1;
-
-    /** Map of recordId -> record, for event delegation on the list. */
-    const renderedRecords = new Map();
-
-    const dom = {};
-
-    /* ---------------------------------------------------------------------- */
-    /*  Utilities                                                             */
-    /* ---------------------------------------------------------------------- */
-    const debounce = (fn, wait) => {
-        let t;
-        return (...args) => { clearTimeout(t); t = setTimeout(() => fn.apply(this, args), wait); };
-    };
-
-    const escapeHtml = (str) => {
-        if (str === null || str === undefined) return '';
-        return String(str).replace(/[&<>"']/g, m => ({
-            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-        }[m]));
-    };
-
-    const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-    const highlightMatch = (text, term) => {
-        if (!term || !text) return escapeHtml(text);
-        const re = new RegExp(`(${escapeRegex(term)})`, 'gi');
-        return String(text).split(re)
-            .map(part => part.toLowerCase() === term.toLowerCase()
-                ? `<mark>${escapeHtml(part)}</mark>`
-                : escapeHtml(part))
-            .join('');
-    };
-
-    const status = (typeof window !== 'undefined' && window.Status) ? window.Status : null;
-    const notify = {
-        info:    (m, d) => status ? status.info(m, d)    : console.log('[info]', m),
-        success: (m, d) => status ? status.success(m, d) : console.log('[success]', m),
-        warning: (m, d) => status ? status.warning(m, d) : console.warn('[warning]', m),
-        error:   (m, d) => status ? status.error(m, d)   : console.error('[error]', m),
-    };
-
-    const formatEventType = (t) => t.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-
-    const formatFullDate = (ts) => new Date(ts).toLocaleString(undefined, {
-        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-    });
-
-    const formatShortDate = (ts) => new Date(ts).toLocaleDateString(undefined, {
-        year: 'numeric', month: 'short', day: 'numeric',
-    });
-
-    const recordKey = (r) =>
-        r.id || `${r.timestamp}-${r.extensionId}-${r.eventType}`;
-
-    /* ---------------------------------------------------------------------- */
-    /*  DOM cache                                                             */
-    /* ---------------------------------------------------------------------- */
-    const cacheDomElements = () => {
-        const get = (id) => document.getElementById(id);
-
-        dom.contentArea      = document.querySelector('.content-area');
-        dom.initialLoading   = get('initial-loading-indicator');
-        dom.currentYear      = get('current-year');
-        dom.panels           = document.querySelectorAll('.content-panel');
-        dom.sidebarButtons   = document.querySelectorAll('.sidebar-button[data-panel-target]');
-        dom.panelLinkButtons = document.querySelectorAll('[data-panel-target]');
-
-        /* History */
-        dom.historyList        = get('history-list');
-        dom.noHistoryMessage   = get('no-history-message');
-        dom.searchInput        = get('search-input');
-        dom.clearSearchBtn     = get('clear-search-btn');
-        dom.filterToggleButton = get('filter-toggle-btn');
-        dom.filterPanel        = get('filter-panel');
-        dom.eventTypeFilters   = get('event-type-filters');
-        dom.startDateInput     = get('start-date-input');
-        dom.endDateInput       = get('end-date-input');
-        dom.clearAllButton     = get('clear-all-btn');
-        dom.resetFiltersBtn    = get('reset-filters-btn');
-        dom.selectAllFiltersBtn  = get('select-all-filters-btn');
-        dom.selectNoneFiltersBtn = get('select-none-filters-btn');
-
-        /* Pagination */
-        dom.paginationControls = get('pagination-controls');
-        dom.prevPageBtn        = get('prev-page-btn');
-        dom.nextPageBtn        = get('next-page-btn');
-        dom.currentPageDisplay = get('current-page-display');
-        dom.totalPagesDisplay  = get('total-pages-display');
-
-        /* Settings */
-        dom.trackingEnabledToggle  = get('tracking-enabled-toggle');
-        dom.pruneDaysInput         = get('prune-days-input');
-        dom.pruneNowButton         = get('prune-now-btn');
-        dom.sortOrderSelect        = get('sort-order-select');
-        dom.logsPerPageInput       = get('logs-per-page-input');
-        dom.recordLimitInput       = get('record-limit-input');
-        dom.resetDefaultsBtn       = get('reset-defaults-btn');
-        dom.settingsSavedIndicator = get('settings-saved-indicator');
-        dom.pruneInactiveBtn       = get('prune-inactive-btn');
-        dom.pruneByTypeBtn         = get('prune-by-type-btn');
-
-        /* Dialogs */
-        dom.pruneByTypeModal    = get('prune-by-type-modal');
-        dom.pruneTypeOptions    = get('prune-type-options');
-        dom.pruneTypeCancelBtn  = get('prune-type-cancel-btn');
-        dom.pruneTypeConfirmBtn = get('prune-type-confirm-btn');
-
-        dom.detailModal     = get('detail-modal');
-        dom.detailContent   = get('detail-content');
-        dom.closeDetailBtn  = get('close-detail-btn');
-        dom.copyDetailIdBtn = get('copy-detail-id-btn');
-
-        dom.checkboxTemplate = get('checkbox-template');
-    };
-
-    /* ---------------------------------------------------------------------- */
-    /*  Dialog helpers                                                        */
-    /* ---------------------------------------------------------------------- */
-    const showDialog = (dialog) => {
-        if (!dialog) return;
-        if (typeof dialog.showModal === 'function') {
-            if (!dialog.open) dialog.showModal();
-        } else {
-            dialog.setAttribute('open', '');
-        }
-    };
-
-    const closeDialog = (dialog) => {
-        if (!dialog) return;
-        if (typeof dialog.close === 'function') {
-            if (dialog.open) dialog.close();
-        } else {
-            dialog.removeAttribute('open');
-        }
-    };
-
-    /* ---------------------------------------------------------------------- */
-    /*  Shared UI builders                                                    */
-    /* ---------------------------------------------------------------------- */
-    const buildCheckbox = (type, checked) => {
-        const node = dom.checkboxTemplate.content.firstElementChild.cloneNode(true);
-        const input = node.querySelector('input');
-        input.value = type;
-        input.checked = checked;
-        node.querySelector('.checkbox-label').textContent = formatEventType(type);
+    const el = (tag, className, text) => {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text != null) node.textContent = text;
         return node;
     };
 
-    const buildEmptyState = () => {
-        const wrap = document.createElement('div');
-        wrap.className = 'empty-state';
-        const icon = document.createElement('span');
-        icon.className = 'icon icon-search-off';
-        icon.style.cssText = 'width:48px;height:48px;margin-bottom:var(--space-3);opacity:.5';
-        icon.setAttribute('aria-hidden', 'true');
-        const msg = document.createElement('p');
-        msg.textContent = 'No events found.';
-        const hint = document.createElement('p');
-        hint.className = 'text-secondary';
-        hint.textContent = 'Try adjusting your filters or search terms.';
-        wrap.append(icon, msg, hint);
-        return wrap;
+    const debounce = (fn, wait) => {
+        let t;
+        return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); };
+    };
+
+    const plural = (n, word) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
+    const typeLabel = (t) => TYPE_LABELS[t] ?? t;
+
+    const fmtTime = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' });
+    const fmtFull = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'medium' });
+    const fmtDate = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
+    const fmtDay  = new Intl.DateTimeFormat(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const collator = new Intl.Collator(undefined, { sensitivity: 'base' });
+
+    const startOfDay = (ts) => { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); };
+
+    const notify = (() => {
+        const s = window.Status;
+        const make = (level) => (msg, detail) => (s?.[level] ? s[level](msg, detail) : console[level === 'error' ? 'error' : 'log'](msg));
+        return { info: make('info'), success: make('success'), error: make('error') };
+    })();
+
+    /** Sends a message to the background and throws if it reports an error. */
+    const send = async (type, payload) => {
+        const res = await chrome.runtime.sendMessage({ type, payload });
+        if (res?.status === 'error') throw new Error(res.message);
+        return res;
+    };
+
+    /** Appends `text` to `node`, wrapping case-insensitive matches of `term` in <mark>. */
+    const appendHighlighted = (node, text, term) => {
+        if (!term) { node.append(text); return; }
+        const lower = text.toLowerCase();
+        let i = 0, j;
+        while ((j = lower.indexOf(term, i)) !== -1) {
+            if (j > i) node.append(text.slice(i, j));
+            node.append(el('mark', null, text.slice(j, j + term.length)));
+            i = j + term.length;
+        }
+        if (i < text.length) node.append(text.slice(i));
     };
 
     /* ---------------------------------------------------------------------- */
-    /*  Loading                                                               */
+    /*  State                                                                 */
     /* ---------------------------------------------------------------------- */
-    const setBusyState = (busy) => {
-        if (!dom.initialLoading || !dom.contentArea) return;
-        dom.initialLoading.style.display = busy ? 'flex' : 'none';
-        dom.contentArea.style.opacity = busy ? '0.5' : '1';
-        dom.contentArea.style.pointerEvents = busy ? 'none' : 'auto';
-        dom.sidebarButtons.forEach(b => b.disabled = busy);
-    };
+    let records   = [];
+    let filtered  = [];
+    let installed = new Map(); // extensionId -> { enabled, iconUrl }
+    let settings  = { ...DEFAULT_SETTINGS };
+    let loadFailed = false;
 
-    const setActionLoading = (busy) => {
-        [dom.clearAllButton, dom.pruneNowButton, dom.pruneInactiveBtn,
-         dom.pruneByTypeBtn, dom.resetDefaultsBtn]
-            .forEach(b => { if (b) b.disabled = busy; });
+    const newFilters = () => ({ search: '', types: new Set(EVENT_TYPES), start: null, end: null });
+    let filters = newFilters();
+
+    let page = 1;
+    let pages = 1;
+
+    const byId = new Map();       // recordId -> record (for click delegation)
+    const haystacks = new WeakMap(); // record -> lowercase search text
+    let detailRecord = null;
+
+    const dom = {
+        navButtons:      document.querySelectorAll('.sidebar-button[data-panel-target]'),
+        panels:          document.querySelectorAll('.content-panel'),
+        search:          $('search-input'),
+        filterCount:     $('filter-count'),
+        typeFilters:     $('event-type-filters'),
+        startDate:       $('start-date-input'),
+        endDate:         $('end-date-input'),
+        notice:          $('tracking-off-notice'),
+        list:            $('history-list'),
+        empty:           $('empty-state'),
+        emptyTitle:      $('empty-title'),
+        emptyHint:       $('empty-hint'),
+        emptyClear:      $('empty-clear-btn'),
+        pagination:      $('pagination-controls'),
+        prev:            $('prev-page-btn'),
+        next:            $('next-page-btn'),
+        pageInfo:        $('page-info'),
+        saved:           $('settings-saved-indicator'),
+        pruneDays:       $('prune-days-input'),
+        sidePanel:       $('side-panel'),
+        sidePanelTitle:  $('side-panel-title'),
+        filtersView:     $('filters-view'),
+        detailsView:     $('details-view'),
+        detailBody:      $('detail-content'),
     };
+    const actionButtons = ['prune-now-btn', 'prune-inactive-btn', 'clear-all-btn', 'reset-defaults-btn'].map($);
 
     /* ---------------------------------------------------------------------- */
     /*  Data loading                                                          */
     /* ---------------------------------------------------------------------- */
-    const loadInstalledExtensions = async () => {
+    const pickIcon = (icons) => {
+        if (!icons?.length) return null;
+        const sorted = [...icons].sort((a, b) => a.size - b.size);
+        return (sorted.find(i => i.size >= 48) ?? sorted.at(-1)).url;
+    };
+
+    const loadInstalled = async () => {
         try {
             const exts = await chrome.management.getAll();
-            installedExtensions = new Map(exts.map(e => [e.id, {
-                name:    e.name,
-                enabled: e.enabled,
-                iconUrl: e.icons?.[e.icons.length - 1]?.url || e.icons?.[0]?.url || null,
-            }]));
+            installed = new Map(exts.map(e => [e.id, { enabled: e.enabled, iconUrl: pickIcon(e.icons) }]));
         } catch (e) {
             console.warn('Failed to load installed extensions:', e);
         }
     };
 
+    const cleanRecords = (list) => (Array.isArray(list) ? list : [])
+        .filter(r => r && typeof r.timestamp === 'number'
+            && typeof r.extensionId === 'string'
+            && EVENT_TYPES.includes(r.eventType))
+        .map(r => r.id ? r : { ...r, id: `${r.timestamp}-${r.extensionId}-${r.eventType}` });
+
     const loadSettings = async () => {
         try {
-            const res = await chrome.runtime.sendMessage({ type: 'GET_HISTORY_SETTINGS' });
-            if (res?.settings) settings = { ...DEFAULT_SETTINGS, ...res.settings };
-            syncSettingsToUI();
+            const res = await send('GET_HISTORY_SETTINGS');
+            settings = { ...DEFAULT_SETTINGS, ...res.settings };
         } catch (e) {
             console.error('Error loading settings:', e);
             notify.error('Failed to load settings.');
         }
+        syncSettingsToUI();
     };
 
-    const loadInitialData = async (showLoading = true) => {
+    const loadHistory = async () => {
         try {
-            if (showLoading) setBusyState(true);
-            const res = await chrome.runtime.sendMessage({ type: 'GET_EXTENSION_HISTORY' });
-            allHistoryRecords = (res?.history || []).filter(r =>
-                r && typeof r === 'object' &&
-                typeof r.timestamp === 'number' &&
-                typeof r.extensionId === 'string' &&
-                typeof r.eventType === 'string' &&
-                EVENT_TYPES.includes(r.eventType)
-            );
-            applyFiltersAndSort();
-            checkHistoryLimit();
+            const res = await send('GET_EXTENSION_HISTORY');
+            records = cleanRecords(res.history);
+            loadFailed = false;
         } catch (e) {
             console.error('Error loading history:', e);
-            notify.error('Failed to load history data.');
-            if (dom.noHistoryMessage) {
-                dom.noHistoryMessage.replaceChildren(buildEmptyState());
-                dom.noHistoryMessage.hidden = false;
-            }
-        } finally {
-            if (showLoading) setBusyState(false);
+            notify.error('Failed to load history.');
+            records = [];
+            loadFailed = true;
         }
     };
 
     /* ---------------------------------------------------------------------- */
-    /*  Filtering / sorting / pagination                                      */
+    /*  Filtering, sorting, pagination                                        */
     /* ---------------------------------------------------------------------- */
-    const applyFiltersAndSort = () => {
-        const term = currentFilters.searchTerm;
-        const types = currentFilters.eventTypes;
-        const s = currentFilters.startDate;
-        const e = currentFilters.endDate;
-
-        filteredRecords = allHistoryRecords.filter(r => {
-            if (!types.has(r.eventType)) return false;
-            if (s && r.timestamp < s) return false;
-            if (e && r.timestamp > e) return false;
-            if (!term) return true;
-            return (r.extensionName || '').toLowerCase().includes(term)
-                || (r.extensionId   || '').toLowerCase().includes(term)
-                || (r.details       || '').toLowerCase().includes(term);
-        });
-
-        const so = settings.sortOrder;
-        if (so === 'desc' || so === 'asc') {
-            const dir = so === 'desc' ? -1 : 1;
-            filteredRecords.sort((a, b) => dir * (a.timestamp - b.timestamp));
-        } else if (so === 'name' || so === 'group') {
-            filteredRecords.sort((a, b) =>
-                (a.extensionName || '').localeCompare(b.extensionName || '')
-                || (b.timestamp - a.timestamp));
-        } else if (so === 'type') {
-            filteredRecords.sort((a, b) =>
-                a.eventType.localeCompare(b.eventType)
-                || (b.timestamp - a.timestamp));
+    const haystack = (r) => {
+        let h = haystacks.get(r);
+        if (h === undefined) {
+            h = `${r.extensionName || ''}\n${r.extensionId}\n${r.details || ''}\n${typeLabel(r.eventType)}`.toLowerCase();
+            haystacks.set(r, h);
         }
-
-        currentPage = 1;
-        totalPages  = Math.max(1, Math.ceil(filteredRecords.length / settings.logsPerPage));
-        renderHistory();
+        return h;
     };
 
-    const handlePageChange = (dir) => {
-        const np = currentPage + dir;
-        if (np > 0 && np <= totalPages) {
-            currentPage = np;
-            renderHistory();
+    const matches = (r) => {
+        if (!filters.types.has(r.eventType)) return false;
+        if (filters.start !== null && r.timestamp < filters.start) return false;
+        if (filters.end   !== null && r.timestamp > filters.end)   return false;
+        return !filters.search || haystack(r).includes(filters.search);
+    };
+
+    const nameOf = (r) => r.extensionName || 'Unknown';
+    const COMPARATORS = {
+        desc:  (a, b) => b.timestamp - a.timestamp,
+        asc:   (a, b) => a.timestamp - b.timestamp,
+        group: (a, b) => collator.compare(nameOf(a), nameOf(b))
+                      || (a.extensionId < b.extensionId ? -1 : a.extensionId > b.extensionId ? 1 : 0)
+                      || b.timestamp - a.timestamp,
+        type:  (a, b) => EVENT_TYPES.indexOf(a.eventType) - EVENT_TYPES.indexOf(b.eventType)
+                      || b.timestamp - a.timestamp,
+    };
+
+    const activeFilterCount = () =>
+        (filters.types.size !== EVENT_TYPES.length ? 1 : 0) + (filters.start !== null || filters.end !== null ? 1 : 0);
+
+    const applyFilters = (keepPage = false) => {
+        filtered = records.filter(matches).sort(COMPARATORS[settings.sortOrder] ?? COMPARATORS.desc);
+        pages = Math.max(1, Math.ceil(filtered.length / settings.logsPerPage));
+        page = keepPage ? Math.min(page, pages) : 1;
+
+        const n = activeFilterCount();
+        dom.filterCount.hidden = n === 0;
+        dom.filterCount.textContent = n;
+        dom.filterCount.title = `${plural(n, 'filter')} active`;
+
+        render();
+    };
+
+    const goToPage = (next) => {
+        if (next < 1 || next > pages) return;
+        page = next;
+        render();
+        window.scrollTo({ top: 0 });
+    };
+
+    /* ---------------------------------------------------------------------- */
+    /*  List rendering                                                        */
+    /* ---------------------------------------------------------------------- */
+    /** Icon (or letter fallback). The box is separate from the badge so a late image error can't remove the badge. */
+    const buildIcon = (record, wrapClass) => {
+        const wrap = el('span', wrapClass);
+        const box = el('span', 'icon-box');
+        const fallback = () => {
+            box.replaceChildren(el('span', 'icon-fallback', (record.extensionName || '?').charAt(0).toUpperCase()));
+        };
+        const url = installed.get(record.extensionId)?.iconUrl;
+        if (url) {
+            const img = el('img');
+            img.alt = '';
+            img.loading = 'lazy';
+            img.src = url;
+            img.addEventListener('error', fallback, { once: true });
+            box.append(img);
+        } else {
+            fallback();
+        }
+        wrap.append(box);
+        return wrap;
+    };
+
+    const buildItem = (r) => {
+        const li = el('li');
+        const btn = el('button', 'history-item');
+        btn.type = 'button';
+        btn.dataset.recordId = r.id;
+        byId.set(r.id, r);
+
+        const icon = buildIcon(r, 'item-icon');
+        icon.append(el('span', `status-badge status-badge-${r.eventType}`));
+
+        const title = el('span', 'history-item-title');
+        appendHighlighted(title, nameOf(r), filters.search);
+        title.append(el('span', 'history-item-version', `v${r.extensionVersion || 'N/A'}`));
+
+        const details = el('span', 'history-item-details');
+        appendHighlighted(details, typeLabel(r.eventType) + (r.details ? ` — ${r.details}` : ''), filters.search);
+
+        const main = el('span', 'history-item-main');
+        main.append(title, details);
+
+        const time = el('time', 'history-item-time', fmtTime.format(r.timestamp));
+        time.dateTime = new Date(r.timestamp).toISOString();
+        time.title = fmtFull.format(r.timestamp);
+
+        btn.append(icon, main, time);
+        li.append(btn);
+        return li;
+    };
+
+    const showEmptyState = () => {
+        const filteredOut = records.length > 0;
+        dom.empty.hidden = false;
+        dom.emptyClear.hidden = !filteredOut;
+        if (loadFailed) {
+            dom.emptyTitle.textContent = 'Couldn\u2019t load history';
+            dom.emptyHint.textContent = 'Reload this page to try again.';
+        } else if (filteredOut) {
+            dom.emptyTitle.textContent = 'No matching events';
+            dom.emptyHint.textContent = 'Try different search terms or filters.';
+        } else {
+            dom.emptyTitle.textContent = 'No activity recorded yet';
+            dom.emptyHint.textContent = settings.trackingEnabled
+                ? 'Installs, updates, enables, disables, and permission changes will appear here.'
+                : 'Timeline is turned off. Turn it on in Settings to start recording.';
         }
     };
 
-    /* ---------------------------------------------------------------------- */
-    /*  History list rendering                                                */
-    /* ---------------------------------------------------------------------- */
-    const getDayKey = (ts) => {
-        const fmt = (d) => d.toLocaleDateString(undefined,
-            { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-        const todayStr     = fmt(new Date());
-        const yesterdayStr = fmt(new Date(Date.now() - 864e5));
-        const key = fmt(new Date(ts));
-        if (key === todayStr) return 'Today';
-        if (key === yesterdayStr) return 'Yesterday';
-        return key;
-    };
+    const render = () => {
+        dom.list.replaceChildren();
+        byId.clear();
+        dom.notice.hidden = settings.trackingEnabled;
 
-    const buildHistoryItem = (record) => {
-        const item = document.createElement('div');
-        item.className = 'history-item';
-        const key = recordKey(record);
-        item.dataset.recordId = key;
-        item.setAttribute('tabindex', '0');
-        item.setAttribute('role', 'listitem');
-        item.setAttribute('aria-label',
-            `${record.extensionName || 'Unknown'}, ${formatEventType(record.eventType)}`);
-        renderedRecords.set(key, record);
-
-        /* Icon + badge */
-        const iconWrap = document.createElement('div');
-        iconWrap.className = 'item-icon';
-        const ext = installedExtensions.get(record.extensionId);
-        const iconImg = document.createElement('img');
-        iconImg.className = 'extension-icon-img';
-        iconImg.alt = '';
-        iconImg.loading = 'lazy';
-        iconImg.src = ext?.iconUrl || `chrome://extension-icon/${record.extensionId}/32/0`;
-        iconWrap.appendChild(iconImg);
-
-        const badge = document.createElement('span');
-        badge.className = `status-badge status-badge-${record.eventType}`;
-        iconWrap.appendChild(badge);
-
-        /* Content */
-        const content = document.createElement('div');
-        content.className = 'history-item-content';
-
-        const header = document.createElement('div');
-        header.className = 'history-item-header';
-        header.innerHTML = highlightMatch(
-            `${record.extensionName || 'Unknown'} (v${record.extensionVersion || 'N/A'})`,
-            currentFilters.searchTerm
-        );
-
-        const metaRow = document.createElement('div');
-        metaRow.className = 'history-item-meta-row';
-        const details = document.createElement('span');
-        details.className = 'history-item-details';
-        const detailText = formatEventType(record.eventType)
-            + (record.details ? ` — ${record.details}` : '');
-        details.innerHTML = highlightMatch(detailText, currentFilters.searchTerm);
-        metaRow.appendChild(details);
-
-        content.append(header, metaRow);
-        item.append(iconWrap, content);
-
-        const time = document.createElement('div');
-        time.className = 'history-item-meta';
-        time.textContent = new Date(record.timestamp).toLocaleTimeString();
-        item.appendChild(time);
-
-        return item;
-    };
-
-    const renderHistory = () => {
-        if (!dom.historyList) return;
-        dom.historyList.replaceChildren();
-        renderedRecords.clear();
-
-        const page = filteredRecords.slice(
-            (currentPage - 1) * settings.logsPerPage,
-            currentPage * settings.logsPerPage
-        );
-
-        if (filteredRecords.length === 0) {
-            dom.noHistoryMessage.replaceChildren(buildEmptyState());
-            dom.noHistoryMessage.hidden = false;
-            dom.paginationControls.hidden = true;
+        if (filtered.length === 0) {
+            showEmptyState();
+            dom.pagination.hidden = true;
             return;
         }
+        dom.empty.hidden = true;
 
-        dom.noHistoryMessage.hidden = true;
-        dom.paginationControls.hidden = false;
+        const mode = settings.sortOrder;
+        const today = startOfDay(Date.now());
+        const y = new Date(today); y.setDate(y.getDate() - 1);
+        const yesterday = y.getTime();
 
+        const keyOf = mode === 'group' ? (r) => r.extensionId
+                    : mode === 'type'  ? (r) => r.eventType
+                    : (r) => startOfDay(r.timestamp);
+        const labelOf = mode === 'group' ? nameOf
+                      : mode === 'type'  ? (r) => typeLabel(r.eventType)
+                      : (r) => {
+                            const s = startOfDay(r.timestamp);
+                            return s === today ? 'Today' : s === yesterday ? 'Yesterday' : fmtDay.format(r.timestamp);
+                        };
+
+        const start = (page - 1) * settings.logsPerPage;
         const frag = document.createDocumentFragment();
-        const isGroup = settings.sortOrder === 'group';
-        let lastGroupKey = null;
+        let lastKey, items;
 
-        for (const r of page) {
-            const groupKey = isGroup ? (r.extensionName || 'Unknown Extension')
-                                     : getDayKey(r.timestamp);
-            if (groupKey !== lastGroupKey) {
-                const h = document.createElement('h3');
-                h.className = isGroup ? 'history-group-header' : 'history-day-header';
-                h.textContent = groupKey;
-                frag.appendChild(h);
-                lastGroupKey = groupKey;
+        for (const r of filtered.slice(start, start + settings.logsPerPage)) {
+            const key = keyOf(r);
+            if (key !== lastKey) {
+                const section = el('section', 'history-group');
+                section.append(el('h3', 'history-group-title', labelOf(r)));
+                items = el('ul', 'history-items');
+                section.append(items);
+                frag.append(section);
+                lastKey = key;
             }
-            frag.appendChild(buildHistoryItem(r));
+            items.append(buildItem(r));
         }
+        dom.list.append(frag);
 
-        dom.historyList.appendChild(frag);
-        renderPagination();
-    };
-
-    const renderPagination = () => {
-        if (!dom.paginationControls) return;
-        dom.paginationControls.hidden = totalPages <= 1;
-        dom.prevPageBtn.disabled = currentPage === 1;
-        dom.nextPageBtn.disabled = currentPage === totalPages;
-        dom.currentPageDisplay.textContent = currentPage;
-        dom.totalPagesDisplay.textContent = totalPages;
+        dom.pagination.hidden = pages <= 1;
+        dom.prev.disabled = page === 1;
+        dom.next.disabled = page === pages;
+        dom.pageInfo.textContent = `Page ${page} of ${pages}`;
     };
 
     /* ---------------------------------------------------------------------- */
-    /*  Detail dialog                                                         */
+    /*  Side panel (filters + event details)                                  */
     /* ---------------------------------------------------------------------- */
-    const openDetailModal = (record) => {
-        if (!dom.detailContent) return;
+    const openSidePanel = (view) => {
+        const showFilters = view === 'filters';
+        dom.filtersView.hidden = !showFilters;
+        dom.detailsView.hidden = showFilters;
+        dom.sidePanelTitle.textContent = showFilters ? 'Filters' : 'Event details';
+        if (!dom.sidePanel.open) dom.sidePanel.showModal();
+    };
 
-        const ext = installedExtensions.get(record.extensionId);
-        const iconUrl = ext?.iconUrl || `chrome://extension-icon/${record.extensionId}/32/0`;
+    const closeSidePanel = () => {
+        if (dom.sidePanel.open) dom.sidePanel.close();
+    };
 
-        const extHistory = allHistoryRecords.filter(r => r.extensionId === record.extensionId);
-        const totalEvents = extHistory.length;
-        const firstSeen = totalEvents ? Math.min(...extHistory.map(r => r.timestamp)) : record.timestamp;
-        const lastSeen  = totalEvents ? Math.max(...extHistory.map(r => r.timestamp)) : record.timestamp;
-        const recent = extHistory
-            .slice()
-            .sort((a, b) => b.timestamp - a.timestamp)
-            .slice(0, MAX_DETAIL_HISTORY_ROWS);
+    /* ---------------------------------------------------------------------- */
+    /*  Detail view                                                           */
+    /* ---------------------------------------------------------------------- */
+    const detailRow = (label, value) => {
+        const row = el('div', 'detail-row');
+        row.append(el('span', 'detail-label', label));
+        const val = el('span', 'detail-value');
+        if (value instanceof Node) val.append(value);
+        else val.textContent = value;
+        row.append(val);
+        return row;
+    };
+
+    /** Builds a titled group of label/value rows. Falsy entries are skipped. */
+    const detailSection = (title, rows) => {
+        const section = el('section', 'detail-section');
+        section.append(el('h5', 'detail-section-title', title));
+        const body = el('div', 'detail-rows');
+        body.append(...rows.filter(Boolean));
+        section.append(body);
+        return section;
+    };
+
+    const openDetail = (r) => {
+        detailRecord = r;
+        const ext = installed.get(r.extensionId);
+
+        const mine = records.filter(x => x.extensionId === r.extensionId);
+        let first = Infinity, last = -Infinity;
+        for (const x of mine) { first = Math.min(first, x.timestamp); last = Math.max(last, x.timestamp); }
+        const recent = mine.slice().sort(COMPARATORS.desc).slice(0, DETAIL_RECENT_ROWS);
+
+        const statusKind = ext ? (ext.enabled ? 'enabled' : 'disabled') : 'uninstalled';
+        const statusText = ext ? (ext.enabled ? 'Enabled' : 'Disabled') : 'Uninstalled';
 
         const frag = document.createDocumentFragment();
 
-        /* Header */
-        const header = document.createElement('div');
-        header.className = 'detail-header';
-        const icon = document.createElement('img');
-        icon.className = 'detail-icon';
-        icon.alt = '';
-        icon.src = iconUrl;
-        icon.addEventListener('error', () => { icon.style.display = 'none'; }, { once: true });
-        const headerInfo = document.createElement('div');
-        headerInfo.className = 'detail-header-info';
-        const h4 = document.createElement('h4');
-        h4.textContent = record.extensionName || 'Unknown Extension';
-        const versionSpan = document.createElement('span');
-        versionSpan.className = 'detail-version';
-        versionSpan.textContent = `Version ${record.extensionVersion || 'N/A'}`;
-        headerInfo.append(h4, versionSpan);
-        header.append(icon, headerInfo);
-        frag.appendChild(header);
-
-        /* Event + When */
-        frag.append(
-            makeDetailRow('Event', formatEventType(record.eventType)),
-            makeDetailRow('When',  formatFullDate(record.timestamp)),
+        // Identity
+        const header = el('div', 'detail-header');
+        const identity = el('div', 'detail-identity');
+        identity.append(
+            el('h4', null, nameOf(r)),
+            el('span', 'detail-version', `Version ${r.extensionVersion || 'N/A'}`),
+            el('span', `detail-status detail-status-${statusKind}`, statusText),
         );
+        header.append(buildIcon(r, 'item-icon'), identity);
+        frag.append(header);
 
-        /* Extension ID */
-        const idRow = document.createElement('div');
-        idRow.className = 'detail-row';
-        const idLabel = document.createElement('strong');
-        idLabel.textContent = 'Extension ID';
-        const idCode = document.createElement('code');
-        idCode.className = 'detail-code';
-        idCode.id = 'detail-extension-id';
-        idCode.textContent = record.extensionId;
-        idRow.append(idLabel, idCode);
-        frag.appendChild(idRow);
+        // Event
+        frag.append(detailSection('Event', [
+            detailRow('Type', typeLabel(r.eventType)),
+            detailRow('When', fmtFull.format(r.timestamp)),
+            r.details ? detailRow('Details', el('p', 'detail-text', r.details)) : null,
+        ]));
 
-        /* Optional details */
-        if (record.details) {
-            const detailsRow = document.createElement('div');
-            detailsRow.className = 'detail-row detail-details';
-            const detailsLabel = document.createElement('strong');
-            detailsLabel.textContent = 'Event Details';
-            const detailsPara = document.createElement('p');
-            detailsPara.textContent = record.details;
-            detailsRow.append(detailsLabel, detailsPara);
-            frag.appendChild(detailsRow);
-        }
+        // Extension
+        frag.append(detailSection('Extension', [
+            detailRow('ID', el('code', 'detail-code', r.extensionId)),
+            detailRow('Total events', String(mine.length)),
+            detailRow('First seen', fmtDate.format(first)),
+            detailRow('Last seen', fmtDate.format(last)),
+        ]));
 
-        /* Insights */
-        const insightsTitle = document.createElement('h5');
-        insightsTitle.className = 'detail-section-title';
-        insightsTitle.textContent = 'Insights';
-        frag.appendChild(insightsTitle);
+        // Recent activity
+        if (recent.length) {
+            const section = el('section', 'detail-section');
+            section.append(el('h5', 'detail-section-title', 'Recent activity'));
+            const ul = el('ul', 'detail-recent-list');
+            for (const x of recent) {
+                const li = el('li');
+                const left = el('div', 'detail-recent-event');
+                left.append(el('strong', null, typeLabel(x.eventType)));
+                if (x.details) left.append(el('span', 'detail-recent-details', x.details));
 
-        const statsGrid = document.createElement('div');
-        statsGrid.className = 'detail-stats-grid';
-        statsGrid.append(
-            makeStatCell('Total Events', String(totalEvents)),
-            makeStatCell('Current Status',
-                ext ? (ext.enabled ? 'Enabled' : 'Disabled') : 'Uninstalled'),
-            makeStatCell('First Seen', formatShortDate(firstSeen)),
-            makeStatCell('Last Seen',  formatShortDate(lastSeen)),
-        );
-        frag.appendChild(statsGrid);
+                const time = el('time', 'detail-recent-time', fmtFull.format(x.timestamp));
+                time.dateTime = new Date(x.timestamp).toISOString();
 
-        /* Recent activity */
-        if (recent.length > 0) {
-            const recentTitle = document.createElement('h5');
-            recentTitle.className = 'detail-section-title';
-            recentTitle.textContent = 'Recent Activity';
-            frag.appendChild(recentTitle);
-
-            const list = document.createElement('ul');
-            list.className = 'detail-recent-list';
-            for (const r of recent) {
-                const li = document.createElement('li');
-                const left = document.createElement('div');
-                left.className = 'detail-recent-event';
-                const typeSpan = document.createElement('strong');
-                typeSpan.textContent = formatEventType(r.eventType);
-                left.appendChild(typeSpan);
-                if (r.details) {
-                    const detailsSpan = document.createElement('span');
-                    detailsSpan.className = 'detail-recent-details';
-                    detailsSpan.textContent = r.details;
-                    left.appendChild(detailsSpan);
-                }
-                const timeSpan = document.createElement('span');
-                timeSpan.className = 'detail-recent-time';
-                timeSpan.textContent = formatFullDate(r.timestamp);
-                li.append(left, timeSpan);
-                list.appendChild(li);
+                li.append(left, time);
+                ul.append(li);
             }
-            frag.appendChild(list);
+            section.append(ul);
+            frag.append(section);
         }
 
-        dom.detailContent.replaceChildren(frag);
-        if (dom.copyDetailIdBtn) dom.copyDetailIdBtn.disabled = false;
-        showDialog(dom.detailModal);
+        dom.detailBody.replaceChildren(frag);
+        openSidePanel('details');
     };
 
-    const makeDetailRow = (label, value) => {
-        const div = document.createElement('div');
-        div.className = 'detail-row';
-        const strong = document.createElement('strong');
-        strong.textContent = label;
-        const span = document.createElement('span');
-        span.textContent = value;
-        div.append(strong, span);
-        return div;
+    const filterToDetailExtension = () => {
+        if (!detailRecord) return;
+        dom.search.value = detailRecord.extensionId;
+        filters.search = detailRecord.extensionId.toLowerCase();
+        closeSidePanel();
+        applyFilters();
     };
 
-    const makeStatCell = (label, value) => {
-        const div = document.createElement('div');
-        div.className = 'detail-cell';
-        const strong = document.createElement('strong');
-        strong.textContent = label;
-        const span = document.createElement('span');
-        span.textContent = value;
-        div.append(strong, span);
-        return div;
-    };
-
-    const handleCopyDetailId = async () => {
-        const idEl = document.getElementById('detail-extension-id');
-        if (!idEl) return;
+    const copyDetailId = async () => {
+        if (!detailRecord) return;
         try {
-            await navigator.clipboard.writeText(idEl.textContent);
-            notify.success('Extension ID copied to clipboard.');
+            await navigator.clipboard.writeText(detailRecord.extensionId);
+            notify.success('Extension ID copied.');
         } catch {
-            notify.error('Failed to copy.');
+            notify.error('Couldn\u2019t copy to the clipboard.');
         }
+    };
+
+    /* ---------------------------------------------------------------------- */
+    /*  Filters                                                               */
+    /* ---------------------------------------------------------------------- */
+    const buildTypeFilters = () => {
+        const frag = document.createDocumentFragment();
+        for (const type of EVENT_TYPES) {
+            const label = el('label', 'checkbox-row');
+            const input = el('input');
+            input.type = 'checkbox';
+            input.value = type;
+            input.checked = true;
+            label.append(input, el('span', null, typeLabel(type)));
+            frag.append(label);
+        }
+        dom.typeFilters.replaceChildren(frag);
+    };
+
+    const setTypeCheckboxes = (types) => {
+        for (const input of dom.typeFilters.querySelectorAll('input')) input.checked = types.has(input.value);
+    };
+
+    const readTypeFilters = () => {
+        filters.types = new Set([...dom.typeFilters.querySelectorAll('input:checked')].map(i => i.value));
+        applyFilters();
+    };
+
+    const readDateFilters = () => {
+        const s = dom.startDate.value, e = dom.endDate.value;
+        // Parsed as local time so the range matches what the user sees in the list.
+        filters.start = s ? new Date(`${s}T00:00:00`).getTime() : null;
+        filters.end   = e ? new Date(`${e}T23:59:59.999`).getTime() : null;
+        dom.endDate.min = s;   // native validation keeps the range valid
+        dom.startDate.max = e;
+        applyFilters();
+    };
+
+    const resetFilters = () => {
+        filters = newFilters();
+        dom.search.value = '';
+        dom.startDate.value = dom.endDate.value = '';
+        dom.startDate.max = dom.endDate.min = '';
+        setTypeCheckboxes(filters.types);
+        applyFilters();
     };
 
     /* ---------------------------------------------------------------------- */
     /*  Settings                                                              */
     /* ---------------------------------------------------------------------- */
     const syncSettingsToUI = () => {
-        for (const b of SETTINGS_BINDINGS) {
-            const el = dom[b.domKey];
-            if (el) el[b.prop] = settings[b.key];
-        }
-        updateSettingsControlsState();
+        for (const f of SETTING_FIELDS) $(f.id)[f.prop] = settings[f.key];
     };
 
     const readSettingsFromUI = () => {
-        for (const b of SETTINGS_BINDINGS) {
-            const el = dom[b.domKey];
-            if (!el) continue;
-            let v = el[b.prop];
-            if (b.kind === 'bool') {
-                v = !!v;
-            } else if (b.kind === 'int') {
+        for (const f of SETTING_FIELDS) {
+            const input = $(f.id);
+            let v = input[f.prop];
+            if (f.int) {
                 v = parseInt(v, 10);
-                if (!Number.isFinite(v)) v = settings[b.key];
-                if (b.min != null) v = Math.max(b.min, v);
-                if (b.max != null) v = Math.min(b.max, v);
+                if (!Number.isFinite(v)) v = settings[f.key];
+                v = Math.min(+input.max, Math.max(+input.min, v));
+                input.value = v;
             }
-            settings[b.key] = v;
+            settings[f.key] = v;
         }
     };
 
-    const updateSettingsControlsState = () => {
-        const on = dom.trackingEnabledToggle.checked;
-        [dom.pruneNowButton, dom.pruneDaysInput, dom.recordLimitInput,
-         dom.pruneInactiveBtn, dom.pruneByTypeBtn]
-            .forEach(el => { if (el) el.disabled = !on; });
+    const flashSaved = () => {
+        dom.saved.textContent = 'Saved';
+        clearTimeout(flashSaved.t);
+        flashSaved.t = setTimeout(() => { dom.saved.textContent = ''; }, 2000);
     };
 
-    const showSaveIndicator = () => {
-        if (!dom.settingsSavedIndicator) return;
-        dom.settingsSavedIndicator.hidden = false;
-        dom.settingsSavedIndicator.classList.add('visible');
-        clearTimeout(dom.settingsSavedIndicator._t);
-        dom.settingsSavedIndicator._t = setTimeout(
-            () => dom.settingsSavedIndicator.classList.remove('visible'), 2000);
-    };
-
-    const saveSettings = async (showFeedback = true) => {
-        readSettingsFromUI();
+    const saveSettings = async () => {
         try {
-            await chrome.runtime.sendMessage({
-                type: 'UPDATE_HISTORY_SETTINGS',
-                payload: settings,
-            });
-            if (showFeedback) notify.success('Settings saved.');
-            else showSaveIndicator();
-            applyFiltersAndSort();
-            checkHistoryLimit();
+            await send('UPDATE_HISTORY_SETTINGS', settings);
+            flashSaved();
+            applyFilters();
         } catch (e) {
             console.error('Error saving settings:', e);
             notify.error('Failed to save settings.');
         }
     };
 
-    const debouncedAutoSave = debounce(() => saveSettings(false), SETTINGS_SAVE_DEBOUNCE_MS);
+    const debouncedSave = debounce(saveSettings, SAVE_DEBOUNCE_MS);
 
-    const checkHistoryLimit = () => {
-        if (!settings.trackingEnabled) return;
-        if (allHistoryRecords.length <= settings.recordLimit) return;
-        handleAutoPrune();
+    const onSettingChange = () => {
+        readSettingsFromUI();
+        dom.notice.hidden = settings.trackingEnabled;
+        debouncedSave();
     };
 
-    const handleAutoPrune = async () => {
-        try {
-            await chrome.runtime.sendMessage({
-                type: 'PRUNE_HISTORY_TO_LIMIT',
-                payload: { limit: settings.recordLimit },
-            });
-            await loadInitialData(false);
-            notify.success(`History pruned to ${settings.recordLimit} records.`);
-        } catch (e) {
-            console.error('Auto-prune failed:', e);
-        }
-    };
-
-    const handleResetDefaults = async () => {
-        if (!confirm('Reset all settings to defaults?')) return;
+    const resetDefaults = async () => {
+        if (!confirm('Reset all Timeline settings to their defaults?')) return;
         settings = { ...DEFAULT_SETTINGS };
         syncSettingsToUI();
         await saveSettings();
-        notify.success('Settings reset to defaults.');
     };
 
     /* ---------------------------------------------------------------------- */
-    /*  Filter checkboxes                                                     */
+    /*  Data actions                                                          */
     /* ---------------------------------------------------------------------- */
-    const buildFilterCheckboxes = () => {
-        const frag = document.createDocumentFragment();
-        for (const type of EVENT_TYPES) {
-            frag.appendChild(buildCheckbox(type, currentFilters.eventTypes.has(type)));
+    /** Runs a destructive action with buttons disabled, then reloads the list. */
+    const runAction = async (action, successMessage) => {
+        actionButtons.forEach(b => { b.disabled = true; });
+        try {
+            const res = await action();
+            await Promise.all([loadHistory(), loadInstalled()]);
+            applyFilters(true);
+            notify.success(successMessage(res));
+        } catch (e) {
+            console.error('Action failed:', e);
+            notify.error(e.message || 'Something went wrong.');
+        } finally {
+            actionButtons.forEach(b => { b.disabled = false; });
         }
-        dom.eventTypeFilters.replaceChildren(frag);
+    };
+
+    const removedMessage = (res) => `Removed ${plural(res.removed ?? 0, 'record')}.`;
+
+    const pruneNow = () => {
+        const input = dom.pruneDays;
+        const days = parseInt(input.value, 10);
+        if (!input.checkValidity() || !Number.isFinite(days)) { input.reportValidity(); return; }
+
+        const cutoff = Date.now() - days * DAY_MS;
+        const count = records.filter(r => r.timestamp < cutoff).length;
+        if (!count) { notify.info(`No records older than ${plural(days, 'day')}.`); return; }
+        if (!confirm(`Delete ${plural(count, 'record')} older than ${plural(days, 'day')}? This can\u2019t be undone.`)) return;
+
+        runAction(() => send('PRUNE_HISTORY_BY_DAYS', { daysToKeep: days }), removedMessage);
+    };
+
+    const pruneInactive = () => {
+        if (installed.size === 0) { notify.error('Couldn\u2019t read the installed extensions list.'); return; }
+        const count = records.filter(r => !installed.has(r.extensionId)).length;
+        if (!count) { notify.info('No history for uninstalled extensions.'); return; }
+        if (!confirm(`Delete ${plural(count, 'record')} for extensions that are no longer installed? This can\u2019t be undone.`)) return;
+
+        runAction(() => send('PRUNE_INACTIVE_EXTENSIONS'), removedMessage);
+    };
+
+    const clearAll = () => {
+        if (!records.length) { notify.info('There\u2019s no history to clear.'); return; }
+        if (!confirm(`Delete all ${plural(records.length, 'record')}? This can\u2019t be undone.`)) return;
+
+        runAction(() => send('CLEAR_EXTENSION_HISTORY'), removedMessage);
     };
 
     /* ---------------------------------------------------------------------- */
-    /*  Handlers                                                              */
+    /*  Navigation & global handlers                                          */
     /* ---------------------------------------------------------------------- */
     const switchPanel = (targetId) => {
-        const target = document.getElementById(targetId);
-        if (!target) return;
-
-        dom.sidebarButtons.forEach(btn => {
+        dom.navButtons.forEach(btn => {
             const active = btn.dataset.panelTarget === targetId;
             btn.classList.toggle('active', active);
-            btn.setAttribute('aria-current', active ? 'page' : 'false');
+            if (active) btn.setAttribute('aria-current', 'page');
+            else btn.removeAttribute('aria-current');
         });
-        dom.panels.forEach(panel => {
-            const isTarget = panel.id === targetId;
-            panel.hidden = !isTarget;
-            panel.classList.toggle('active', isTarget);
-        });
-
-        // Close the filter popover when leaving the history panel.
-        if (dom.filterPanel?.matches(':popover-open')) {
-            dom.filterPanel.hidePopover();
-        }
+        dom.panels.forEach(panel => { panel.hidden = panel.id !== targetId; });
+        closeSidePanel();
     };
 
-    const handleSearchInput = (e) => {
-        currentFilters.searchTerm = e.target.value.trim().toLowerCase();
-        dom.clearSearchBtn.hidden = !currentFilters.searchTerm;
-        applyFiltersAndSort();
+    const onGlobalKeydown = (e) => {
+        if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+        const t = e.target;
+        if (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName)) return;
+        if (document.querySelector('dialog[open]')) return;
+        if (document.getElementById('panel-history').hidden) return;
+        e.preventDefault();
+        dom.search.focus();
     };
 
-    const handleClearSearch = () => {
-        dom.searchInput.value = '';
-        currentFilters.searchTerm = '';
-        dom.clearSearchBtn.hidden = true;
-        applyFiltersAndSort();
-    };
+    /** Keeps the list live while the page is open (events recorded in the background). */
+    const refreshLive = debounce(async () => {
+        await loadInstalled();
+        applyFilters(true);
+    }, REFRESH_DEBOUNCE_MS);
 
-    const handleFilterChange = (e) => {
-        const cb = e.target;
-        if (cb.checked) currentFilters.eventTypes.add(cb.value);
-        else currentFilters.eventTypes.delete(cb.value);
-        applyFiltersAndSort();
-    };
-
-    const handleDateFilterChange = () => {
-        const s = dom.startDateInput.value;
-        const e = dom.endDateInput.value;
-        if (s && e && new Date(s) > new Date(e)) {
-            notify.error('Start date cannot be after end date.');
-            dom.endDateInput.value = '';
-            return;
-        }
-        currentFilters.startDate = s ? new Date(s).getTime() : null;
-        currentFilters.endDate   = e ? new Date(e).setHours(23, 59, 59, 999) : null;
-        applyFiltersAndSort();
-    };
-
-    const handleResetFilters = () => {
-        currentFilters = {
-            searchTerm: '',
-            eventTypes: new Set(EVENT_TYPES),
-            startDate: null,
-            endDate: null,
-        };
-        dom.searchInput.value = '';
-        dom.clearSearchBtn.hidden = true;
-        dom.startDateInput.value = '';
-        dom.endDateInput.value = '';
-        buildFilterCheckboxes();
-        applyFiltersAndSort();
-        notify.info('Filters reset.');
-    };
-
-    const handleSelectAllFilters = () => {
-        currentFilters.eventTypes = new Set(EVENT_TYPES);
-        buildFilterCheckboxes();
-        applyFiltersAndSort();
-    };
-
-    const handleSelectNoneFilters = () => {
-        currentFilters.eventTypes.clear();
-        buildFilterCheckboxes();
-        applyFiltersAndSort();
-    };
-
-    const handleClearAllHistory = async () => {
-        if (!allHistoryRecords.length) {
-            notify.info('No history to clear.');
-            return;
-        }
-        if (!confirm('Delete ALL history records? This cannot be undone.')) return;
-        try {
-            await chrome.runtime.sendMessage({ type: 'CLEAR_EXTENSION_HISTORY' });
-            allHistoryRecords = [];
-            applyFiltersAndSort();
-            notify.success('All history cleared.');
-        } catch (e) {
-            console.error('Error clearing history:', e);
-            notify.error('Failed to clear history.');
-        }
-    };
-
-    const handlePruneNow = async () => {
-        const days = parseInt(dom.pruneDaysInput.value, 10);
-        if (!Number.isFinite(days) || days < 1) {
-            notify.error('Enter a valid number of days (1+).');
-            return;
-        }
-        if (!confirm(`Prune all records older than ${days} days?`)) return;
-        setActionLoading(true);
-        try {
-            await chrome.runtime.sendMessage({
-                type: 'PRUNE_HISTORY_BY_DAYS',
-                payload: { daysToKeep: days },
-            });
-            await loadInitialData();
-            notify.success(`Records older than ${days} days pruned.`);
-        } catch (e) {
-            console.error('Prune failed:', e);
-            notify.error('Failed to prune history.');
-        } finally {
-            setActionLoading(false);
-        }
-    };
-
-    const handlePruneInactive = async () => {
-        if (!confirm('Prune all records for extensions that are currently uninstalled?')) return;
-        setActionLoading(true);
-        try {
-            await chrome.runtime.sendMessage({ type: 'PRUNE_INACTIVE_EXTENSIONS' });
-            await loadInitialData();
-            notify.success('Inactive extension history pruned.');
-        } catch (e) {
-            console.error('Prune inactive failed:', e);
-            notify.error('Failed to prune inactive history.');
-        } finally {
-            setActionLoading(false);
-        }
-    };
-
-    const openPruneByTypeModal = () => {
-        const frag = document.createDocumentFragment();
-        for (const type of EVENT_TYPES) {
-            frag.appendChild(buildCheckbox(type, false));
-        }
-        dom.pruneTypeOptions.replaceChildren(frag);
-        dom.pruneTypeConfirmBtn.disabled = true;
-        showDialog(dom.pruneByTypeModal);
-    };
-
-    const handlePruneByTypeConfirm = async () => {
-        const types = Array.from(
-            dom.pruneTypeOptions.querySelectorAll('input:checked')
-        ).map(i => i.value);
-        if (!types.length) return;
-        setActionLoading(true);
-        try {
-            await chrome.runtime.sendMessage({
-                type: 'PRUNE_HISTORY_BY_TYPES',
-                payload: types,
-            });
-            await loadInitialData();
-            notify.success('Selected event types pruned.');
-            closeDialog(dom.pruneByTypeModal);
-        } catch (e) {
-            console.error('Prune by type failed:', e);
-            notify.error('Failed to prune by type.');
-        } finally {
-            setActionLoading(false);
-        }
-    };
-
-    const handleGlobalKeydown = (e) => {
-        if (e.key === 'Escape' && document.activeElement === dom.searchInput && dom.searchInput.value) {
-            handleClearSearch();
-            return;
-        }
-        if (e.key === '/' &&
-            !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
-            e.preventDefault();
-            dom.searchInput.focus();
-        }
+    const onStorageChanged = (changes, area) => {
+        if (area !== 'local' || !changes[HISTORY_KEY]) return;
+        records = cleanRecords(changes[HISTORY_KEY].newValue);
+        loadFailed = false;
+        refreshLive();
     };
 
     /* ---------------------------------------------------------------------- */
-    /*  Event wiring                                                          */
+    /*  Wiring                                                                */
     /* ---------------------------------------------------------------------- */
     const setupEventListeners = () => {
-        /* Navigation */
-        dom.panelLinkButtons.forEach(btn => {
-            btn.addEventListener('click', () => switchPanel(btn.dataset.panelTarget));
-        });
+        dom.navButtons.forEach(btn => btn.addEventListener('click', () => switchPanel(btn.dataset.panelTarget)));
 
-        /* Search */
-        dom.searchInput.addEventListener('input', debounce(handleSearchInput, SEARCH_DEBOUNCE_MS));
-        dom.clearSearchBtn.addEventListener('click', handleClearSearch);
+        // Native type="search": its built-in clear button and Esc also fire `input`.
+        dom.search.addEventListener('input', debounce(() => {
+            filters.search = dom.search.value.trim().toLowerCase();
+            applyFilters();
+        }, SEARCH_DEBOUNCE_MS));
 
-        /* Filter panel — native popover handles toggle/light-dismiss/Escape.
-           We only sync aria-expanded and initial checkbox building. */
-        dom.filterPanel.addEventListener('toggle', (e) => {
-            dom.filterToggleButton.setAttribute(
-                'aria-expanded',
-                e.newState === 'open' ? 'true' : 'false'
-            );
-        });
-        dom.resetFiltersBtn.addEventListener('click', handleResetFilters);
-        dom.selectAllFiltersBtn.addEventListener('click', handleSelectAllFilters);
-        dom.selectNoneFiltersBtn.addEventListener('click', handleSelectNoneFilters);
-        dom.eventTypeFilters.addEventListener('change', handleFilterChange);
-        dom.startDateInput.addEventListener('change', handleDateFilterChange);
-        dom.endDateInput.addEventListener('change', handleDateFilterChange);
+        $('filter-toggle-btn').addEventListener('click', () => openSidePanel('filters'));
+        document.querySelectorAll('[data-close-panel]').forEach(btn => btn.addEventListener('click', closeSidePanel));
 
-        /* History list — event delegation (no per-item listeners) */
-        dom.historyList.addEventListener('click', (e) => {
+        dom.typeFilters.addEventListener('change', readTypeFilters);
+        $('select-all-filters-btn').addEventListener('click', () => { setTypeCheckboxes(new Set(EVENT_TYPES)); readTypeFilters(); });
+        $('select-none-filters-btn').addEventListener('click', () => { setTypeCheckboxes(new Set()); readTypeFilters(); });
+        dom.startDate.addEventListener('change', readDateFilters);
+        dom.endDate.addEventListener('change', readDateFilters);
+        $('reset-filters-btn').addEventListener('click', resetFilters);
+        dom.emptyClear.addEventListener('click', resetFilters);
+
+        // One listener for the whole list.
+        dom.list.addEventListener('click', (e) => {
             const item = e.target.closest('.history-item');
-            if (!item) return;
-            const record = renderedRecords.get(item.dataset.recordId);
-            if (record) openDetailModal(record);
-        });
-        dom.historyList.addEventListener('keydown', (e) => {
-            if (e.key !== 'Enter' && e.key !== ' ') return;
-            const item = e.target.closest('.history-item');
-            if (!item) return;
-            e.preventDefault();
-            const record = renderedRecords.get(item.dataset.recordId);
-            if (record) openDetailModal(record);
-        });
-        /* Icon load failures bubble via capture phase (error doesn't bubble) */
-        dom.historyList.addEventListener('error', (e) => {
-            const img = e.target;
-            if (!(img instanceof HTMLImageElement)) return;
-            if (!img.classList.contains('extension-icon-img')) return;
-            img.style.display = 'none';
-            const wrap = img.parentElement;
-            if (!wrap || wrap.querySelector('.extension-icon-fallback')) return;
-            const fallback = document.createElement('div');
-            fallback.className = 'extension-icon-fallback';
-            const record = renderedRecords.get(wrap.parentElement?.dataset?.recordId);
-            fallback.textContent = (record?.extensionName || '?').charAt(0).toUpperCase();
-            wrap.appendChild(fallback);
-        }, true);
-
-        /* Pagination */
-        dom.prevPageBtn.addEventListener('click', () => handlePageChange(-1));
-        dom.nextPageBtn.addEventListener('click', () => handlePageChange(1));
-
-        /* Settings — bind change events via schema */
-        for (const b of SETTINGS_BINDINGS) {
-            const el = dom[b.domKey];
-            if (!el) continue;
-            el.addEventListener('change', () => {
-                if (b.kind === 'int') {
-                    let v = parseInt(el.value, 10);
-                    if (!Number.isFinite(v)) v = b.min ?? 0;
-                    if (b.min != null) v = Math.max(b.min, v);
-                    if (b.max != null) v = Math.min(b.max, v);
-                    el.value = v;
-                }
-                debouncedAutoSave();
-            });
-        }
-        dom.trackingEnabledToggle.addEventListener('change', updateSettingsControlsState);
-
-        /* Data management */
-        dom.pruneNowButton.addEventListener('click', handlePruneNow);
-        dom.pruneInactiveBtn.addEventListener('click', handlePruneInactive);
-        dom.pruneByTypeBtn.addEventListener('click', openPruneByTypeModal);
-        dom.clearAllButton.addEventListener('click', handleClearAllHistory);
-        dom.resetDefaultsBtn.addEventListener('click', handleResetDefaults);
-
-        /* Prune dialog */
-        dom.pruneTypeCancelBtn.addEventListener('click', () => closeDialog(dom.pruneByTypeModal));
-        dom.pruneTypeConfirmBtn.addEventListener('click', handlePruneByTypeConfirm);
-        dom.pruneTypeOptions.addEventListener('change', () => {
-            dom.pruneTypeConfirmBtn.disabled =
-                dom.pruneTypeOptions.querySelectorAll('input:checked').length === 0;
+            const record = item && byId.get(item.dataset.recordId);
+            if (record) openDetail(record);
         });
 
-        /* Detail dialog */
-        dom.closeDetailBtn?.addEventListener('click', () => closeDialog(dom.detailModal));
-        dom.copyDetailIdBtn?.addEventListener('click', handleCopyDetailId);
+        dom.prev.addEventListener('click', () => goToPage(page - 1));
+        dom.next.addEventListener('click', () => goToPage(page + 1));
 
-        /* Click outside dialog = close (native dialog doesn't do this by default) */
-        [dom.pruneByTypeModal, dom.detailModal].forEach(dlg => {
-            dlg?.addEventListener('click', (e) => {
-                if (e.target === dlg) dlg.close();
-            });
+        for (const f of SETTING_FIELDS) $(f.id).addEventListener('change', onSettingChange);
+        $('enable-tracking-btn').addEventListener('click', () => {
+            $('tracking-enabled-toggle').checked = true;
+            onSettingChange();
         });
 
-        document.addEventListener('keydown', handleGlobalKeydown);
+        $('prune-now-btn').addEventListener('click', pruneNow);
+        $('prune-inactive-btn').addEventListener('click', pruneInactive);
+        $('clear-all-btn').addEventListener('click', clearAll);
+        $('reset-defaults-btn').addEventListener('click', resetDefaults);
+
+        $('detail-filter-btn').addEventListener('click', filterToDetailExtension);
+        $('copy-detail-id-btn').addEventListener('click', copyDetailId);
+
+        document.addEventListener('keydown', onGlobalKeydown);
+        chrome.storage.onChanged.addListener(onStorageChanged);
     };
 
-    /* ---------------------------------------------------------------------- */
-    /*  Entry point                                                           */
-    /* ---------------------------------------------------------------------- */
-    const initializeApp = async () => {
-        cacheDomElements();
+    const init = async () => {
+        buildTypeFilters();
         setupEventListeners();
-        setBusyState(true);
+        $('current-year').textContent = new Date().getFullYear();
 
-        await Promise.all([
-            loadSettings(),
-            loadInstalledExtensions(),
-            loadInitialData(false),
-        ]);
-
-        buildFilterCheckboxes();
-        if (dom.currentYear) dom.currentYear.textContent = new Date().getFullYear();
-        checkHistoryLimit();
-        setBusyState(false);
+        await Promise.all([loadSettings(), loadInstalled(), loadHistory()]);
+        applyFilters();
     };
 
-    document.addEventListener('DOMContentLoaded', initializeApp);
+    init();
 })();
