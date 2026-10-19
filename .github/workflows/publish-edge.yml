@@ -1,0 +1,252 @@
+name: Publish to Microsoft Edge Add-ons
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: edge-addons-publishing
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Upload and publish extension
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      EDGE_API_URL: https://api.addons.microsoftedge.microsoft.com/v1
+      EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+      EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
+      EDGE_PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
+
+    steps:
+      - name: Check out release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || github.sha }}
+          fetch-depth: 0
+
+      - name: Validate extension manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f manifest.json ]]; then
+            echo "::error::manifest.json must be at the repository root."
+            exit 1
+          fi
+
+          if ! jq -e '.manifest_version and .name and .version' manifest.json >/dev/null; then
+            echo "::error::manifest.json is invalid or missing required fields."
+            exit 1
+          fi
+
+          echo "Extension manifest:"
+          jq '{name, version, manifest_version}' manifest.json
+
+      - name: Package entire repository
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Include all tracked repository files, including README,
+          # documentation, .github, source files, and manifest.json.
+          # Git metadata is excluded; files stay at the ZIP root.
+          git archive \
+            --format=zip \
+            --output="$RUNNER_TEMP/edge-extension.zip" \
+            HEAD
+
+          unzip -l "$RUNNER_TEMP/edge-extension.zip"
+
+          if ! unzip -Z1 "$RUNNER_TEMP/edge-extension.zip" \
+            | grep -qx 'manifest.json'; then
+            echo "::error::manifest.json is not at the ZIP root."
+            exit 1
+          fi
+
+      - name: Verify publishing credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for name in EDGE_CLIENT_ID EDGE_API_KEY EDGE_PRODUCT_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing GitHub Actions secret: $name"
+              exit 1
+            fi
+          done
+
+      - name: Upload package to Microsoft Edge
+        id: upload
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          headers="$RUNNER_TEMP/upload-headers.txt"
+          body="$RUNNER_TEMP/upload-response.json"
+
+          status=$(curl --silent --show-error \
+            --output "$body" \
+            --dump-header "$headers" \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: ApiKey $EDGE_API_KEY" \
+            --header "X-ClientID: $EDGE_CLIENT_ID" \
+            --header "Content-Type: application/zip" \
+            --data-binary "@$RUNNER_TEMP/edge-extension.zip" \
+            "$EDGE_API_URL/products/$EDGE_PRODUCT_ID/submissions/draft/package")
+
+          if [[ "$status" != "202" ]]; then
+            echo "::error::Package upload failed with HTTP $status."
+            cat "$body"
+            exit 1
+          fi
+
+          operation=$(awk '
+            tolower($1) == "location:" {
+              gsub("\r", "", $2)
+              n = split($2, parts, "/")
+              print parts[n]
+            }
+          ' "$headers" | tail -n 1)
+
+          if [[ -z "$operation" ]]; then
+            echo "::error::Microsoft did not return an upload operation ID."
+            exit 1
+          fi
+
+          echo "operation=$operation" >> "$GITHUB_OUTPUT"
+          echo "Upload accepted. Operation: $operation"
+
+      - name: Wait for package upload
+        shell: bash
+        env:
+          OPERATION_ID: ${{ steps.upload.outputs.operation }}
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 60); do
+            response=$(curl --silent --show-error --fail-with-body \
+              --header "Authorization: ApiKey $EDGE_API_KEY" \
+              --header "X-ClientID: $EDGE_CLIENT_ID" \
+              "$EDGE_API_URL/products/$EDGE_PRODUCT_ID/submissions/draft/package/operations/$OPERATION_ID")
+
+            status=$(jq -r '.status // "Unknown"' <<< "$response")
+            echo "Upload status: $status"
+
+            case "$status" in
+              Succeeded)
+                exit 0
+                ;;
+              Failed)
+                echo "::error::Microsoft rejected the package upload."
+                jq . <<< "$response"
+                exit 1
+                ;;
+              InProgress|NotStarted)
+                sleep 10
+                ;;
+              *)
+                echo "::error::Unexpected upload status: $status"
+                jq . <<< "$response"
+                exit 1
+                ;;
+            esac
+          done
+
+          echo "::error::Timed out waiting for the package upload."
+          exit 1
+
+      - name: Submit for publication
+        id: publish
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || github.sha }}
+        run: |
+          set -euo pipefail
+
+          notes=$(jq -n \
+            --arg tag "$RELEASE_TAG" \
+            '{notes: ("Automated GitHub release: " + $tag)}')
+
+          headers="$RUNNER_TEMP/publish-headers.txt"
+          body="$RUNNER_TEMP/publish-response.json"
+
+          status=$(curl --silent --show-error \
+            --output "$body" \
+            --dump-header "$headers" \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: ApiKey $EDGE_API_KEY" \
+            --header "X-ClientID: $EDGE_CLIENT_ID" \
+            --header "Content-Type: application/json" \
+            --data "$notes" \
+            "$EDGE_API_URL/products/$EDGE_PRODUCT_ID/submissions")
+
+          if [[ "$status" != "202" ]]; then
+            echo "::error::Publication request failed with HTTP $status."
+            cat "$body"
+            exit 1
+          fi
+
+          operation=$(awk '
+            tolower($1) == "location:" {
+              gsub("\r", "", $2)
+              n = split($2, parts, "/")
+              print parts[n]
+            }
+          ' "$headers" | tail -n 1)
+
+          if [[ -z "$operation" ]]; then
+            echo "::error::Microsoft did not return a publication operation ID."
+            exit 1
+          fi
+
+          echo "operation=$operation" >> "$GITHUB_OUTPUT"
+          echo "Publication request accepted. Operation: $operation"
+
+      - name: Wait for publication processing
+        shell: bash
+        env:
+          OPERATION_ID: ${{ steps.publish.outputs.operation }}
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 60); do
+            response=$(curl --silent --show-error --fail-with-body \
+              --header "Authorization: ApiKey $EDGE_API_KEY" \
+              --header "X-ClientID: $EDGE_CLIENT_ID" \
+              "$EDGE_API_URL/products/$EDGE_PRODUCT_ID/submissions/operations/$OPERATION_ID")
+
+            status=$(jq -r '.status // "Unknown"' <<< "$response")
+            echo "Publication status: $status"
+
+            case "$status" in
+              Succeeded)
+                echo "Microsoft completed the publication operation."
+                exit 0
+                ;;
+              Failed)
+                echo "::error::Microsoft's publication operation failed."
+                jq . <<< "$response"
+                exit 1
+                ;;
+              InProgress|NotStarted)
+                sleep 10
+                ;;
+              *)
+                echo "::error::Unexpected publication status: $status"
+                jq . <<< "$response"
+                exit 1
+                ;;
+            esac
+          done
+
+          echo "::error::Timed out waiting for publication processing."
+          exit 1
